@@ -83,7 +83,18 @@ const nextConfig = {
   },
 
   // Webpack configuration for development
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    // Windows 파일 감시 안정화 (polling 모드)
+    // 증상: 코드 수정 후 변경 감지 실패, webpack 캐시 문제
+    // 해결: polling 모드로 강제 파일 감시
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000, // 1초마다 파일 변경 확인
+        aggregateTimeout: 300, // 변경 감지 후 300ms 대기 후 재빌드
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
+      };
+    }
+
     // Bundle analyzer integration
     if (process.env.ANALYZE === 'true' && !isServer) {
       // Dynamic import to avoid bundling in production
