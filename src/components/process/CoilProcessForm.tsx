@@ -7,6 +7,7 @@ import type { CreateCoilProcessRequest } from '@/types/coil';
 import Modal from '@/components/Modal';
 import ItemSelect from '@/components/ItemSelect';
 import { useToast } from '@/contexts/ToastContext';
+import { extractErrorMessage } from '@/lib/fetch-utils';
 
 interface CoilProcessFormProps {
   onSuccess?: () => void;
@@ -121,7 +122,6 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
       .then(res => res.json())
       .then(result => {
         if (!result.success) {
-          const { extractErrorMessage } = await import('@/lib/fetch-utils');
           throw new Error(extractErrorMessage(result.error) || '공정 등록에 실패했습니다.');
         }
 

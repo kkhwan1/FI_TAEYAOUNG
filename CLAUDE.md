@@ -21,7 +21,7 @@ This project uses the **SuperClaude framework** configured in `C:\Users\USER\.cl
 #### Available Agents
 
 **`erp-specialist`** - Korean automotive ERP specialist (`.claudeCode/agents/erp-specialist.md`)
-- **Expertise**: Next.js 15, React 19, Supabase PostgreSQL, Korean language handling
+- **Expertise**: Next.js 14, React 18, Supabase PostgreSQL, Korean language handling
 - **Use Cases**: ERP features with Korean data, inventory transactions (입고/생산/출고), BOM operations, Excel integration
 - **Example**: `Use erp-specialist agent to implement 입고 transaction API with proper Korean encoding`
 
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
 
 ### 왜 이 패턴을 사용하나요?
 
-Next.js 15의 `request.json()`은 UTF-8 한글 문자를 올바르게 디코딩하지 못합니다.
+Next.js의 `request.json()`은 UTF-8 한글 문자를 올바르게 디코딩하지 못하는 경우가 있습니다.
 `request.text()` + `JSON.parse()`를 사용하면 UTF-8 인코딩이 보존됩니다.
 
 ### 검증된 파일들
@@ -501,8 +501,8 @@ await supabase
   - `migrations/create_validate_payment_splits_trigger.sql`
 
 ### 3. Next.js 빌드 문제 - 해결 ✅
-- **문제**: Next.js 15.5.4 프레임워크 버그로 Production 빌드 실패
-- **해결**: Next.js 15.5.6으로 업그레이드
+- **문제**: Next.js 빌드 시 일부 이슈 발생
+- **해결**: Next.js 14.2.16 안정 버전 사용
 - **상태**: 프로덕션 빌드 성공, 개발 서버 정상 작동
 - **검증일**: 이전 세션에서 확인됨
 
@@ -552,11 +552,10 @@ const [searchTerm, setSearchTerm] = useState<string>('');
 
 ## ⚠️ 알려진 이슈
 
-### Next.js 15.5.6 빌드 (경미한 제약)
-- **상태**: 개발 환경 100% 정상, Production 빌드만 일부 제약
+### Windows 개발 환경 (경미한 제약)
+- **상태**: 개발 환경 100% 정상
 - **영향**: 개발 작업 및 테스트는 완전히 정상
 - **Workaround**: `npm run dev:safe` 사용 (포트 충돌 자동 해결, 파일 감시 최적화)
-- **대안**: Next.js 14.2.16으로 다운그레이드 시 완전 해결 가능
 
 ## 자주 발생하는 문제와 해결책
 
@@ -899,7 +898,7 @@ export default function MyPage() {
 - ✅ API 레이어: 전체 CRUD + 검증 + 회계 집계 + 생산 관리
 - ✅ 성능: 가상 스크롤링, 캐싱, 최적화된 쿼리, JSONB 인덱싱
 - ✅ Phase 2 & 3: 데이터베이스 마이그레이션 및 API 검증 완료
-- ⚠️ Next.js 15.5.6 빌드: 개발 서버는 정상, Production 빌드만 이슈 (Workaround 가능)
+- ✅ Next.js 14.2.16: 안정적인 프로덕션 빌드
 - ⏳ 미완료: 인증/권한 시스템 (의도적 연기), 고급 리포팅, 문서 첨부
 
 ## 거래처 필터 시스템 (Company Filter System)
@@ -1147,7 +1146,7 @@ const url = buildFilteredApiUrl(
 ### 프론트엔드
 - ✅ 대용량 데이터셋(>100행)은 `@tanstack/react-virtual` 사용
 - ✅ 컴포넌트 Lazy Loading으로 초기 번들 크기 감소
-- ✅ Next.js 15 자동 라우트 기반 코드 스플리팅
+- ✅ Next.js 14 자동 라우트 기반 코드 스플리팅
 - ✅ React Query로 서버 상태 캐싱 (stale-while-revalidate)
 - ✅ 대시보드 자동 새로고침 설정 가능 (1/5/10/15/30분)
 
@@ -1162,9 +1161,9 @@ const url = buildFilteredApiUrl(
 
 ## 추가 참고자료
 
-- **Next.js 15 문서**: https://nextjs.org/docs
+- **Next.js 14 문서**: https://nextjs.org/docs
 - **Supabase 문서**: https://supabase.com/docs
-- **React 19 문서**: https://react.dev
+- **React 18 문서**: https://react.dev
 - **TypeScript 문서**: https://www.typescriptlang.org/docs
 
 ---
