@@ -47,7 +47,8 @@ export const InventoryClassificationWidget: React.FC<InventoryClassificationWidg
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to load classification statistics');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || 'Failed to load classification statistics');
       }
 
       setData(result.data);

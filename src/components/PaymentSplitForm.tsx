@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 export interface PaymentSplit {
-  method: 'CASH' | 'CARD' | 'BILL' | 'CHECK' | 'CREDIT';
+  method: 'CASH' | 'CARD' | 'BILL' | 'CHECK' | 'CREDIT' | 'TRANSFER';
   amount: number;
   bill_number?: string;
   bill_date?: string;
   bill_drawer?: string;
   check_number?: string;
   check_bank?: string;
+  bank_name?: string; // TRANSFER용
+  account_number?: string; // TRANSFER용
   notes?: string;
 }
 
@@ -81,6 +83,7 @@ export default function PaymentSplitForm({
 
   const paymentMethods = [
     { value: 'CASH', label: '현금' },
+    { value: 'TRANSFER', label: '계좌이체' },
     { value: 'CARD', label: '카드' },
     { value: 'BILL', label: '어음' },
     { value: 'CHECK', label: '수표' },
@@ -235,6 +238,48 @@ export default function PaymentSplitForm({
                           onChange={(e) => handleChangeSplit(index, 'bill_drawer', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                           placeholder="발행자 입력"
+                        />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* 조건부 필드: 계좌이체 */}
+                {split.method === 'TRANSFER' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        은행명 <span className="text-red-500">*</span>
+                      </label>
+                      {readOnly ? (
+                        <div className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
+                          {split.bank_name || '-'}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={split.bank_name || ''}
+                          onChange={(e) => handleChangeSplit(index, 'bank_name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          placeholder="은행명 입력"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        계좌번호 <span className="text-red-500">*</span>
+                      </label>
+                      {readOnly ? (
+                        <div className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
+                          {split.account_number || '-'}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={split.account_number || ''}
+                          onChange={(e) => handleChangeSplit(index, 'account_number', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          placeholder="계좌번호 입력"
                         />
                       )}
                     </div>

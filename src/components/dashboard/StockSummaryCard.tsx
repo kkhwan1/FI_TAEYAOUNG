@@ -82,7 +82,8 @@ const StockSummaryCard: React.FC = () => {
           total_value: data.statistics?.total_value || 0
         });
       } else {
-        throw new Error(result.error || '요약 데이터를 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '요약 데이터를 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('Error fetching summary data:', err);

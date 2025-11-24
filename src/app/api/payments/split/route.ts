@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
       bill_drawer: p.bill_drawer || null,
       check_number: p.check_number || null,
       check_bank: p.check_bank || null,
+      bank_name: p.bank_name || null, // TRANSFER용
+      account_number: p.account_number || null, // TRANSFER용
       notes: p.notes || null
     }));
 

@@ -104,7 +104,8 @@ export default function AccountingSummaryPage() {
         if (result.success) {
           setData(result.data);
         } else {
-          const errorMsg = result.error || '데이터를 불러오는데 실패했습니다.';
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          const errorMsg = extractErrorMessage(result.error) || '데이터를 불러오는데 실패했습니다.';
           setError(errorMsg);
           showToast('로딩 실패', 'error', errorMsg);
         }

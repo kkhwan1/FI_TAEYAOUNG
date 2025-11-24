@@ -727,7 +727,8 @@ export default function PaymentForm({ payment, onSave, onCancel }: PaymentFormPr
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          disabled={loading}
+          className="px-6 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           취소
         </button>

@@ -124,7 +124,8 @@ export default function ContractsPage() {
       if (result.success) {
         setContracts(result.data);
       } else {
-        error(result.error || '계약 목록을 불러올 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '계약 목록을 불러올 수 없습니다.');
       }
     } catch (err) {
       error('계약 목록을 불러오는 중 오류가 발생했습니다.');
@@ -236,7 +237,8 @@ export default function ContractsPage() {
       if (result.success) {
         setDocuments(result.data || []);
       } else {
-        error(result.error || '문서 목록을 불러올 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '문서 목록을 불러올 수 없습니다.');
       }
     } catch (err) {
       error('문서 목록을 불러오는 중 오류가 발생했습니다.');
@@ -276,7 +278,8 @@ export default function ContractsPage() {
         success('문서가 삭제되었습니다.');
         await fetchDocuments(selectedContract.contract_id);
       } else {
-        error(result.error || '문서 삭제 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '문서 삭제 실패');
       }
     } catch (err) {
       error('문서 삭제 중 오류가 발생했습니다.');
@@ -323,7 +326,8 @@ export default function ContractsPage() {
         success('계약이 삭제되었습니다.');
         fetchContracts();
       } else {
-        error(result.error || '삭제 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '삭제 실패');
       }
     } catch (err) {
       error('삭제 중 오류가 발생했습니다.');
@@ -423,7 +427,8 @@ export default function ContractsPage() {
         // 계약 목록 새로고침
         await fetchContracts();
       } else {
-        error(result.error || '계약 추가에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '계약 추가에 실패했습니다.');
       }
     } catch (err) {
       error('계약 추가 중 오류가 발생했습니다.');

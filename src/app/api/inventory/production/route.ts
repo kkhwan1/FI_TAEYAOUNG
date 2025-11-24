@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const searchParams = request.nextUrl.searchParams;
+    const companyId = searchParams.get('company_id');
+    
+    // Use Supabase Admin client to bypass RLS
+    const supabase = supabaseAdmin;
 
-    const { data: transactions, error } = await supabase
+    let query = supabase
       .from('inventory_transactions')
       .select(`
         *,
@@ -18,7 +20,14 @@ export async function GET(): Promise<NextResponse> {
         users!created_by(username),
         companies(company_id, company_name)
       `)
-      .in('transaction_type', ['생산입고', '생산출고'])
+      .in('transaction_type', ['생산입고', '생산출고']);
+
+    // Apply company filter if provided
+    if (companyId) {
+      query = query.eq('company_id', parseInt(companyId));
+    }
+
+    const { data: transactions, error } = await query
       .order('created_at', { ascending: false });
 
     if (error) {

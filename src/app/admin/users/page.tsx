@@ -80,7 +80,8 @@ export default function UsersPage() {
       if (result.success) {
         setUsers(result.data);
       } else {
-        error(result.error || '사용자 목록을 불러올 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '사용자 목록을 불러올 수 없습니다.');
       }
     } catch (err) {
       error('사용자 목록을 불러오는 중 오류가 발생했습니다.');
@@ -116,7 +117,8 @@ export default function UsersPage() {
         success('사용자가 비활성화되었습니다.');
         fetchUsers();
       } else {
-        error(result.error || '사용자를 비활성화할 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '사용자를 비활성화할 수 없습니다.');
       }
     } catch (err) {
       error('사용자를 비활성화하는 중 오류가 발생했습니다.');
@@ -148,7 +150,8 @@ export default function UsersPage() {
         setEditingUser(null);
         fetchUsers();
       } else {
-        error(result.error || '저장에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error(extractErrorMessage(result.error) || '저장에 실패했습니다.');
       }
     } catch (err) {
       error('저장 중 오류가 발생했습니다.');

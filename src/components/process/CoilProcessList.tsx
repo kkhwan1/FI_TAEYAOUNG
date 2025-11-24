@@ -49,7 +49,8 @@ export default function CoilProcessList() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || '공정 목록을 불러올 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '공정 목록을 불러올 수 없습니다.');
       }
 
       setProcesses(result.data || []);

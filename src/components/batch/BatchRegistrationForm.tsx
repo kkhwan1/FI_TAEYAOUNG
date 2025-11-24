@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Save, Loader2, Calendar, Plus, Trash2, Factory } from 'lucide-react';
 import ItemSelect from '@/components/ItemSelect';
 import { ItemForComponent as Item } from '@/types/inventory';
+import { useToast } from '@/contexts/ToastContext';
 
 interface BatchItem {
   item_id: number;
@@ -31,6 +32,7 @@ interface BatchRegistrationFormProps {
 }
 
 export default function BatchRegistrationForm({ onSuccess, onCancel }: BatchRegistrationFormProps) {
+  const { success: showSuccess, error: showError } = useToast();
   const [formData, setFormData] = useState<BatchFormData>({
     batch_date: new Date().toISOString().split('T')[0],
     notes: '',
@@ -161,10 +163,11 @@ export default function BatchRegistrationForm({ onSuccess, onCancel }: BatchRegi
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || '배치 등록 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '배치 등록 실패');
       }
 
-      alert(`배치 등록 성공!\n배치 번호: ${result.data.batch_number}`);
+      showSuccess(`배치 등록 성공! 배치 번호: ${result.data.batch_number}`);
 
       // Reset form
       setFormData({
@@ -178,7 +181,8 @@ export default function BatchRegistrationForm({ onSuccess, onCancel }: BatchRegi
       }
     } catch (error: any) {
       console.error('배치 등록 에러:', error);
-      alert(`배치 등록 실패: ${error.message}`);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(`배치 등록 실패: ${extractErrorMessage(error) || error.message}`);
     } finally {
       setLoading(false);
     }

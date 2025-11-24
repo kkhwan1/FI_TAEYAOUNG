@@ -138,8 +138,10 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
       if (result.success) {
         setBOMData(result.data.bomEntries || []);
       } else {
-        setError(result.error || 'BOM 데이터 로드 실패');
-        toast.error('데이터 로드 실패', result.error);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        const errorMsg = extractErrorMessage(result.error) || 'BOM 데이터 로드 실패';
+        setError(errorMsg);
+        toast.error('데이터 로드 실패', errorMsg);
       }
     } catch (err) {
       const errorMsg = 'BOM 데이터 로딩 실패';

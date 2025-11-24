@@ -47,7 +47,7 @@ This project uses the **SuperClaude framework** configured in `C:\Users\USER\.cl
 ## 프로젝트 개요
 
 **태창 ERP 시스템** - 한글 자동차 부품 제조 ERP
-- **Tech Stack**: Next.js 15.5.6 + React 19.1.0 + TypeScript
+- **Tech Stack**: Next.js 14.2.16 + React 18.3.1 + TypeScript
 - **Database**: Supabase PostgreSQL (Cloud-Native, 로컬 설치 불필요)
 - **Port**: 5000 (개발 서버)
 - **특징**: 한글 데이터 처리, 재고 관리, BOM, Excel 통합, 실시간 대시보드

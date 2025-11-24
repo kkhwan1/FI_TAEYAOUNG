@@ -138,7 +138,8 @@ export default function InvoicesPage() {
       if (result.success) {
         setInvoices(result.data || []);
       } else {
-        showToast(result.error || '계산서 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '계산서 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -195,7 +196,8 @@ export default function InvoicesPage() {
         showToast('계산서가 삭제되었습니다', 'success');
         fetchInvoices();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting invoice:', error);
@@ -302,7 +304,8 @@ export default function InvoicesPage() {
         setIsFormOpen(false);
         fetchInvoices();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving invoice:', error);

@@ -53,7 +53,8 @@ export default function LoginPage() {
         // 로그인 성공 시 대시보드로 이동
         window.location.href = '/';
       } else {
-        setError(data.error || '로그인에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        setError(extractErrorMessage(data.error) || '로그인에 실패했습니다.');
       }
     } catch (error) {
       console.error('Login error:', error);

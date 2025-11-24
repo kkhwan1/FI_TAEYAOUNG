@@ -92,7 +92,8 @@ export default function CoilTraceabilityView() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || '추적성 정보를 불러올 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '추적성 정보를 불러올 수 없습니다.');
       }
 
       setTraceabilityChain(result.data);

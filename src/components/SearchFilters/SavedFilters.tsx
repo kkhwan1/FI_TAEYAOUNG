@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Bookmark, Trash2, Edit2, Calendar, Filter } from 'lucide-react';
 import { FilterState } from '@/hooks/useAdvancedFilter';
+import { useToast } from '@/contexts/ToastContext';
 
 interface SavedFilter {
   name: string;
@@ -32,6 +33,7 @@ export const SavedFilters: React.FC<SavedFiltersProps> = ({
   className = '',
   disabled = false
 }) => {
+  const { error: showError } = useToast();
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showManageDialog, setShowManageDialog] = useState(false);
@@ -81,7 +83,7 @@ export const SavedFilters: React.FC<SavedFiltersProps> = ({
     // 중복 이름 확인
     const exists = savedFilters.some(f => f.name === editName.trim());
     if (exists) {
-      alert('같은 이름의 필터가 이미 존재합니다.');
+      showError('같은 이름의 필터가 이미 존재합니다.');
       return;
     }
 

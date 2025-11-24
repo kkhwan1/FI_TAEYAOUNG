@@ -111,7 +111,8 @@ export default function PaymentsContent({ className }: PaymentsContentProps) {
       if (result.success) {
         setPayments(result.data);
       } else {
-        showToast(result.error || '지급 내역 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '지급 내역 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching payments:', error);
@@ -186,7 +187,8 @@ export default function PaymentsContent({ className }: PaymentsContentProps) {
         showToast('지급 내역이 삭제되었습니다', 'success');
         fetchPayments();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting payment:', error);
@@ -293,7 +295,8 @@ export default function PaymentsContent({ className }: PaymentsContentProps) {
         setIsFormOpen(false);
         fetchPayments();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving payment:', error);

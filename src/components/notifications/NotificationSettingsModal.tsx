@@ -77,7 +77,8 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
           onClose();
         }, 1500);
       } else {
-        setError(result.error || '설정 저장 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        setError(extractErrorMessage(result.error) || '설정 저장 실패');
       }
     } catch (err: any) {
       setError(err.message || '설정 저장 중 오류 발생');

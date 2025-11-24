@@ -107,7 +107,50 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`notes.ilike.%${search}%`);
+      // 검색어가 숫자인 경우 operation_id로도 검색
+      const searchNum = parseInt(search);
+      const isNumeric = !isNaN(searchNum);
+      
+      // items 테이블에서 품목명/품목코드로 검색하여 item_id 목록 찾기
+      let itemIds: number[] = [];
+      if (search) {
+        const { data: itemsData } = await supabase
+          .from('items')
+          .select('item_id')
+          .or(`item_name.ilike.%${search}%,item_code.ilike.%${search}%`);
+        
+        if (itemsData) {
+          itemIds = itemsData.map((item: any) => item.item_id);
+        }
+      }
+      
+      // 검색 조건 구성 (Supabase .or() 문법: column.operator.value,column.operator.value)
+      const searchConditions: string[] = [];
+      
+      // notes 검색
+      searchConditions.push(`notes.ilike.%${search}%`);
+      
+      // operation_id 검색 (숫자인 경우)
+      if (isNumeric) {
+        searchConditions.push(`operation_id.eq.${searchNum}`);
+      }
+      
+      // item_id 검색 (품목명/품목코드로 찾은 경우)
+      if (itemIds.length > 0) {
+        // .in() 메서드를 사용하거나, 여러 개의 .eq()를 OR로 결합
+        // Supabase에서는 .or()와 .in()을 함께 사용할 수 없으므로
+        // 별도로 처리하거나 클라이언트 사이드에서 필터링
+        // 여기서는 간단하게 여러 조건을 OR로 결합
+        itemIds.forEach(itemId => {
+          searchConditions.push(`input_item_id.eq.${itemId}`);
+          searchConditions.push(`output_item_id.eq.${itemId}`);
+        });
+      }
+      
+      // OR 조건으로 결합
+      if (searchConditions.length > 0) {
+        query = query.or(searchConditions.join(','));
+      }
     }
 
     // Get status counts for all operations (before filtering and pagination)

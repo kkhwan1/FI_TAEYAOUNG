@@ -32,7 +32,8 @@ export default function ProcessStartButton({
         onStart?.();
         setShowConfirm(false);
       } else {
-        toast.error(data.error || '처리 중 오류가 발생했습니다');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        toast.error(extractErrorMessage(data.error) || '처리 중 오류가 발생했습니다');
       }
     } catch (error) {
       console.error('공정 시작 오류:', error);

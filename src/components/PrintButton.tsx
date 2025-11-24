@@ -8,6 +8,7 @@ import {
   PrintOptions,
   TableColumn
 } from '@/utils/printUtils';
+import { useToast } from '@/contexts/ToastContext';
 
 interface PrintButtonProps {
   data: Record<string, any>[];
@@ -215,6 +216,7 @@ export default function PrintButton({
   onPrintComplete,
   onError
 }: PrintButtonProps) {
+  const { error: showErrorToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
 
@@ -269,7 +271,8 @@ export default function PrintButton({
       onError?.(error as Error);
 
       // 사용자에게 오류 메시지 표시
-      alert(`인쇄 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showErrorToast(`인쇄 중 오류가 발생했습니다: ${extractErrorMessage(error) || (error instanceof Error ? error.message : '알 수 없는 오류')}`);
     } finally {
       setIsLoading(false);
     }

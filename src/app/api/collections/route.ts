@@ -91,9 +91,29 @@ export const GET = async (request: NextRequest) => {
     }
 
     if (search) {
-      // Search by collection_no
-      // Note: Customer name search would require join, so we only search collection_no for now
-      query = query.ilike('collection_no', `%${search}%`);
+      // Search by collection_no or customer name
+      // First, find customer IDs matching the search term
+      const { data: matchingCustomers } = await supabaseAdmin
+        .from('companies')
+        .select('company_id')
+        .or(`company_name.ilike.%${search}%,company_code.ilike.%${search}%`)
+        .limit(100);
+      
+      const customerIds = matchingCustomers?.map(c => c.company_id) || [];
+      
+      // Build search conditions
+      const searchConditions: string[] = [];
+      searchConditions.push(`collection_no.ilike.%${search}%`);
+      
+      if (customerIds.length > 0) {
+        // Search by customer_id if we found matching customers
+        const customerIdConditions = customerIds.map(id => `customer_id.eq.${id}`).join(',');
+        searchConditions.push(customerIdConditions);
+      }
+      
+      if (searchConditions.length > 0) {
+        query = query.or(searchConditions.join(','));
+      }
     }
 
     // Apply ordering and pagination

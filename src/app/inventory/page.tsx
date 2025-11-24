@@ -340,7 +340,8 @@ function InventoryContent() {
         ]);
         showSuccess('거래가 삭제되었습니다.');
       } else {
-        showError(result.error || '삭제에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(extractErrorMessage(result.error) || '삭제에 실패했습니다.');
       }
     } catch (error) {
       console.error('Error deleting transaction:', error);
@@ -540,7 +541,8 @@ function InventoryContent() {
             showSuccess(`${multiItemData.items.length}개 품목이 일괄 등록되었습니다.`);
             return;
           } else {
-            throw new Error(result.error || '일괄 등록에 실패했습니다.');
+            const { extractErrorMessage } = await import('@/lib/fetch-utils');
+            throw new Error(extractErrorMessage(result.error) || '일괄 등록에 실패했습니다.');
           }
         }
         
@@ -585,7 +587,8 @@ function InventoryContent() {
           });
           
           if (!data.success) {
-            throw new Error(data.error || '처리에 실패했습니다');
+            const { extractErrorMessage } = await import('@/lib/fetch-utils');
+            throw new Error(extractErrorMessage(data.error) || '처리에 실패했습니다');
           }
           
           return data;
@@ -645,7 +648,8 @@ function InventoryContent() {
             showSuccess(`${productionData.items!.length}개 품목 생산이 일괄 등록되었습니다.`);
             return;
           } else {
-            throw new Error(result.error || '생산 일괄 등록에 실패했습니다.');
+            const { extractErrorMessage } = await import('@/lib/fetch-utils');
+            throw new Error(extractErrorMessage(result.error) || '생산 일괄 등록에 실패했습니다.');
           }
         }
         
@@ -716,8 +720,10 @@ function InventoryContent() {
           showSuccess(`${selectedTransaction ? '수정' : '등록'}이 완료되었습니다.`);
           return data; // Return the response data
         } else {
-          showError(`오류: ${data.error || '처리에 실패했습니다'}`);
-          throw new Error(data.error || '처리에 실패했습니다');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          const errorMsg = extractErrorMessage(data.error) || '처리에 실패했습니다';
+          showError(`오류: ${errorMsg}`);
+          throw new Error(errorMsg);
         }
       }
     } catch (error) {
@@ -882,16 +888,12 @@ function InventoryContent() {
     .filter((item) => selectedCompany === 'ALL' || item.company_id === selectedCompany),
   [stockInfo, selectedClassification, selectedCompany]);
 
+  // Filter transactions: classification and search only (company filter is handled server-side)
   const filteredTransactions = useMemo(() => transactions
     .filter((tx) => {
       if (!selectedClassification) return true;
       const txClassification = tx.inventory_type || (tx as any).items?.inventory_type || null;
       return txClassification === selectedClassification;
-    })
-    .filter((tx) => {
-      if (selectedCompany === 'ALL') return true;
-      const txCompany = tx.company_id || (tx as any).companies?.company_id;
-      return txCompany === selectedCompany;
     })
     .filter((tx) => {
       // TASK-002: Comprehensive search filter logic (with null safety fix)
@@ -900,10 +902,10 @@ function InventoryContent() {
       return (
         (tx.item_name ?? '').toLowerCase().includes(searchLower) ||
         (tx.item_code ?? '').toLowerCase().includes(searchLower) ||
-        (tx.reference_no && tx.reference_no.toLowerCase().includes(searchLower))
+        (tx.reference_number && tx.reference_number.toLowerCase().includes(searchLower))
       );
     }),
-  [transactions, selectedClassification, selectedCompany, searchTerm]);
+  [transactions, selectedClassification, searchTerm]);
 
   return (
     <div className="flex flex-col gap-3 sm:gap-6 p-3 sm:p-6 max-w-[2000px] mx-auto">

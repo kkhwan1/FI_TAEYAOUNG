@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import type { CoilProcessHistory } from '@/types/coil';
+import { useToast } from '@/contexts/ToastContext';
 
 interface CoilProcessDetailProps {
   processId: number;
@@ -11,6 +12,7 @@ interface CoilProcessDetailProps {
 
 export default function CoilProcessDetail({ processId }: CoilProcessDetailProps) {
   const router = useRouter();
+  const { success: showSuccess, error: showError } = useToast();
 
   const [process, setProcess] = useState<CoilProcessHistory | null>(null);
   const [stockHistory, setStockHistory] = useState<any[]>([]);
@@ -34,7 +36,8 @@ export default function CoilProcessDetail({ processId }: CoilProcessDetailProps)
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || '공정 정보를 불러올 수 없습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '공정 정보를 불러올 수 없습니다.');
       }
 
       // Get the specific process by ID
@@ -77,17 +80,19 @@ export default function CoilProcessDetail({ processId }: CoilProcessDetailProps)
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || '공정 완료 처리에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '공정 완료 처리에 실패했습니다.');
       }
 
-      alert('공정이 성공적으로 완료되었습니다.\n재고가 자동으로 이동되었습니다.');
+      showSuccess('공정이 성공적으로 완료되었습니다. 재고가 자동으로 이동되었습니다.');
       setShowCompleteModal(false);
 
       // Refresh process data
       await fetchProcessDetail();
       await fetchStockHistory();
     } catch (err) {
-      alert(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(err) || '알 수 없는 오류가 발생했습니다.');
     } finally {
       setIsCompleting(false);
     }

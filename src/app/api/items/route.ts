@@ -303,6 +303,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
+      // Apply company filter to count query as well
+      countQuery = applyCompanyFilter(countQuery, 'items', companyId, 'supplier');
+
       // Apply same filters as main query
       if (search) {
         countQuery = countQuery.or(

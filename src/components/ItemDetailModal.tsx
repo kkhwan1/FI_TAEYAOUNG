@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Image as ImageIcon } from 'lucide-react';
 import { ImageUploadZone } from './ImageUploadZone';
 import { ItemImageGallery } from './ItemImageGallery';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ItemDetailModalProps {
   itemId: string;
@@ -18,6 +19,7 @@ export function ItemDetailModal({
   itemCode,
   onClose
 }: ItemDetailModalProps) {
+  const { error: showError } = useToast();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleUploadSuccess = () => {
@@ -67,7 +69,7 @@ export function ItemDetailModal({
                 <ImageUploadZone
                   itemId={itemId}
                   onUploadSuccess={handleUploadSuccess}
-                  onUploadError={(error) => alert(error)}
+                  onUploadError={(error) => showError(error)}
                 />
               </div>
 

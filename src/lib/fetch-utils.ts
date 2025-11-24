@@ -137,11 +137,23 @@ export async function safeFetchJson<T = any>(
 ): Promise<T> {
   const response = await safeFetch(url, options, config);
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
-  }
+  try {
+    const json = await response.json();
+    
+    // HTTP 에러가 발생했지만 JSON 응답이 있는 경우 (API 에러 응답)
+    // JSON을 반환하여 프론트엔드에서 result.success를 체크할 수 있도록 함
+    if (!response.ok) {
+      return json as T;
+    }
 
-  return response.json();
+    return json as T;
+  } catch (parseError) {
+    // JSON 파싱 실패 시
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+    }
+    throw new Error('서버 응답을 파싱할 수 없습니다.');
+  }
 }
 
 /**
@@ -250,5 +262,37 @@ export async function safeFetchAllJson<T = any>(
     }
     return res.json();
   }));
+}
+
+/**
+ * 에러 객체에서 메시지를 안전하게 추출하는 유틸리티 함수
+ * 
+ * 다양한 에러 형식을 처리:
+ * - 문자열: 그대로 반환
+ * - 객체의 message 속성
+ * - 객체의 error 속성 (문자열 또는 객체)
+ * - 그 외: JSON.stringify 또는 기본 메시지
+ * 
+ * @param error - 추출할 에러 객체 또는 문자열
+ * @returns 추출된 에러 메시지 문자열
+ */
+export function extractErrorMessage(error: any): string {
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error && typeof error === 'object') {
+    if (error.message) {
+      return error.message;
+    }
+    if (error.error && typeof error.error === 'string') {
+      return error.error;
+    }
+    if (error.error && typeof error.error === 'object' && error.error.message) {
+      return error.error.message;
+    }
+    // Fallback for generic objects
+    return JSON.stringify(error);
+  }
+  return '알 수 없는 오류가 발생했습니다.';
 }
 

@@ -58,7 +58,8 @@ export default function NotificationPanel({ className = '', onSettingsClick }: N
         setNotifications(result.data || []);
         setTotalPages(result.pagination?.totalPages || 1);
       } else {
-        setError(result.error || '알림을 불러올 수 없습니다');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        setError(extractErrorMessage(result.error) || '알림을 불러올 수 없습니다');
       }
     } catch (err: any) {
       setError(err.message || '알림 로드 실패');

@@ -183,7 +183,7 @@ export default function ItemsPage() {
     setCurrentCursor(null);
     setCurrentDirection('next');
     fetchItems(null, 'next');
-  }, [selectedCategory, selectedItemType, selectedMaterialType, vehicleFilter, selectedCoatingStatus, selectedCompany, sortColumn, sortOrder]);
+  }, [selectedCategory, selectedItemType, selectedMaterialType, vehicleFilter, selectedCoatingStatus, selectedCompany, sortColumn, sortOrder, searchTerm]);
 
   const fetchItems = async (cursor?: string | null, direction: 'next' | 'prev' = 'next') => {
     setLoading(true);
@@ -229,7 +229,8 @@ export default function ItemsPage() {
       });
 
       if (!data.success) {
-        throw new Error(data.error || '품목 정보를 불러오지 못했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(data.error) || '품목 정보를 불러오지 못했습니다.');
       }
 
       setItems(data.data?.items ?? []);
@@ -260,7 +261,8 @@ export default function ItemsPage() {
         });
 
         if (!data.success) {
-          throw new Error(data.error || '품목 삭제에 실패했습니다.');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(data.error) || '품목 삭제에 실패했습니다.');
         }
 
         success('삭제 완료', '품목이 비활성화되었습니다.');
@@ -367,7 +369,8 @@ export default function ItemsPage() {
       });
 
       if (!data.success) {
-        throw new Error(data.error || '품목 저장 요청에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(data.error) || '품목 저장 요청에 실패했습니다.');
       }
 
       const message = editingItem ? '품목이 수정되었습니다.' : '품목이 등록되었습니다.';
@@ -472,25 +475,11 @@ export default function ItemsPage() {
     fetchItems(null, 'next');
   };
 
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-
-  const filteredItems = useMemo(() => {
-    if (!normalizedSearch) {
-      return items;
-    }
-
-    return items.filter((item) => {
-      const codeMatch = item.item_code?.toLowerCase().includes(normalizedSearch);
-      const nameMatch = item.item_name?.toLowerCase().includes(normalizedSearch);
-      const specMatch = item.spec?.toLowerCase().includes(normalizedSearch);
-      const materialMatch = item.material?.toLowerCase().includes(normalizedSearch);
-      const vehicleMatch = item.vehicle_model?.toLowerCase().includes(normalizedSearch);
-      return Boolean(codeMatch || nameMatch || specMatch || materialMatch || vehicleMatch);
-    });
-  }, [items, normalizedSearch]);
+  // Remove client-side filtering - use server-side search only
+  const filteredItems = items;
 
   const filtersApplied = Boolean(
-    selectedCategory || selectedItemType || selectedMaterialType || vehicleFilter || selectedCoatingStatus || selectedCompany !== 'ALL' || normalizedSearch
+    selectedCategory || selectedItemType || selectedMaterialType || vehicleFilter || selectedCoatingStatus || selectedCompany !== 'ALL' || searchTerm.trim()
   );
 
   const printColumns = [

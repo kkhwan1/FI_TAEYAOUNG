@@ -152,7 +152,8 @@ const RecentActivityWidget: React.FC<RecentActivityProps> = ({
         const transactionData = Array.isArray(result.data) ? result.data : [];
         setTransactions(transactionData);
       } else {
-        throw new Error(result.error || '최근 활동을 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '최근 활동을 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('Error fetching recent activity:', err);

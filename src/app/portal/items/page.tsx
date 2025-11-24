@@ -37,7 +37,8 @@ export default function PortalItemsPage() {
         setItems(data.data.items);
         setCompanyName(data.data.companyName);
       } else {
-        setError(data.error || '품목 목록을 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        setError(extractErrorMessage(data.error) || '품목 목록을 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('Fetch error:', err);

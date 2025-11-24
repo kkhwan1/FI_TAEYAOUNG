@@ -34,7 +34,18 @@ interface BOMExcelRow {
   parent_unit?: string;
   parent_category?: string;
   parent_inventory_type?: string;
-  parent_supplier?: string;
+  parent_car_model?: string;
+  parent_location?: string;
+  parent_supplier?: string; // 기존 호환성 유지 (거래처명 또는 코드)
+  // Parent item supplier details
+  parent_supplier_name?: string;
+  parent_supplier_code?: string;
+  parent_supplier_phone?: string;
+  parent_supplier_email?: string;
+  parent_supplier_address?: string;
+  parent_supplier_type?: string;
+  parent_supplier_business_number?: string;
+  parent_supplier_representative?: string;
 
   // Child item fields
   child_item_code: string;
@@ -43,12 +54,33 @@ interface BOMExcelRow {
   child_unit?: string;
   child_category?: string;
   child_inventory_type?: string;
-  child_supplier?: string;
+  child_car_model?: string;
+  child_location?: string;
+  child_supplier?: string; // 기존 호환성 유지 (거래처명 또는 코드)
+  // Child item supplier details
+  child_supplier_name?: string;
+  child_supplier_code?: string;
+  child_supplier_phone?: string;
+  child_supplier_email?: string;
+  child_supplier_address?: string;
+  child_supplier_type?: string;
+  child_supplier_business_number?: string;
+  child_supplier_representative?: string;
 
   // BOM relationship fields
   quantity_required: number;
   level_no?: number;
   notes?: string;
+  // Monthly price information (parent)
+  parent_price_month?: string;
+  parent_unit_price?: number;
+  parent_price_per_kg?: number;
+  parent_price_note?: string;
+  // Monthly price information (child)
+  child_price_month?: string;
+  child_unit_price?: number;
+  child_price_per_kg?: number;
+  child_price_note?: string;
 }
 
 interface ValidationError {
@@ -227,14 +259,46 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           parent_unit: row.parent_unit ? String(row.parent_unit).trim() : undefined,
           parent_category: row.parent_category ? String(row.parent_category).trim() : undefined,
           parent_inventory_type: row.parent_inventory_type,
+          parent_car_model: row.parent_car_model ? String(row.parent_car_model).trim() : undefined,
+          parent_location: row.parent_location ? String(row.parent_location).trim() : undefined,
           parent_supplier: row.parent_supplier ? String(row.parent_supplier).trim() : undefined,
+          // Parent item supplier details
+          parent_supplier_name: row.parent_supplier_name ? String(row.parent_supplier_name).trim() : undefined,
+          parent_supplier_code: row.parent_supplier_code ? String(row.parent_supplier_code).trim() : undefined,
+          parent_supplier_phone: row.parent_supplier_phone ? String(row.parent_supplier_phone).trim() : undefined,
+          parent_supplier_email: row.parent_supplier_email ? String(row.parent_supplier_email).trim() : undefined,
+          parent_supplier_address: row.parent_supplier_address ? String(row.parent_supplier_address).trim() : undefined,
+          parent_supplier_type: row.parent_supplier_type ? String(row.parent_supplier_type).trim() : undefined,
+          parent_supplier_business_number: row.parent_supplier_business_number ? String(row.parent_supplier_business_number).trim() : undefined,
+          parent_supplier_representative: row.parent_supplier_representative ? String(row.parent_supplier_representative).trim() : undefined,
           // Child item details (TASK-030: Fix metadata loss bug)
           child_item_name: row.child_item_name ? String(row.child_item_name).trim() : undefined,
           child_spec: row.child_spec ? String(row.child_spec).trim() : undefined,
           child_unit: row.child_unit ? String(row.child_unit).trim() : undefined,
           child_category: row.child_category ? String(row.child_category).trim() : undefined,
           child_inventory_type: row.child_inventory_type,
-          child_supplier: row.child_supplier ? String(row.child_supplier).trim() : undefined
+          child_car_model: row.child_car_model ? String(row.child_car_model).trim() : undefined,
+          child_location: row.child_location ? String(row.child_location).trim() : undefined,
+          child_supplier: row.child_supplier ? String(row.child_supplier).trim() : undefined,
+          // Child item supplier details
+          child_supplier_name: row.child_supplier_name ? String(row.child_supplier_name).trim() : undefined,
+          child_supplier_code: row.child_supplier_code ? String(row.child_supplier_code).trim() : undefined,
+          child_supplier_phone: row.child_supplier_phone ? String(row.child_supplier_phone).trim() : undefined,
+          child_supplier_email: row.child_supplier_email ? String(row.child_supplier_email).trim() : undefined,
+          child_supplier_address: row.child_supplier_address ? String(row.child_supplier_address).trim() : undefined,
+          child_supplier_type: row.child_supplier_type ? String(row.child_supplier_type).trim() : undefined,
+          child_supplier_business_number: row.child_supplier_business_number ? String(row.child_supplier_business_number).trim() : undefined,
+          child_supplier_representative: row.child_supplier_representative ? String(row.child_supplier_representative).trim() : undefined,
+          // Monthly price information (parent)
+          parent_price_month: row.parent_price_month ? String(row.parent_price_month).trim() : undefined,
+          parent_unit_price: row.parent_unit_price ? (typeof row.parent_unit_price === 'number' ? row.parent_unit_price : parseFloat(String(row.parent_unit_price))) : undefined,
+          parent_price_per_kg: row.parent_price_per_kg ? (typeof row.parent_price_per_kg === 'number' ? row.parent_price_per_kg : parseFloat(String(row.parent_price_per_kg))) : undefined,
+          parent_price_note: row.parent_price_note ? String(row.parent_price_note).trim() : undefined,
+          // Monthly price information (child)
+          child_price_month: row.child_price_month ? String(row.child_price_month).trim() : undefined,
+          child_unit_price: row.child_unit_price ? (typeof row.child_unit_price === 'number' ? row.child_unit_price : parseFloat(String(row.child_unit_price))) : undefined,
+          child_price_per_kg: row.child_price_per_kg ? (typeof row.child_price_per_kg === 'number' ? row.child_price_per_kg : parseFloat(String(row.child_price_per_kg))) : undefined,
+          child_price_note: row.child_price_note ? String(row.child_price_note).trim() : undefined
         });
       } else {
         errors.push(...rowErrors);
@@ -339,6 +403,20 @@ function detectCircularDependencies(bomData: BOMExcelRow[]): CircularDependencyC
 // ============================================================================
 
 /**
+ * Company type mapping (Korean to Korean for DB)
+ */
+const companyTypeMap: Record<string, string> = {
+  'CUSTOMER': '고객사',
+  'SUPPLIER': '공급사',
+  'BOTH': '협력사',
+  'OTHER': '기타',
+  '고객사': '고객사',
+  '공급사': '공급사',
+  '협력사': '협력사',
+  '기타': '기타'
+};
+
+/**
  * Find supplier_id by company name or company_code
  * Returns null if not found
  */
@@ -359,13 +437,163 @@ async function findSupplierByNameOrCode(
     .or(`company_name.eq.${trimmed},company_code.eq.${trimmed}`)
     .eq('is_active', true)
     .limit(1)
-    .single();
+    .maybeSingle(); // Use maybeSingle() to handle no results gracefully
 
   if (error || !data) {
     return null;
   }
 
   return data.company_id;
+}
+
+/**
+ * Upsert company (create or update)
+ * Returns company_id
+ */
+interface CompanyData {
+  company_name: string;
+  company_code?: string;
+  company_type?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  business_number?: string;
+  representative?: string;
+}
+
+async function upsertCompany(
+  supabase: SupabaseClient<Database>,
+  companyData: CompanyData
+): Promise<{ company_id: number; company_code: string }> {
+  if (!companyData.company_name || companyData.company_name.trim() === '') {
+    throw new Error('거래처명은 필수입니다');
+  }
+
+  const companyName = companyData.company_name.trim();
+  const companyCode = companyData.company_code?.trim();
+  
+  // Determine company type (default to '기타' if not provided)
+  let dbCompanyType = '기타';
+  if (companyData.company_type) {
+    dbCompanyType = companyTypeMap[companyData.company_type] || companyData.company_type;
+  }
+
+  // Check if company exists by name or code
+  let existingCompany: { company_id: number; company_code: string } | null = null;
+  
+  if (companyCode) {
+    // Try to find by code first
+    const { data: codeData, error: codeError } = await supabase
+      .from('companies')
+      .select('company_id, company_code')
+      .eq('company_code', companyCode)
+      .limit(1)
+      .maybeSingle(); // Use maybeSingle() to handle no results gracefully
+    
+    if (codeData && !codeError) {
+      existingCompany = codeData;
+    }
+  }
+  
+  // If not found by code, try by name
+  if (!existingCompany) {
+    const { data: nameData, error: nameError } = await supabase
+      .from('companies')
+      .select('company_id, company_code')
+      .eq('company_name', companyName)
+      .limit(1)
+      .maybeSingle(); // Use maybeSingle() to handle no results gracefully
+    
+    if (nameData && !nameError) {
+      existingCompany = nameData;
+    }
+  }
+
+  // Prepare company payload
+  const companyPayload: any = {
+    company_name: companyName,
+    company_type: dbCompanyType,
+    is_active: true,
+    updated_at: new Date().toISOString()
+  };
+
+  // Add optional fields if provided
+  if (companyData.phone) companyPayload.phone = companyData.phone.trim();
+  if (companyData.email) companyPayload.email = companyData.email.trim();
+  if (companyData.address) companyPayload.address = companyData.address.trim();
+  if (companyData.business_number) companyPayload.business_number = companyData.business_number.trim();
+  if (companyData.representative) companyPayload.representative = companyData.representative.trim();
+
+  // Generate company_code if not provided and company doesn't exist
+  if (!companyCode && !existingCompany) {
+    const prefixMap: Record<string, string> = {
+      '고객사': 'CUS',
+      '공급사': 'SUP',
+      '협력사': 'PAR',
+      '기타': 'OTH'
+    };
+    const prefix = prefixMap[dbCompanyType] || 'COM';
+
+    // Get the last company code with this prefix
+    const { data: existingCodes } = await supabase
+      .from('companies')
+      .select('company_code')
+      .like('company_code', `${prefix}%`)
+      .order('company_code', { ascending: false })
+      .limit(100);
+
+    let nextNumber = 1;
+    if (existingCodes && existingCodes.length > 0) {
+      const numbers = existingCodes
+        .map((row: any) => {
+          const match = row.company_code.match(/\d+$/);
+          return match ? parseInt(match[0]) : 0;
+        })
+        .filter((num: number) => !isNaN(num));
+      
+      if (numbers.length > 0) {
+        nextNumber = Math.max(...numbers) + 1;
+      }
+    }
+
+    companyPayload.company_code = `${prefix}${String(nextNumber).padStart(3, '0')}`;
+  } else if (companyCode) {
+    companyPayload.company_code = companyCode;
+  } else if (existingCompany) {
+    companyPayload.company_code = existingCompany.company_code;
+  }
+
+  // Upsert company
+  if (existingCompany) {
+    // Update existing company
+    const { data, error } = await supabase
+      .from('companies')
+      .update(companyPayload)
+      .eq('company_id', existingCompany.company_id)
+      .select('company_id, company_code')
+      .single();
+
+    if (error) {
+      throw new Error(`거래처 업데이트 실패 (${companyName}): ${error.message}`);
+    }
+
+    return { company_id: data.company_id, company_code: data.company_code };
+  } else {
+    // Create new company
+    companyPayload.created_at = new Date().toISOString();
+    
+    const { data, error } = await supabase
+      .from('companies')
+      .insert(companyPayload)
+      .select('company_id, company_code')
+      .single();
+
+    if (error) {
+      throw new Error(`거래처 생성 실패 (${companyName}): ${error.message}`);
+    }
+
+    return { company_id: data.company_id, company_code: data.company_code };
+  }
 }
 
 /**
@@ -380,6 +608,8 @@ interface ItemPayload {
   unit?: string;
   category?: string;
   inventory_type?: string;
+  vehicle_model?: string; // DB 컬럼명: vehicle_model
+  location?: string;
   supplier_id?: number;
 }
 
@@ -391,14 +621,10 @@ async function upsertItem(
   unit?: string,
   category?: string,
   inventoryType?: string,
-  supplierNameOrCode?: string
+  carModel?: string,
+  location?: string,
+  supplierId?: number
 ): Promise<{ item_id: number; item_code: string }> {
-  // Find supplier_id if supplier name/code provided
-  let supplier_id: number | null = null;
-  if (supplierNameOrCode) {
-    supplier_id = await findSupplierByNameOrCode(supabase, supplierNameOrCode);
-  }
-
   // Prepare item payload
   const itemPayload: ItemPayload = {
     item_code: itemCode.trim(),
@@ -410,7 +636,9 @@ async function upsertItem(
   if (unit) itemPayload.unit = unit.trim();
   if (category) itemPayload.category = category.trim();
   if (inventoryType) itemPayload.inventory_type = inventoryType;
-  if (supplier_id) itemPayload.supplier_id = supplier_id;
+  if (carModel) itemPayload.vehicle_model = carModel.trim(); // DB 컬럼명: vehicle_model
+  if (location) itemPayload.location = location.trim();
+  if (supplierId) itemPayload.supplier_id = supplierId;
 
   // Upsert item (INSERT ... ON CONFLICT UPDATE)
   const { data, error } = await supabase
@@ -517,7 +745,75 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
      * and call it via Supabase RPC for atomic operations.
      */
 
-    // 3. Upsert items and collect item ID mappings
+    // 3. Collect and upsert unique companies (suppliers) first
+    // Collect unique companies with all their details
+    const uniqueCompanies = new Map<string, CompanyData>();
+    
+    parseResult.data.forEach(row => {
+      // Collect parent item supplier
+      if (row.parent_supplier_name || row.parent_supplier_code || row.parent_supplier) {
+        const supplierKey = row.parent_supplier_code || row.parent_supplier_name || row.parent_supplier || '';
+        if (supplierKey && !uniqueCompanies.has(supplierKey)) {
+          uniqueCompanies.set(supplierKey, {
+            company_name: row.parent_supplier_name || row.parent_supplier || '',
+            company_code: row.parent_supplier_code,
+            company_type: row.parent_supplier_type || '공급사',
+            phone: row.parent_supplier_phone,
+            email: row.parent_supplier_email,
+            address: row.parent_supplier_address,
+            business_number: row.parent_supplier_business_number,
+            representative: row.parent_supplier_representative
+          });
+        }
+      }
+      
+      // Collect child item supplier
+      if (row.child_supplier_name || row.child_supplier_code || row.child_supplier) {
+        const supplierKey = row.child_supplier_code || row.child_supplier_name || row.child_supplier || '';
+        if (supplierKey && !uniqueCompanies.has(supplierKey)) {
+          uniqueCompanies.set(supplierKey, {
+            company_name: row.child_supplier_name || row.child_supplier || '',
+            company_code: row.child_supplier_code,
+            company_type: row.child_supplier_type || '공급사',
+            phone: row.child_supplier_phone,
+            email: row.child_supplier_email,
+            address: row.child_supplier_address,
+            business_number: row.child_supplier_business_number,
+            representative: row.child_supplier_representative
+          });
+        }
+      }
+    });
+
+    // Upsert all companies and build company_name/code → company_id mapping
+    const companyMap = new Map<string, number>(); // key: company_name or company_code, value: company_id
+    const companyEntries = Array.from(uniqueCompanies.entries());
+    const COMPANY_BATCH_SIZE = 50;
+
+    for (let i = 0; i < companyEntries.length; i += COMPANY_BATCH_SIZE) {
+      const batch = companyEntries.slice(i, i + COMPANY_BATCH_SIZE);
+      const upsertPromises = batch.map(async ([key, companyData]) => {
+        try {
+          const upsertedCompany = await upsertCompany(supabase, companyData);
+          // Map both name and code to company_id for lookup
+          if (companyData.company_name) {
+            companyMap.set(companyData.company_name, upsertedCompany.company_id);
+          }
+          if (upsertedCompany.company_code) {
+            companyMap.set(upsertedCompany.company_code, upsertedCompany.company_id);
+          }
+          return { key, company_id: upsertedCompany.company_id };
+        } catch (error) {
+          console.error(`거래처 처리 실패 (${companyData.company_name}):`, error);
+          // Continue with other companies even if one fails
+          return null;
+        }
+      });
+
+      await Promise.all(upsertPromises);
+    }
+
+    // 4. Upsert items and collect item ID mappings
     // Collect unique items with all their details
     const uniqueItems = new Map<string, {
       item_code: string;
@@ -526,8 +822,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       unit?: string;
       category?: string;
       inventory_type?: string;
+      car_model?: string;
+      location?: string;
       supplier?: string;
+      supplier_id?: number; // Add supplier_id for direct lookup
     }>();
+
+    // Helper function to get supplier_id from company info
+    const getSupplierId = (row: BOMExcelRow, isParent: boolean): number | undefined => {
+      if (isParent) {
+        if (row.parent_supplier_code && companyMap.has(row.parent_supplier_code)) {
+          return companyMap.get(row.parent_supplier_code);
+        }
+        if (row.parent_supplier_name && companyMap.has(row.parent_supplier_name)) {
+          return companyMap.get(row.parent_supplier_name);
+        }
+        if (row.parent_supplier && companyMap.has(row.parent_supplier)) {
+          return companyMap.get(row.parent_supplier);
+        }
+      } else {
+        if (row.child_supplier_code && companyMap.has(row.child_supplier_code)) {
+          return companyMap.get(row.child_supplier_code);
+        }
+        if (row.child_supplier_name && companyMap.has(row.child_supplier_name)) {
+          return companyMap.get(row.child_supplier_name);
+        }
+        if (row.child_supplier && companyMap.has(row.child_supplier)) {
+          return companyMap.get(row.child_supplier);
+        }
+      }
+      return undefined;
+    };
 
     // Add parent items
     parseResult.data.forEach(row => {
@@ -535,6 +860,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (!row.parent_item_name) {
           throw new Error(`부모 품목명이 없습니다: ${row.parent_item_code}`);
         }
+        const supplierId = getSupplierId(row, true);
         uniqueItems.set(row.parent_item_code, {
           item_code: row.parent_item_code,
           item_name: row.parent_item_name,
@@ -542,7 +868,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           unit: row.parent_unit,
           category: row.parent_category,
           inventory_type: row.parent_inventory_type,
-          supplier: row.parent_supplier
+          car_model: row.parent_car_model,
+          location: row.parent_location,
+          supplier: row.parent_supplier_name || row.parent_supplier_code || row.parent_supplier,
+          supplier_id: supplierId
         });
       }
     });
@@ -553,6 +882,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (!row.child_item_name) {
           throw new Error(`자식 품목명이 없습니다: ${row.child_item_code}`);
         }
+        const supplierId = getSupplierId(row, false);
         uniqueItems.set(row.child_item_code, {
           item_code: row.child_item_code,
           item_name: row.child_item_name,
@@ -560,7 +890,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           unit: row.child_unit,
           category: row.child_category,
           inventory_type: row.child_inventory_type,
-          supplier: row.child_supplier
+          car_model: row.child_car_model,
+          location: row.child_location,
+          supplier: row.child_supplier_name || row.child_supplier_code || row.child_supplier,
+          supplier_id: supplierId
         });
       }
     });
@@ -571,10 +904,55 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const itemEntries = Array.from(uniqueItems.entries());
     const BATCH_SIZE = 50;
 
+    // Modified upsertItem to accept supplier_id directly
+    const upsertItemWithSupplierId = async (
+      supabase: SupabaseClient<Database>,
+      itemCode: string,
+      itemName: string,
+      spec?: string,
+      unit?: string,
+      category?: string,
+      inventoryType?: string,
+      carModel?: string,
+      location?: string,
+      supplierId?: number
+    ): Promise<{ item_id: number; item_code: string }> => {
+      // Prepare item payload
+      const itemPayload: ItemPayload = {
+        item_code: itemCode.trim(),
+        item_name: itemName.trim(),
+        is_active: true
+      };
+
+      if (spec) itemPayload.spec = spec.trim();
+      if (unit) itemPayload.unit = unit.trim();
+      if (category) itemPayload.category = category.trim();
+      if (inventoryType) itemPayload.inventory_type = inventoryType;
+      if (carModel) itemPayload.vehicle_model = carModel.trim(); // DB 컬럼명: vehicle_model
+      if (location) itemPayload.location = location.trim();
+      if (supplierId) itemPayload.supplier_id = supplierId;
+
+      // Upsert item (INSERT ... ON CONFLICT UPDATE)
+      const { data, error } = await supabase
+        .from('items')
+        .upsert(itemPayload, {
+          onConflict: 'item_code',
+          ignoreDuplicates: false // Update if exists
+        })
+        .select('item_id, item_code')
+        .single();
+
+      if (error) {
+        throw new Error(`품목 생성/업데이트 실패 (${itemCode}): ${error.message}`);
+      }
+
+      return data;
+    };
+
     for (let i = 0; i < itemEntries.length; i += BATCH_SIZE) {
       const batch = itemEntries.slice(i, i + BATCH_SIZE);
       const upsertPromises = batch.map(async ([item_code, itemDetails]) => {
-        const upsertedItem = await upsertItem(
+        const upsertedItem = await upsertItemWithSupplierId(
           supabase,
           itemDetails.item_code,
           itemDetails.item_name,
@@ -582,7 +960,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           itemDetails.unit,
           itemDetails.category,
           itemDetails.inventory_type,
-          itemDetails.supplier
+          itemDetails.car_model,
+          itemDetails.location,
+          itemDetails.supplier_id // Use supplier_id directly
         );
         return { item_code, item_id: upsertedItem.item_id };
       });
@@ -593,7 +973,150 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // 4. Check for circular dependencies
+    // 4-1. Upsert monthly price information
+    // Collect unique price information from parsed data
+    const priceInfoMap = new Map<string, {
+      item_id: number;
+      price_month: string;
+      unit_price?: number;
+      price_per_kg?: number;
+      note?: string;
+    }>();
+
+    parseResult.data.forEach(row => {
+      // Parent item price
+      if (row.parent_price_month && row.parent_item_code) {
+        const itemId = itemCodeMap.get(row.parent_item_code);
+        if (itemId) {
+          const priceKey = `${itemId}_${row.parent_price_month}`;
+          if (!priceInfoMap.has(priceKey)) {
+            priceInfoMap.set(priceKey, {
+              item_id: itemId,
+              price_month: row.parent_price_month,
+              unit_price: row.parent_unit_price,
+              price_per_kg: row.parent_price_per_kg,
+              note: row.parent_price_note
+            });
+          }
+        }
+      }
+
+      // Child item price
+      if (row.child_price_month && row.child_item_code) {
+        const itemId = itemCodeMap.get(row.child_item_code);
+        if (itemId) {
+          const priceKey = `${itemId}_${row.child_price_month}`;
+          if (!priceInfoMap.has(priceKey)) {
+            priceInfoMap.set(priceKey, {
+              item_id: itemId,
+              price_month: row.child_price_month,
+              unit_price: row.child_unit_price,
+              price_per_kg: row.child_price_per_kg,
+              note: row.child_price_note
+            });
+          }
+        }
+      }
+    });
+
+    // Upsert price history
+    if (priceInfoMap.size > 0) {
+      const priceEntries = Array.from(priceInfoMap.values());
+      const PRICE_BATCH_SIZE = 50;
+
+      for (let i = 0; i < priceEntries.length; i += PRICE_BATCH_SIZE) {
+        const batch = priceEntries.slice(i, i + PRICE_BATCH_SIZE);
+        const pricePromises = batch.map(async (priceInfo) => {
+          try {
+            // Convert price_month to date format (YYYY-MM-DD)
+            // Support formats: YYYY-MM, YYYYMM, YYYY-MM-DD
+            let priceMonthDate: string;
+            const priceMonthStr = String(priceInfo.price_month).trim();
+            
+            if (priceMonthStr.includes('-')) {
+              // Already has dashes: YYYY-MM or YYYY-MM-DD
+              if (priceMonthStr.length === 7) {
+                // YYYY-MM format
+                priceMonthDate = `${priceMonthStr}-01`;
+              } else if (priceMonthStr.length === 10) {
+                // YYYY-MM-DD format
+                priceMonthDate = priceMonthStr;
+              } else {
+                // Invalid format, try to extract YYYY-MM
+                const parts = priceMonthStr.split('-');
+                if (parts.length >= 2) {
+                  priceMonthDate = `${parts[0]}-${parts[1].padStart(2, '0')}-01`;
+                } else {
+                  throw new Error(`잘못된 월별단가 월 형식: ${priceMonthStr}`);
+                }
+              }
+            } else if (priceMonthStr.length === 6) {
+              // YYYYMM format
+              priceMonthDate = `${priceMonthStr.substring(0, 4)}-${priceMonthStr.substring(4, 6)}-01`;
+            } else {
+              throw new Error(`잘못된 월별단가 월 형식: ${priceMonthStr} (예상 형식: YYYY-MM 또는 YYYYMM)`);
+            }
+
+            // Check if price history exists
+            const { data: existingPrice, error: checkError } = await supabase
+              .from('item_price_history')
+              .select('price_history_id')
+              .eq('item_id', priceInfo.item_id)
+              .eq('price_month', priceMonthDate)
+              .maybeSingle(); // Use maybeSingle() instead of single() to handle no results gracefully
+
+            if (checkError && checkError.code !== 'PGRST116') {
+              // PGRST116 is "not found" error, which is expected when no record exists
+              console.error(`월별단가 조회 실패 (item_id: ${priceInfo.item_id}, month: ${priceMonthDate}):`, checkError);
+              // Continue to insert/update anyway
+            }
+
+            const pricePayload: any = {
+              item_id: priceInfo.item_id,
+              price_month: priceMonthDate,
+              unit_price: priceInfo.unit_price || 0,
+              updated_at: new Date().toISOString()
+            };
+
+            if (priceInfo.price_per_kg !== undefined && priceInfo.price_per_kg !== null) {
+              pricePayload.price_per_kg = priceInfo.price_per_kg;
+            }
+            if (priceInfo.note) {
+              pricePayload.note = priceInfo.note.trim();
+            }
+
+            if (existingPrice && !checkError) {
+              // Update existing price
+              const { error } = await supabase
+                .from('item_price_history')
+                .update(pricePayload)
+                .eq('price_history_id', existingPrice.price_history_id);
+
+              if (error) {
+                console.error(`월별단가 업데이트 실패 (item_id: ${priceInfo.item_id}, month: ${priceMonthDate}):`, error);
+              }
+            } else {
+              // Insert new price
+              pricePayload.created_at = new Date().toISOString();
+              const { error } = await supabase
+                .from('item_price_history')
+                .insert(pricePayload);
+
+              if (error) {
+                console.error(`월별단가 생성 실패 (item_id: ${priceInfo.item_id}, month: ${priceMonthDate}):`, error);
+              }
+            }
+          } catch (error) {
+            console.error(`월별단가 처리 중 오류 (item_id: ${priceInfo.item_id}):`, error);
+            // Continue with other prices even if one fails
+          }
+        });
+
+        await Promise.all(pricePromises);
+      }
+    }
+
+    // 5. Check for circular dependencies
     const circularCheck = detectCircularDependencies(parseResult.data);
 
     if (!circularCheck.valid && circularCheck.cycles) {
@@ -610,13 +1133,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // 5. Prepare BOM entries for database insertion
+    // 6. Prepare BOM entries for database insertion
     interface BOMInsert {
       parent_item_id: number;
       child_item_id: number;
       quantity_required: number;
       level_no: number;
       is_active: boolean;
+      notes?: string;
     }
 
     const bomInserts: BOMInsert[] = parseResult.data.map(row => {
@@ -634,7 +1158,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         child_item_id: childId,
         quantity_required: row.quantity_required,
         level_no: row.level_no ?? 1, // Use nullish coalescing to preserve 0
-        is_active: true
+        is_active: true,
+        notes: row.notes ? String(row.notes).trim() : undefined
       };
     });
 

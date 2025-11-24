@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ImageUploadZone } from '@/components/ImageUploadZone';
 import { ItemImageGallery } from '@/components/ItemImageGallery';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ItemDetail {
   // 기본 정보
@@ -100,6 +101,7 @@ interface StockHistory {
 export default function ItemDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { error: showError } = useToast();
   const itemId = params.id as string;
   
   const [item, setItem] = useState<ItemDetail | null>(null);
@@ -482,7 +484,7 @@ export default function ItemDetailPage() {
                 <ImageUploadZone
                   itemId={itemId}
                   onUploadSuccess={() => {}}
-                  onUploadError={(error) => alert(error)}
+                  onUploadError={(error) => showError(error)}
                 />
               </div>
               <div>

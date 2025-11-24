@@ -99,7 +99,8 @@ const StockStatusWidget: React.FC<StockStatusProps> = ({
       if (result.success) {
         setStockItems(result.data.items || []);
       } else {
-        throw new Error(result.error || '재고 현황을 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '재고 현황을 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('Error fetching stock status:', err);

@@ -64,6 +64,7 @@ export async function GET(
 
     const supabase = getSupabaseClient();
 
+    // Phase 2: Fetch transaction with invoice_items and payment_splits separately
     const { data, error } = await supabase
       .from('sales_transactions')
       .select(`
@@ -86,9 +87,31 @@ export async function GET(
       throw new ERPError(ErrorType.NOT_FOUND, '판매 거래를 찾을 수 없습니다.');
     }
 
+    // Phase 2: Fetch invoice_items and payment_splits separately
+    const [invoiceItemsResult, paymentSplitsResult] = await Promise.all([
+      supabase
+        .from('invoice_items')
+        .select('invoice_item_id, transaction_id, item_id, quantity, unit_price, total_amount, line_no, notes')
+        .eq('transaction_id', transactionId),
+      supabase
+        .from('payment_splits')
+        .select('payment_split_id, transaction_id, payment_method, amount, bill_number, bill_date, bill_drawer, check_number, check_bank, bank_name, account_number, notes')
+        .eq('transaction_id', transactionId)
+    ]);
+
+    // Merge invoice_items and payment_splits into transaction data
+    const enrichedData = {
+      ...data,
+      invoice_items: invoiceItemsResult.data || [],
+      payment_splits: (paymentSplitsResult.data || []).map((split: any) => ({
+        ...split,
+        method: split.payment_method, // payment_method를 method로 매핑
+      })),
+    };
+
     return NextResponse.json({
       success: true,
-      data,
+      data: enrichedData,
     });
   } catch (error) {
     return handleErrorResponse(error, { resource: 'sales_transactions', action: 'read' });

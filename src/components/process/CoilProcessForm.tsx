@@ -91,7 +91,8 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || '공정 등록에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '공정 등록에 실패했습니다.');
       }
 
       success('등록 완료', '공정이 성공적으로 등록되었습니다.');
@@ -120,7 +121,8 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
       .then(res => res.json())
       .then(result => {
         if (!result.success) {
-          throw new Error(result.error || '공정 등록에 실패했습니다.');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(result.error) || '공정 등록에 실패했습니다.');
         }
 
         success('등록 완료', '공정이 성공적으로 등록되었습니다.');

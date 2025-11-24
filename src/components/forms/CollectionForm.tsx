@@ -379,6 +379,7 @@ export default function CollectionForm({ collection, onSave, onCancel }: Collect
       
       // Only include fields that are allowed in the API schema
       const allowedFields = [
+        'sales_transaction_id', // 필수: 매출 거래 ID
         'collected_amount',
         'collection_date',
         'payment_method',
@@ -399,9 +400,15 @@ export default function CollectionForm({ collection, onSave, onCancel }: Collect
         }
       });
 
-      // Remove sales_transaction_id for update operations (not allowed to change)
-      if (collection && cleanedData.sales_transaction_id) {
+      // sales_transaction_id는 생성 시에만 필수, 수정 시에는 변경 불가
+      if (collection) {
+        // 수정 모드: sales_transaction_id는 변경 불가하므로 제거
         delete cleanedData.sales_transaction_id;
+      } else {
+        // 생성 모드: sales_transaction_id가 필수이므로 검증
+        if (!cleanedData.sales_transaction_id) {
+          throw new Error('매출 거래를 선택해주세요');
+        }
       }
 
       // Ensure collected_amount is a number
@@ -790,7 +797,8 @@ export default function CollectionForm({ collection, onSave, onCancel }: Collect
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          disabled={loading}
+          className="px-6 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           취소
         </button>

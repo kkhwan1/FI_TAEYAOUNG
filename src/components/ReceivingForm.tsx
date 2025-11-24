@@ -12,8 +12,10 @@ import {
 } from '@/types/inventory';
 import ItemSelect from '@/components/ItemSelect';
 import CompanySelect from '@/components/CompanySelect';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit }: ReceivingFormProps) {
+  const { error: showError } = useToast();
   const [formData, setFormData] = useState<ReceivingFormData>({
     transaction_date: new Date().toISOString().split('T')[0],
     items: [],
@@ -122,7 +124,7 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
     // Check if product is already added
     const existingItem = formData.items.find(receiveItem => receiveItem.item_id === (item.item_id || item.id));
     if (existingItem) {
-      alert('이미 추가된 제품입니다.');
+      showError('이미 추가된 제품입니다.');
       return;
     }
 

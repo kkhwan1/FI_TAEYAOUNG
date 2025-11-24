@@ -26,8 +26,10 @@ import { useBomCheck } from '@/lib/hooks/useBomCheck';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import BOMPreviewPanel from '@/components/inventory/BOMPreviewPanel';
 import { BOMCheckResponse } from '@/types/inventory';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
+  const { success: showSuccess, error: showError } = useToast();
   // Batch mode state
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [batchItems, setBatchItems] = useState<ProductionItem[]>([]);
@@ -217,7 +219,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         const validBatchItems = batchItems.filter(item => item.item_id > 0 && item.quantity > 0);
         
         if (validBatchItems.length === 0) {
-          alert('유효한 제품이 없습니다. 제품을 선택하고 수량을 입력해주세요.');
+          showError('유효한 제품이 없습니다. 제품을 선택하고 수량을 입력해주세요.');
           return;
         }
 
@@ -249,7 +251,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         // Check if submission was successful
         if (result && (result.success !== false)) {
           // Show success message
-          alert(`${validBatchItems.length}개 제품이 성공적으로 등록되었습니다.`);
+          showSuccess(`${validBatchItems.length}개 제품이 성공적으로 등록되었습니다.`);
           
           // Reset form
           setBatchItems([]);
@@ -329,7 +331,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
       }
     } catch (error) {
       console.error('Production submission error:', error);
-      alert('생산 등록 중 오류가 발생했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(`생산 등록 중 오류가 발생했습니다: ${extractErrorMessage(error) || (error instanceof Error ? error.message : '알 수 없는 오류')}`);
     } finally {
       setLoading(false);
     }

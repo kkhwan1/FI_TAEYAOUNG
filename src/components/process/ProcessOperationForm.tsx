@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { Save, Loader2, Calendar, Package, User, Play, CheckCircle, XCircle } from 'lucide-react';
 import ItemSelect from '@/components/ItemSelect';
 import { ItemForComponent as Item } from '@/types/inventory';
+import { useToast } from '@/contexts/ToastContext';
 
 type OperationType = 'BLANKING' | 'PRESS' | 'ASSEMBLY';
 type OperationStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -44,6 +45,7 @@ const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
 };
 
 export default function ProcessOperationForm({ operation, onSave, onCancel }: ProcessOperationFormProps) {
+  const { success: showSuccess, error: showError } = useToast();
   const [formData, setFormData] = useState<Partial<ProcessOperation>>({
     operation_type: 'BLANKING',
     input_item_id: undefined,
@@ -261,15 +263,14 @@ export default function ProcessOperationForm({ operation, onSave, onCancel }: Pr
         const result = await response.json();
 
         if (!result.success) {
-          throw new Error(result.error || '간편 등록 실패');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(result.error) || '간편 등록 실패');
         }
 
         // 성공 메시지 표시
-        alert(`✅ 공정이 등록되고 재고가 자동으로 이동되었습니다!\n\n` +
-              `LOT: ${result.data.lot_number}\n` +
-              `수율: ${result.data.efficiency.toFixed(2)}%\n\n` +
-              `투입재료 재고: ${result.data.current_stocks.input.current_stock} ${result.data.current_stocks.input.unit}\n` +
-              `산출제품 재고: ${result.data.current_stocks.output.current_stock} ${result.data.current_stocks.output.unit}`);
+        showSuccess(
+          `공정이 등록되고 재고가 자동으로 이동되었습니다! LOT: ${result.data.lot_number}, 수율: ${result.data.efficiency.toFixed(2)}%`
+        );
 
         // 폼 초기화
         setFormData({
@@ -287,7 +288,8 @@ export default function ProcessOperationForm({ operation, onSave, onCancel }: Pr
       await onSave(formData);
       }
     } catch (error: any) {
-      alert(`오류: ${error.message}`);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(`오류: ${extractErrorMessage(error) || error.message}`);
     } finally {
       setLoading(false);
     }

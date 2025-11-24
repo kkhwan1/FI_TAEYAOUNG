@@ -58,7 +58,8 @@ export default function ProductionHistoryTable() {
       if (data.success) {
         setTransactions(data.data.transactions || []);
       } else {
-        toast.error('조회 실패', data.error || '생산 내역을 불러올 수 없습니다');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        toast.error('조회 실패', extractErrorMessage(data.error) || '생산 내역을 불러올 수 없습니다');
       }
     } catch (error) {
       toast.error('오류 발생', '생산 내역을 불러오는 중 오류가 발생했습니다');

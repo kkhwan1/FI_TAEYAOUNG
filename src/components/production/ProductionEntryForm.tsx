@@ -130,7 +130,8 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
         if (data.success) {
           setItems(data.data.items || []);
         } else {
-          toast.error('품목 조회 실패', data.error || '품목 목록을 불러올 수 없습니다');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          toast.error('품목 조회 실패', extractErrorMessage(data.error) || '품목 목록을 불러올 수 없습니다');
         }
       } catch (error) {
         toast.error('오류 발생', '품목 목록을 불러오는 중 오류가 발생했습니다');
@@ -183,8 +184,10 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
 
         if (!response.ok) {
           if (result.error) {
-            setStockError(result.error);
-            toast.error('일괄 등록 실패', result.error);
+            const { extractErrorMessage } = await import('@/lib/fetch-utils');
+            const errorMsg = extractErrorMessage(result.error);
+            setStockError(errorMsg);
+            toast.error('일괄 등록 실패', errorMsg);
           }
           return;
         }
@@ -235,14 +238,16 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
 
       if (!response.ok) {
         // Check for stock shortage error
-        if (result.error?.includes('재고 부족')) {
-          setStockError(result.error);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        const errorMsg = extractErrorMessage(result.error);
+        if (errorMsg?.includes('재고 부족')) {
+          setStockError(errorMsg);
           if (result.hint) {
-            setStockError(`${result.error}\n${result.hint}`);
+            setStockError(`${errorMsg}\n${result.hint}`);
           }
-          toast.error('재고 부족', result.error);
+          toast.error('재고 부족', errorMsg);
         } else {
-          throw new Error(result.error || '생산 등록에 실패했습니다');
+          throw new Error(errorMsg || '생산 등록에 실패했습니다');
         }
         return;
       }

@@ -167,7 +167,8 @@ export default function ExcelUploadModal({
           onUploadSuccess();
         }, 500);
       } else {
-        throw new Error(result.error || '업로드에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '업로드에 실패했습니다.');
       }
           } catch (err: any) {
       setError(err.message || '업로드 중 오류가 발생했습니다.');

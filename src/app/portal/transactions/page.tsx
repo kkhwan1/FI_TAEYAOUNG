@@ -35,7 +35,8 @@ export default function PortalTransactionsPage() {
         setRole(data.data.role);
         setCompanyName(data.data.companyName);
       } else {
-        setError(data.error || '거래 내역을 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        setError(extractErrorMessage(data.error) || '거래 내역을 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('Fetch error:', err);

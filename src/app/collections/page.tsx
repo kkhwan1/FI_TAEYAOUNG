@@ -18,7 +18,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/contexts/ToastContext';
@@ -72,6 +73,9 @@ export default function CollectionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<PaymentMethod | ''>('');
   const [startDate, setStartDate] = useState('');
@@ -110,7 +114,8 @@ export default function CollectionsPage() {
       if (result.success) {
         setCollections(result.data);
       } else {
-        showToast(result.error || '수금 내역 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '수금 내역 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching collections:', error);
@@ -156,6 +161,8 @@ export default function CollectionsPage() {
 
   // 수금 삭제
   const handleDelete = async (collection: Collection) => {
+    if (isDeleting === collection.collection_id) return;
+
     const confirmed = await confirm({
       title: '수금 내역 삭제',
       message: `수금번호 ${collection.collection_no}를 삭제하시겠습니까?\n매출 거래의 수금 금액이 조정됩니다.`,
@@ -165,6 +172,7 @@ export default function CollectionsPage() {
 
     if (!confirmed) return;
 
+    setIsDeleting(collection.collection_id);
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
       const result = await safeFetchJson(`/api/collections?id=${collection.collection_id}`, {
@@ -179,11 +187,14 @@ export default function CollectionsPage() {
         showToast('수금 내역이 삭제되었습니다', 'success');
         fetchCollections();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting collection:', error);
       showToast('삭제 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -197,6 +208,9 @@ export default function CollectionsPage() {
 
   // 폼 저장
   const handleSaveCollection = async (data: Partial<Collection>) => {
+    if (isSaving) return;
+
+    setIsSaving(true);
     try {
       const url = selectedCollection
         ? `/api/collections/${selectedCollection.collection_id}`
@@ -221,18 +235,25 @@ export default function CollectionsPage() {
           'success'
         );
         setIsFormOpen(false);
+        setSelectedCollection(null);
         fetchCollections();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving collection:', error);
       showToast('저장 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   // Excel 다운로드
   const handleExcelDownload = async () => {
+    if (isDownloading) return;
+
+    setIsDownloading(true);
     try {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
@@ -265,6 +286,8 @@ export default function CollectionsPage() {
     } catch (error) {
       console.error('Error downloading Excel:', error);
       showToast('Excel 다운로드 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -454,10 +477,20 @@ export default function CollectionsPage() {
           </button>
           <button
             onClick={handleExcelDownload}
-            className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs whitespace-nowrap"
+            disabled={isDownloading}
+            className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="w-3.5 h-3.5" />
-            Excel 다운로드
+            {isDownloading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                다운로드 중...
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                Excel 다운로드
+              </>
+            )}
           </button>
           <button
             onClick={handleAdd}
@@ -764,10 +797,15 @@ export default function CollectionsPage() {
                           </button>
                           <button
                             onClick={() => handleDelete(collection)}
-                            className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                            disabled={isDeleting === collection.collection_id}
+                            className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="삭제"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeleting === collection.collection_id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -844,10 +882,20 @@ export default function CollectionsPage() {
                     </button>
                     <button
                       onClick={() => handleDelete(collection)}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
+                      disabled={isDeleting === collection.collection_id}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      삭제
+                      {isDeleting === collection.collection_id ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          삭제 중...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-3 h-3" />
+                          삭제
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -866,7 +914,12 @@ export default function CollectionsPage() {
         <CollectionForm
           collection={selectedCollection}
           onSave={handleSaveCollection}
-          onCancel={() => setIsFormOpen(false)}
+          onCancel={() => {
+            if (!isSaving) {
+              setIsFormOpen(false);
+              setSelectedCollection(null);
+            }
+          }}
         />
       </Modal>
     </div>

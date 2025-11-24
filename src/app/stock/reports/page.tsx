@@ -11,6 +11,7 @@ import {
   ArrowDown,
   ArrowUpDown
 } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 import {
   XAxis,
   YAxis,
@@ -58,6 +59,7 @@ interface TopItem {
 }
 
 export default function StockReportsPage() {
+  const { error: showError } = useToast();
   const [stockSummary, setStockSummary] = useState<StockSummary | null>(null);
   const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryBreakdown[]>([]);
   const [monthlyTrend, setMonthlyTrend] = useState<MonthlyTrend[]>([]);
@@ -95,11 +97,13 @@ export default function StockReportsPage() {
         setLowStockItems(data.lowStockItems || []);
       } else {
         console.error('[Stock Reports] API error:', result.error);
-        alert(`보고서 조회 실패: ${result.error}`);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(`보고서 조회 실패: ${extractErrorMessage(result.error)}`);
       }
     } catch (error) {
       console.error('[Stock Reports] Fetch error:', error);
-      alert('보고서 조회 중 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '보고서 조회 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -111,6 +115,70 @@ export default function StockReportsPage() {
       fetchReportData();
     }
   }, [reportDate]);
+
+  // Sort handlers
+  const handleTopValueSort = (column: string) => {
+    if (topValueSortColumn === column) {
+      setTopValueSortOrder(topValueSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setTopValueSortColumn(column);
+      setTopValueSortOrder('desc');
+    }
+  };
+
+  const handleLowStockSort = (column: string) => {
+    if (lowStockSortColumn === column) {
+      setLowStockSortOrder(lowStockSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setLowStockSortColumn(column);
+      setLowStockSortOrder('asc');
+    }
+  };
+
+  // Sorted items using useMemo
+  const sortedTopValueItems = useMemo(() => {
+    if (!topValueItems || topValueItems.length === 0) return [];
+    
+    const sorted = [...topValueItems].sort((a, b) => {
+      let aValue: any = a[topValueSortColumn as keyof TopItem];
+      let bValue: any = b[topValueSortColumn as keyof TopItem];
+      
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+      
+      if (topValueSortOrder === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+    
+    return sorted.slice(0, 10); // Top 10
+  }, [topValueItems, topValueSortColumn, topValueSortOrder]);
+
+  const sortedLowStockItems = useMemo(() => {
+    if (!lowStockItems || lowStockItems.length === 0) return [];
+    
+    const sorted = [...lowStockItems].sort((a, b) => {
+      let aValue: any = a[lowStockSortColumn as keyof TopItem];
+      let bValue: any = b[lowStockSortColumn as keyof TopItem];
+      
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+      
+      if (lowStockSortOrder === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+    
+    return sorted;
+  }, [lowStockItems, lowStockSortColumn, lowStockSortOrder]);
 
   // Chart colors - Grayscale palette for SAP-style UI
   const COLORS = ['#262626', '#525252', '#737373', '#A3A3A3', '#D4D4D4', '#E5E5E5', '#F5F5F5', '#FAFAFA'];

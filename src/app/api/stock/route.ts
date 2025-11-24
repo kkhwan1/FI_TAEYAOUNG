@@ -46,11 +46,15 @@ export const GET = createValidatedRoute(
     }
 
     if (search) {
-      query = query.or(`item_code.ilike.%${search}%,item_name.ilike.%${search}%`);
+      // Use multiple ilike filters with or() - Supabase format: column.operator.value,column.operator.value
+      query = query.or(`item_code.ilike.%${search}%,item_name.ilike.%${search}%,spec.ilike.%${search}%`);
     }
 
     if (supplierId) {
-      query = query.eq('supplier_id', parseInt(supplierId));
+      const supplierIdNum = parseInt(supplierId);
+      if (!isNaN(supplierIdNum)) {
+        query = query.eq('supplier_id', supplierIdNum);
+      }
     }
 
     // Apply ordering
@@ -60,7 +64,15 @@ export const GET = createValidatedRoute(
 
     if (error) {
       console.error('Error fetching current stock:', error);
-      throw new Error(error.message);
+      console.error('Query details:', { category, status, search, supplierId });
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Failed to fetch current stock: ${error.message}`,
+          details: error
+        },
+        { status: 500 }
+      );
     }
 
     // 1. 현재 월 계산

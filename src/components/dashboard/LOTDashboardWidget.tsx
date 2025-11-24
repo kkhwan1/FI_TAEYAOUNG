@@ -86,7 +86,8 @@ export const LOTDashboardWidget: React.FC<LOTDashboardWidgetProps> = ({
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to load LOT dashboard data');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || 'Failed to load LOT dashboard data');
       }
 
       setData(result.data);

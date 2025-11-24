@@ -17,7 +17,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/contexts/ToastContext';
@@ -73,6 +74,9 @@ export default function SalesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<SalesTransaction | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null); // 삭제 중인 거래 ID
+  const [isDownloading, setIsDownloading] = useState(false); // Excel 다운로드 중
+  const [isSaving, setIsSaving] = useState(false); // 저장 중
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | ''>('');
   const [startDate, setStartDate] = useState('');
@@ -121,7 +125,8 @@ export default function SalesPage() {
         // Phase 6A API structure: { data: { transactions, pagination, summary } }
         setTransactions(result.data?.transactions || result.data || []);
       } else {
-        showToast(result.error || '매출 거래 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '매출 거래 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching sales transactions:', error);
@@ -149,6 +154,9 @@ export default function SalesPage() {
 
   // 매출 거래 삭제
   const handleDelete = async (transaction: SalesTransaction) => {
+    // 이미 삭제 중이면 무시
+    if (isDeleting === transaction.transaction_id) return;
+
     const confirmed = await confirm({
       title: '매출 거래 삭제',
       message: `거래번호 ${transaction.transaction_no}를 삭제하시겠습니까?`,
@@ -158,6 +166,7 @@ export default function SalesPage() {
 
     if (!confirmed) return;
 
+    setIsDeleting(transaction.transaction_id);
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
       const result = await safeFetchJson(`/api/sales-transactions?id=${transaction.transaction_id}`, {
@@ -172,11 +181,14 @@ export default function SalesPage() {
         showToast('매출 거래가 삭제되었습니다', 'success');
         fetchTransactions();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting sales transaction:', error);
       showToast('삭제 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -193,6 +205,10 @@ export default function SalesPage() {
 
   // 폼 저장
   const handleSaveTransaction = async (data: Partial<SalesTransaction>) => {
+    // 이미 저장 중이면 무시
+    if (isSaving) return;
+
+    setIsSaving(true);
     try {
       const url = selectedTransaction
         ? `/api/sales-transactions/${selectedTransaction.transaction_id}`
@@ -217,13 +233,17 @@ export default function SalesPage() {
           'success'
         );
         setIsFormOpen(false);
+        setSelectedTransaction(null);
         fetchTransactions();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving sales transaction:', error);
       showToast('저장 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -684,10 +704,15 @@ export default function SalesPage() {
                           </button>
                           <button
                             onClick={() => handleDelete(transaction)}
-                            className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                            disabled={isDeleting === transaction.transaction_id}
+                            className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="삭제"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeleting === transaction.transaction_id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -795,7 +820,12 @@ export default function SalesPage() {
         <SalesTransactionForm
           transaction={selectedTransaction}
           onSave={handleSaveTransaction}
-          onCancel={() => setIsFormOpen(false)}
+          onCancel={() => {
+            if (!isSaving) {
+              setIsFormOpen(false);
+              setSelectedTransaction(null);
+            }
+          }}
         />
       </Modal>
     </div>

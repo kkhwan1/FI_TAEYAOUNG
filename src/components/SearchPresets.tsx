@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Star, Plus, Edit, Trash2, Download, Upload, Clock } from 'lucide-react';
 import { SearchPreset } from '@/hooks/useAdvancedSearch';
 import Modal from './Modal';
+import { useToast } from '@/contexts/ToastContext';
 
 interface SearchPresetsProps {
   presets: SearchPreset[];
@@ -29,6 +30,7 @@ export default function SearchPresets({
   currentFilters,
   hasActiveFilters = false
 }: SearchPresetsProps) {
+  const { success: showSuccess, error: showError } = useToast();
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [editingPreset, setEditingPreset] = useState<SearchPreset | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -100,10 +102,10 @@ export default function SearchPresets({
           // Here you would implement the import logic
           // For now, just log the imported data
           console.log('프리셋 가져오기:', importData.presets);
-          alert(`${importData.presets.length}개의 프리셋을 가져왔습니다.`);
+          showSuccess(`${importData.presets.length}개의 프리셋을 가져왔습니다.`);
         }
       } catch (error) {
-        alert('프리셋 파일 형식이 올바르지 않습니다.');
+        showError('프리셋 파일 형식이 올바르지 않습니다.');
       }
     };
     reader.readAsText(file);

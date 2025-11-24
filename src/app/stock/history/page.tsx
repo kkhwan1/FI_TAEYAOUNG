@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/contexts/ToastContext';
 import {
   Calendar,
   Search,
@@ -45,6 +46,7 @@ interface StockItem {
 
 export default function StockHistoryPage() {
   const router = useRouter();
+  const { error: showError } = useToast();
   const [stockHistory, setStockHistory] = useState<StockHistoryItem[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,14 +110,16 @@ export default function StockHistoryPage() {
         setStockHistory(result.data.history || []);
       } else {
         if (showLoading) {
-          alert(`재고 이력 조회 실패: ${result.error}`);
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          showError(`재고 이력 조회 실패: ${extractErrorMessage(result.error)}`);
         }
         setStockHistory([]);
       }
     } catch (error) {
       console.error('재고 이력 조회 오류:', error);
       if (showLoading) {
-        alert('재고 이력 조회 중 오류가 발생했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(extractErrorMessage(error) || '재고 이력 조회 중 오류가 발생했습니다.');
       }
       setStockHistory([]);
     } finally {

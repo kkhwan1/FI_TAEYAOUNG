@@ -174,7 +174,8 @@ export default function CompaniesPage() {
         });
 
         if (!data.success) {
-          throw new Error(data.error || '거래처 삭제에 실패했습니다.');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(data.error) || '거래처 삭제에 실패했습니다.');
         }
 
         fetchCompanies(true); // Force cache refresh after delete

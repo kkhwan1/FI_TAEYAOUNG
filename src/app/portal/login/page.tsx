@@ -40,7 +40,8 @@ export default function PortalLoginPage() {
         // Redirect to portal dashboard
         router.push('/portal/dashboard');
       } else {
-        setError(data.error || '로그인에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        setError(extractErrorMessage(data.error) || '로그인에 실패했습니다.');
       }
     } catch (err) {
       console.error('Login error:', err);

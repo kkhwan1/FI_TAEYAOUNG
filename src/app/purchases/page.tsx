@@ -124,7 +124,8 @@ export default function PurchasesPage() {
         // Phase 6A API structure: { data: [...] } or { data: { transactions, pagination } }
         setTransactions(Array.isArray(result.data) ? result.data : result.data?.transactions || []);
       } else {
-        showToast(result.error || '매입 거래 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '매입 거래 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching purchase transactions:', error);
@@ -175,7 +176,8 @@ export default function PurchasesPage() {
         showToast('매입 거래가 삭제되고 재고가 조정되었습니다', 'success');
         fetchTransactions();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting purchase transaction:', error);
@@ -222,7 +224,8 @@ export default function PurchasesPage() {
         setIsFormOpen(false);
         fetchTransactions();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving purchase transaction:', error);

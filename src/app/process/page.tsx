@@ -145,7 +145,8 @@ export default function ProcessPage() {
         const result = await response.json();
 
         if (!response.ok || !result.success) {
-          throw new Error(result.error || '코일 공정 목록을 불러올 수 없습니다.');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(result.error) || '코일 공정 목록을 불러올 수 없습니다.');
         }
 
         // 코일 추적 데이터를 공정 작업 형식으로 변환
@@ -256,7 +257,8 @@ export default function ProcessPage() {
           setStatusCounts(counts);
         }
       } else {
-        showToast(result.error || '공정 작업 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '공정 작업 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching process operations:', error);
@@ -313,7 +315,8 @@ export default function ProcessPage() {
         showToast('공정 작업이 삭제되었습니다', 'success');
         fetchOperations();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting process operation:', error);
@@ -420,7 +423,8 @@ export default function ProcessPage() {
         setIsFormOpen(false);
         fetchOperations();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving process operation:', error);

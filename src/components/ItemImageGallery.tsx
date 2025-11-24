@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Star, Trash2, X, ZoomIn } from 'lucide-react';
 import Image from 'next/image';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ItemImage {
   image_id: number;
@@ -27,6 +28,7 @@ export function ItemImageGallery({
   refreshTrigger,
   onImageDeleted
 }: ItemImageGalleryProps) {
+  const { error: showError } = useToast();
   const [images, setImages] = useState<ItemImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,8 @@ export function ItemImageGallery({
       });
 
       if (!result.success) {
-        throw new Error(result.error || '이미지 목록 로드 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '이미지 목록 로드 실패');
       }
 
       setImages(result.data);
@@ -79,14 +82,15 @@ export function ItemImageGallery({
       });
 
       if (!result.success) {
-        throw new Error(result.error || '이미지 삭제 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '이미지 삭제 실패');
       }
 
       setImages(prev => prev.filter(img => img.image_id !== imageId));
       onImageDeleted?.();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '이미지 삭제 중 오류가 발생했습니다';
-      alert(errorMessage);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(err) || '이미지 삭제 중 오류가 발생했습니다');
     } finally {
       setDeletingId(null);
     }
@@ -106,7 +110,8 @@ export function ItemImageGallery({
       });
 
       if (!result.success) {
-        throw new Error(result.error || '대표 이미지 설정 실패');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '대표 이미지 설정 실패');
       }
 
       // Update local state
@@ -117,8 +122,8 @@ export function ItemImageGallery({
         }))
       );
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '대표 이미지 설정 중 오류가 발생했습니다';
-      alert(errorMessage);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(err) || '대표 이미지 설정 중 오류가 발생했습니다');
     } finally {
       setSettingPrimaryId(null);
     }

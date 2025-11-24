@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Search, RefreshCw, Eye, CheckCircle, XCircle, Trash2, Filter, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 
 interface BatchItem {
   batch_item_id: number;
@@ -35,6 +36,7 @@ interface BatchListTableProps {
 }
 
 export default function BatchListTable({ refreshKey }: BatchListTableProps) {
+  const { success: showSuccess, error: showError } = useToast();
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,11 +68,13 @@ export default function BatchListTable({ refreshKey }: BatchListTableProps) {
         setBatches(result.data || []);
       } else {
         console.error('배치 목록 조회 실패:', result.error);
-        alert(`배치 목록 조회 실패: ${result.error}`);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(`배치 목록 조회 실패: ${extractErrorMessage(result.error)}`);
       }
     } catch (error) {
       console.error('배치 목록 조회 에러:', error);
-      alert('배치 목록을 불러오는 중 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '배치 목록을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -85,11 +89,13 @@ export default function BatchListTable({ refreshKey }: BatchListTableProps) {
         setSelectedBatch(result.data);
         setShowDetailModal(true);
       } else {
-        alert(`배치 상세 조회 실패: ${result.error}`);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(`배치 상세 조회 실패: ${extractErrorMessage(result.error)}`);
       }
     } catch (error) {
       console.error('배치 상세 조회 에러:', error);
-      alert('배치 상세 정보를 불러오는 중 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '배치 상세 정보를 불러오는 중 오류가 발생했습니다.');
     }
   };
 
@@ -110,18 +116,20 @@ export default function BatchListTable({ refreshKey }: BatchListTableProps) {
       const result = await response.json();
 
       if (result.success) {
-        alert(result.message || '배치 상태가 업데이트되었습니다.');
+        showSuccess(result.message || '배치 상태가 업데이트되었습니다.');
         fetchBatches();
         if (selectedBatch?.batch_id === batchId) {
           setShowDetailModal(false);
           setSelectedBatch(null);
         }
       } else {
-        alert(`상태 변경 실패: ${result.error}`);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(`상태 변경 실패: ${extractErrorMessage(result.error)}`);
       }
     } catch (error) {
       console.error('배치 상태 변경 에러:', error);
-      alert('배치 상태 변경 중 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '배치 상태 변경 중 오류가 발생했습니다.');
     }
   };
 
@@ -136,18 +144,20 @@ export default function BatchListTable({ refreshKey }: BatchListTableProps) {
       const result = await response.json();
 
       if (result.success) {
-        alert(result.message || '배치가 삭제되었습니다.');
+        showSuccess(result.message || '배치가 삭제되었습니다.');
         fetchBatches();
         if (selectedBatch?.batch_id === batchId) {
           setShowDetailModal(false);
           setSelectedBatch(null);
         }
       } else {
-        alert(`삭제 실패: ${result.error}`);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(`삭제 실패: ${extractErrorMessage(result.error)}`);
       }
     } catch (error) {
       console.error('배치 삭제 에러:', error);
-      alert('배치 삭제 중 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '배치 삭제 중 오류가 발생했습니다.');
     }
   };
 

@@ -87,11 +87,29 @@ export const GET = createValidatedRoute(
       const supabase = getSupabaseClient();
 
       // 1. 총 개수 및 요약 통계를 위한 기본 필터 쿼리 구성
-      let countQuery = supabase
+      // 요약 통계는 필터와 관계없이 전체 데이터 기준으로 계산
+      let summaryQuery = supabase
         .from('coil_process_history')
         .select('process_id, status, input_quantity, output_quantity, yield_rate', { count: 'exact' });
 
-      // 필터 적용 (countQuery)
+      // 요약 통계용 필터 (날짜, 공정 유형만 적용, 상태 필터는 제외)
+      if (startDate) {
+        summaryQuery = summaryQuery.gte('process_date', startDate);
+      }
+      if (endDate) {
+        summaryQuery = summaryQuery.lte('process_date', endDate);
+      }
+      if (processType) {
+        summaryQuery = summaryQuery.eq('process_type', processType);
+      }
+
+      const { data: allDataForSummary, count: totalCount, error: countError } = await summaryQuery;
+
+      // 데이터 조회용 쿼리 (모든 필터 적용)
+      let countQuery = supabase
+        .from('coil_process_history')
+        .select('process_id', { count: 'exact' });
+
       if (startDate) {
         countQuery = countQuery.gte('process_date', startDate);
       }
@@ -105,20 +123,20 @@ export const GET = createValidatedRoute(
         countQuery = countQuery.eq('status', status);
       }
 
-      const { data: allData, count: totalCount, error: countError } = await countQuery;
+      const { count: filteredCount, error: filteredCountError } = await countQuery;
 
-      if (countError) {
-        console.error('Error fetching count:', countError);
+      if (countError || filteredCountError) {
+        console.error('Error fetching count:', countError || filteredCountError);
         return NextResponse.json(
           {
             success: false,
-            error: `통계 조회 실패: ${countError.message}`
+            error: `통계 조회 실패: ${(countError || filteredCountError)?.message}`
           },
           { status: 500 }
         );
       }
 
-      // 2. 요약 통계 계산
+      // 2. 요약 통계 계산 (필터와 관계없이 전체 데이터 기준)
       const summary: ProcessHistorySummary = {
         total_count: totalCount || 0,
         pending_count: 0,
@@ -129,17 +147,18 @@ export const GET = createValidatedRoute(
         average_yield_rate: 0
       };
 
-      if (allData && allData.length > 0) {
+      if (allDataForSummary && allDataForSummary.length > 0) {
         let totalYieldRate = 0;
         let yieldRateCount = 0;
 
-        allData.forEach((item: any) => {
-          // 상태별 카운트
-          if (item.status === 'pending') {
+        allDataForSummary.forEach((item: any) => {
+          // 상태별 카운트 (대소문자 구분 없이 비교)
+          const itemStatus = (item.status || '').toLowerCase();
+          if (itemStatus === 'pending' || itemStatus === '대기') {
             summary.pending_count++;
-          } else if (item.status === 'in_progress') {
+          } else if (itemStatus === 'in_progress' || itemStatus === '진행중' || itemStatus === 'inprogress') {
             summary.in_progress_count++;
-          } else if (item.status === 'completed') {
+          } else if (itemStatus === 'completed' || itemStatus === '완료') {
             summary.completed_count++;
           }
 
@@ -160,15 +179,15 @@ export const GET = createValidatedRoute(
           : 0;
       }
 
-      // 3. 페이지네이션 정보 계산
-      const totalPages = Math.ceil((totalCount || 0) / limit);
+      // 3. 페이지네이션 정보 계산 (필터링된 데이터 기준)
+      const totalPages = Math.ceil((filteredCount || 0) / limit);
       const offset = (page - 1) * limit;
 
       const pagination: PaginationInfo = {
         page,
         limit,
         total_pages: totalPages,
-        total_count: totalCount || 0
+        total_count: filteredCount || 0
       };
 
       // 4. 실제 데이터 조회 (JOIN 포함)
@@ -217,7 +236,19 @@ export const GET = createValidatedRoute(
         dataQuery = dataQuery.eq('process_type', processType);
       }
       if (status && status !== 'all') {
-        dataQuery = dataQuery.eq('status', status);
+        // 상태 필터: 대소문자 구분 없이 비교
+        // 데이터베이스의 상태 값이 'COMPLETED', 'PENDING', 'IN_PROGRESS' 등일 수 있으므로
+        // ilike를 사용하거나 여러 값을 OR로 검색
+        const statusUpper = status.toUpperCase();
+        if (statusUpper === 'COMPLETED' || statusUpper === '완료') {
+          dataQuery = dataQuery.or('status.eq.completed,status.eq.COMPLETED,status.ilike.%완료%');
+        } else if (statusUpper === 'PENDING' || statusUpper === '대기') {
+          dataQuery = dataQuery.or('status.eq.pending,status.eq.PENDING,status.ilike.%대기%');
+        } else if (statusUpper === 'IN_PROGRESS' || statusUpper === '진행중') {
+          dataQuery = dataQuery.or('status.eq.in_progress,status.eq.IN_PROGRESS,status.ilike.%진행중%');
+        } else {
+          dataQuery = dataQuery.ilike('status', `%${status}%`);
+        }
       }
 
       // 정렬 및 페이지네이션

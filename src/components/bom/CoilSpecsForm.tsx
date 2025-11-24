@@ -373,7 +373,8 @@ export default function CoilSpecsForm({
         const result = await response.json();
 
         if (!result.success) {
-          throw new Error(result.error || '저장에 실패했습니다');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(result.error) || '저장에 실패했습니다');
         }
 
         // Update coil_spec_id if this was a create operation

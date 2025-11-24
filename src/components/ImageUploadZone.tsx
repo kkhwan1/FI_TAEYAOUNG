@@ -59,7 +59,8 @@ export function ImageUploadZone({
         });
 
         if (!result.success) {
-          throw new Error(result.error || '업로드 실패');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(result.error) || '업로드 실패');
         }
 
         setSuccess(true);

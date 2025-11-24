@@ -112,7 +112,8 @@ export default function CollectionsContent({ className }: CollectionsContentProp
       if (result.success) {
         setCollections(result.data);
       } else {
-        showToast(result.error || '수금 내역 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '수금 내역 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching collections:', error);
@@ -187,7 +188,8 @@ export default function CollectionsContent({ className }: CollectionsContentProp
         showToast('수금 내역이 삭제되었습니다', 'success');
         fetchCollections();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting collection:', error);
@@ -294,7 +296,8 @@ export default function CollectionsContent({ className }: CollectionsContentProp
         setIsFormOpen(false);
         fetchCollections();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving collection:', error);

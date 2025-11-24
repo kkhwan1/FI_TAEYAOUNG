@@ -88,7 +88,41 @@ export const GET = async (request: NextRequest) => {
 
     if (search) {
       // Search by payment_no or supplier name
-      query = query.or(`payment_no.ilike.%${search}%`);
+      // First, find supplier IDs matching the search term
+      const { data: matchingSuppliers } = await supabaseAdmin
+        .from('companies')
+        .select('company_id')
+        .or(`company_name.ilike.%${search}%,company_code.ilike.%${search}%`)
+        .limit(100);
+      
+      const supplierIds = matchingSuppliers?.map(s => s.company_id) || [];
+      
+      // Get purchase transaction IDs for matching suppliers
+      let purchaseTransactionIds: number[] = [];
+      if (supplierIds.length > 0) {
+        const { data: matchingPurchases } = await supabaseAdmin
+          .from('purchase_transactions')
+          .select('transaction_id')
+          .in('supplier_id', supplierIds)
+          .eq('is_active', true)
+          .limit(1000);
+        
+        purchaseTransactionIds = matchingPurchases?.map(p => p.transaction_id) || [];
+      }
+      
+      // Build search conditions
+      const searchConditions: string[] = [];
+      searchConditions.push(`payment_no.ilike.%${search}%`);
+      
+      if (purchaseTransactionIds.length > 0) {
+        // Search by purchase_transaction_id if we found matching suppliers
+        const purchaseIdConditions = purchaseTransactionIds.map(id => `purchase_transaction_id.eq.${id}`).join(',');
+        searchConditions.push(purchaseIdConditions);
+      }
+      
+      if (searchConditions.length > 0) {
+        query = query.or(searchConditions.join(','));
+      }
     }
 
     // Apply ordering and pagination

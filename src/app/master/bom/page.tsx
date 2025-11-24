@@ -42,6 +42,38 @@ interface BOM {
   child_item_name?: string;
   parent_item_code?: string;
   child_item_code?: string;
+  // Parent item details
+  parent_spec?: string;
+  parent_unit?: string;
+  parent_category?: string;
+  parent_inventory_type?: string;
+  parent_car_model?: string;
+  parent_location?: string;
+  // Child item details
+  child_spec?: string;
+  child_unit?: string;
+  child_category?: string;
+  child_inventory_type?: string;
+  child_car_model?: string;
+  child_location?: string;
+  // Supplier information (parent)
+  parent_supplier_name?: string;
+  parent_supplier_code?: string;
+  parent_supplier_business_number?: string;
+  parent_supplier_representative?: string;
+  parent_supplier_phone?: string;
+  parent_supplier_email?: string;
+  parent_supplier_address?: string;
+  parent_supplier_type?: string;
+  // Supplier information (child)
+  child_supplier_name?: string;
+  child_supplier_code?: string;
+  child_supplier_business_number?: string;
+  child_supplier_representative?: string;
+  child_supplier_phone?: string;
+  child_supplier_email?: string;
+  child_supplier_address?: string;
+  child_supplier_type?: string;
   quantity: number;
   level: number;
   notes?: string;
@@ -215,7 +247,8 @@ export default function BOMPage() {
         setCostSummary(data.data.cost_summary);
       } else {
         console.error('API Error:', data.error);
-        error('데이터 로딩 실패', data.error || 'BOM 데이터를 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error('데이터 로딩 실패', extractErrorMessage(data.error) || 'BOM 데이터를 불러오는데 실패했습니다.');
       }
     } catch (error) {
       console.error('Failed to fetch BOM data:', error);
@@ -263,7 +296,8 @@ export default function BOMPage() {
         success('업로드 완료', `${result.stats?.valid_rows || 0}개 항목이 성공적으로 업로드되었습니다`);
         await fetchBOMData();
       } else {
-        error('업로드 실패', result.error || '업로드 중 오류가 발생했습니다');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error('업로드 실패', extractErrorMessage(result.error) || '업로드 중 오류가 발생했습니다');
         console.error('Upload errors:', result.details);
       }
     } catch (err) {
@@ -486,7 +520,8 @@ export default function BOMPage() {
         });
 
         if (!data.success) {
-          throw new Error(data.error || 'BOM 삭제에 실패했습니다.');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(data.error) || 'BOM 삭제에 실패했습니다.');
         }
 
         setSelectedIds(prev => {
@@ -608,7 +643,8 @@ export default function BOMPage() {
         setEditingBOM(null);
         fetchBOMData();
       } else {
-        error('저장 실패', result.error || '저장에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error('저장 실패', extractErrorMessage(result.error) || '저장에 실패했습니다.');
       }
     } catch (err) {
       console.error('Failed to save BOM:', err);
@@ -689,10 +725,12 @@ export default function BOMPage() {
           }
         };
       } else {
-        error('등록 실패', result.error || '대량 등록에 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        const errorMsg = extractErrorMessage(result.error) || '대량 등록에 실패했습니다.';
+        error('등록 실패', errorMsg);
         return {
           success: false,
-          message: result.error || '대량 등록에 실패했습니다.'
+          message: errorMsg
         };
       }
     } catch (err) {
@@ -733,7 +771,8 @@ export default function BOMPage() {
         success('저장 완료', '코일 규격이 저장되었습니다');
         setSelectedCoilItem(null);
       } else {
-        throw new Error(result.error);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '처리 중 오류가 발생했습니다.');
       }
     } catch (err) {
       console.error('Save failed:', err);
@@ -772,8 +811,166 @@ export default function BOMPage() {
   const handleExportToExcel = () => {
     const params = new URLSearchParams();
     params.append('include_cost_analysis', 'true');
+    params.append('include_master_data', 'true'); // 전체 기준정보 포함
+    // 현재 선택된 기준 월을 전달
+    if (priceMonth) {
+      params.append('price_month', priceMonth);
+    }
 
     window.location.href = `/api/bom/export?${params}`;
+  };
+
+  // 현재 화면에 표시된 데이터를 템플릿 형식으로 엑셀 파일로 내보내기
+  const handleExportCurrentDataToExcel = async () => {
+    try {
+      if (!filteredData || filteredData.length === 0) {
+        warning('데이터 없음', '내보낼 데이터가 없습니다.');
+        return;
+      }
+
+      // xlsx 라이브러리 동적 import
+      const XLSX = await import('xlsx');
+
+      // 엑셀 데이터 준비 (업로드 API가 인식할 수 있는 컬럼명 사용)
+      const excelData = filteredData.map((bom) => ({
+        // 모품목 상세 정보
+        '모품목코드': bom.parent_item_code || '',
+        '모품목명': bom.parent_item_name || '',
+        '모품목규격': bom.parent_spec || '',
+        '모품목단위': bom.parent_unit || '',
+        '모품목카테고리': bom.parent_category || '',
+        '모품목재고타입': bom.parent_inventory_type || '',
+        '모품목차종': bom.parent_car_model || '',
+        '모품목위치': bom.parent_location || '',
+        // 자품목 상세 정보
+        '자품목코드': bom.child_item_code || '',
+        '자품목명': bom.child_item_name || '',
+        '자품목규격': bom.child_spec || '',
+        '자품목단위': bom.child_unit || '',
+        '자품목카테고리': bom.child_category || '',
+        '자품목재고타입': bom.child_inventory_type || '',
+        '자품목차종': bom.child_car_model || '',
+        '자품목위치': bom.child_location || '',
+        // BOM 관계 정보
+        '소요량': bom.quantity || 0,
+        '레벨': bom.level || 0,
+        '비고': bom.notes || '',
+        // 거래처 정보 (모품목 공급사)
+        '모품목공급사명': bom.parent_supplier_name || '',
+        '모품목공급사코드': bom.parent_supplier_code || '',
+        '모품목공급사사업자번호': bom.parent_supplier_business_number || '',
+        '모품목공급사대표자': bom.parent_supplier_representative || '',
+        '모품목공급사전화번호': bom.parent_supplier_phone || '',
+        '모품목공급사이메일': bom.parent_supplier_email || '',
+        '모품목공급사주소': bom.parent_supplier_address || '',
+        '모품목공급사타입': bom.parent_supplier_type || '',
+        // 거래처 정보 (자품목 공급사)
+        '자품목공급사명': bom.child_supplier_name || '',
+        '자품목공급사코드': bom.child_supplier_code || '',
+        '자품목공급사사업자번호': bom.child_supplier_business_number || '',
+        '자품목공급사대표자': bom.child_supplier_representative || '',
+        '자품목공급사전화번호': bom.child_supplier_phone || '',
+        '자품목공급사이메일': bom.child_supplier_email || '',
+        '자품목공급사주소': bom.child_supplier_address || '',
+        '자품목공급사타입': bom.child_supplier_type || '',
+        // Monthly price information (parent) - 템플릿용 빈 값
+        '모품목단가월': '',
+        '모품목단가': 0,
+        '모품목KG단가': 0,
+        '모품목단가비고': '',
+        // Monthly price information (child) - 템플릿용 빈 값
+        '자품목단가월': '',
+        '자품목단가': 0,
+        '자품목KG단가': 0,
+        '자품목단가비고': '',
+        // 참고용 컬럼 (업로드 시 무시됨)
+        '단위': 'EA',
+        '단가 (₩)': bom.unit_price || 0,
+        '재료비 (₩)': bom.material_cost || 0,
+        '구분': bom.item_type === 'internal_production' ? '내부생산' : bom.item_type === 'external_purchase' ? '외부구매' : '',
+        '상태': bom.is_active ? '활성' : '비활성'
+      }));
+
+      // 워크북 생성
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+      // 컬럼 너비 설정
+      worksheet['!cols'] = [
+        // 모품목 상세 정보
+        { wch: 15 }, // 모품목코드
+        { wch: 25 }, // 모품목명
+        { wch: 20 }, // 모품목규격
+        { wch: 8 },  // 모품목단위
+        { wch: 15 }, // 모품목카테고리
+        { wch: 12 }, // 모품목재고타입
+        { wch: 12 }, // 모품목차종
+        { wch: 15 }, // 모품목위치
+        // 자품목 상세 정보
+        { wch: 15 }, // 자품목코드
+        { wch: 25 }, // 자품목명
+        { wch: 20 }, // 자품목규격
+        { wch: 8 },  // 자품목단위
+        { wch: 15 }, // 자품목카테고리
+        { wch: 12 }, // 자품목재고타입
+        { wch: 12 }, // 자품목차종
+        { wch: 15 }, // 자품목위치
+        // BOM 관계 정보
+        { wch: 10 }, // 소요량
+        { wch: 6 },  // 레벨
+        { wch: 20 }, // 비고
+        // 거래처 정보 (모품목 공급사)
+        { wch: 20 }, // 모품목공급사명
+        { wch: 15 }, // 모품목공급사코드
+        { wch: 18 }, // 모품목공급사사업자번호
+        { wch: 12 }, // 모품목공급사대표자
+        { wch: 15 }, // 모품목공급사전화번호
+        { wch: 25 }, // 모품목공급사이메일
+        { wch: 30 }, // 모품목공급사주소
+        { wch: 12 }, // 모품목공급사타입
+        // 거래처 정보 (자품목 공급사)
+        { wch: 20 }, // 자품목공급사명
+        { wch: 15 }, // 자품목공급사코드
+        { wch: 18 }, // 자품목공급사사업자번호
+        { wch: 12 }, // 자품목공급사대표자
+        { wch: 15 }, // 자품목공급사전화번호
+        { wch: 25 }, // 자품목공급사이메일
+        { wch: 30 }, // 자품목공급사주소
+        { wch: 12 }, // 자품목공급사타입
+        // Monthly price information (parent)
+        { wch: 12 }, // 모품목단가월
+        { wch: 12 }, // 모품목단가
+        { wch: 12 }, // 모품목KG단가
+        { wch: 20 }, // 모품목단가비고
+        // Monthly price information (child)
+        { wch: 12 }, // 자품목단가월
+        { wch: 12 }, // 자품목단가
+        { wch: 12 }, // 자품목KG단가
+        { wch: 20 }, // 자품목단가비고
+        // 참고용 컬럼 (업로드 시 무시됨)
+        { wch: 8 },  // 단위 (참고용)
+        { wch: 12 }, // 단가 (참고용)
+        { wch: 12 }, // 재료비 (참고용)
+        { wch: 12 }, // 구분 (참고용)
+        { wch: 8 }   // 상태 (참고용)
+      ];
+
+      // 워크시트 추가
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'BOM 데이터');
+
+      // 파일명 생성 (날짜 포함)
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+      const filename = `BOM_템플릿_${dateStr}.xlsx`;
+
+      // 파일 다운로드
+      XLSX.writeFile(workbook, filename);
+
+      success('엑셀 다운로드 완료', `${filteredData.length}개 항목이 엑셀 파일로 저장되었습니다.`);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      error('다운로드 실패', '엑셀 파일 생성 중 오류가 발생했습니다.');
+    }
   };
 
   // Render functions
@@ -1918,11 +2115,21 @@ export default function BOMPage() {
               </label>
 
               <button
-                onClick={handleExportToExcel}
+                onClick={handleExportCurrentDataToExcel}
                 className="flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-700 whitespace-nowrap text-xs"
+                title="현재 화면에 표시된 데이터를 엑셀 템플릿으로 다운로드"
               >
                 <Download className="w-3.5 h-3.5" />
-                내보내기
+                템플릿 다운로드
+              </button>
+
+              <button
+                onClick={handleExportToExcel}
+                className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap text-xs"
+                title="전체 BOM 데이터를 서버에서 내보내기"
+              >
+                <Download className="w-3.5 h-3.5" />
+                전체 내보내기
               </button>
 
               <PrintButton

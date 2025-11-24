@@ -67,6 +67,10 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 
 const PROCESS_TYPE_OPTIONS = [
   { value: 'all', label: '전체' },
+  { value: '블랭킹', label: '블랭킹' },
+  { value: '전단', label: '전단' },
+  { value: 'Press', label: 'Press 공정' },
+  { value: '조립', label: '조립 공정' },
   { value: 'slitting', label: '슬리팅' },
   { value: 'cutting', label: '재단' },
   { value: 'coating', label: '코팅' },
@@ -152,6 +156,10 @@ function getYieldRateClasses(yieldRate: number): string {
 
 function getProcessTypeLabel(processType: string): string {
   const typeMap: Record<string, string> = {
+    '블랭킹': '블랭킹',
+    '전단': '전단',
+    'Press': 'Press 공정',
+    '조립': '조립 공정',
     'slitting': '슬리팅',
     'cutting': '재단',
     'coating': '코팅',
@@ -171,6 +179,13 @@ export default function ProcessTraceabilityTable({
 }: ProcessTraceabilityTableProps) {
   // State - Data
   const [data, setData] = useState<ProcessTraceabilityData[]>([]);
+  const [summaryStats, setSummaryStats] = useState<SummaryStats>({
+    total: 0,
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    avgYield: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -235,6 +250,7 @@ export default function ProcessTraceabilityTable({
         // API returns data in { items, summary, pagination } structure
         const apiData = result.data;
         const items = apiData?.items || [];
+        const summary = apiData?.summary;
 
         // Transform API response to match component's expected format
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -258,8 +274,20 @@ export default function ProcessTraceabilityTable({
         }));
 
         setData(transformedData);
+
+        // Update summary stats from API response
+        if (summary) {
+          setSummaryStats({
+            total: summary.total_count || 0,
+            pending: summary.pending_count || 0,
+            inProgress: summary.in_progress_count || 0,
+            completed: summary.completed_count || 0,
+            avgYield: summary.average_yield_rate || 0
+          });
+        }
       } else {
-        throw new Error(result.error || '데이터를 불러오는데 실패했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || '데이터를 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('Error fetching traceability data:', err);
@@ -283,18 +311,7 @@ export default function ProcessTraceabilityTable({
   // Computed Values
   // ============================================================================
 
-  // Summary statistics
-  const summaryStats = useMemo<SummaryStats>(() => {
-    const total = data.length;
-    const pending = data.filter(d => d.status === 'pending').length;
-    const inProgress = data.filter(d => d.status === 'in_progress').length;
-    const completed = data.filter(d => d.status === 'completed').length;
-    const avgYield = total > 0
-      ? data.reduce((sum, d) => sum + (d.yield_rate || 0), 0) / total
-      : 0;
-
-    return { total, pending, inProgress, completed, avgYield };
-  }, [data]);
+  // Summary statistics are now managed via state from API response
 
   // Sorted data
   const sortedData = useMemo(() => {

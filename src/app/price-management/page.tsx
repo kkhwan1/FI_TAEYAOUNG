@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 
 interface PriceHistoryItem {
   price_history_id: number | null; // null이면 아직 저장 안됨
@@ -46,6 +47,7 @@ interface SummaryStats {
 }
 
 export default function PriceManagementPage() {
+  const { success: showSuccess, error: showError } = useToast();
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -173,7 +175,8 @@ export default function PriceManagementPage() {
         setPriceHistory(dataWithBomCost);
         calculateSummaryStats(dataWithBomCost);
       } else {
-        throw new Error(result.error || 'Failed to fetch price history');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || 'Failed to fetch price history');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred while fetching price history';
@@ -386,7 +389,7 @@ export default function PriceManagementPage() {
 
   const handleBulkAdjust = async () => {
     if (selectedItems.size === 0) {
-      alert('조정할 품목을 선택해주세요');
+      showError('조정할 품목을 선택해주세요');
       return;
     }
 
@@ -421,13 +424,14 @@ export default function PriceManagementPage() {
       });
 
       if (response.ok) {
-        alert(`${adjustedItems.length}개 품목의 단가가 조정되었습니다`);
+        showSuccess(`${adjustedItems.length}개 품목의 단가가 조정되었습니다`);
         fetchPriceHistory();
         setSelectedItems(new Set());
         setBulkAdjustmentMode(false);
       }
     } catch (error) {
-      alert('일괄 조정 중 오류가 발생했습니다');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '일괄 조정 중 오류가 발생했습니다');
     } finally {
       setSaving(false);
     }
@@ -459,13 +463,13 @@ export default function PriceManagementPage() {
   const handleSavePrice = async (item: PriceHistoryItem) => {
     const newPrice = parseFloat(editPrice);
     if (isNaN(newPrice) || newPrice < 0) {
-      alert('유효한 단가를 입력해주세요.');
+      showError('유효한 단가를 입력해주세요.');
       return;
     }
 
     // Maximum value validation for PostgreSQL DECIMAL(15,2)
     if (newPrice > 9999999999999.99) {
-      alert('단가가 너무 큽니다. 최대값: 9,999,999,999,999.99원');
+      showError('단가가 너무 큽니다. 최대값: 9,999,999,999,999.99원');
       return;
     }
 
@@ -515,11 +519,12 @@ export default function PriceManagementPage() {
         setEditingId(null);
         setEditPrice('');
       } else {
-        throw new Error(result.error || 'Failed to save price');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        throw new Error(extractErrorMessage(result.error) || 'Failed to save price');
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      alert(`단가 저장 실패: ${errorMessage}`);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(`단가 저장 실패: ${extractErrorMessage(err) || 'Unknown error'}`);
       console.error('Error saving price:', err);
     } finally {
       setSaving(false);
@@ -529,7 +534,7 @@ export default function PriceManagementPage() {
   // 일괄 저장 함수
   const handleBatchSave = async () => {
     if (modifiedItems.length === 0) {
-      alert('수정된 항목이 없습니다.');
+      showError('수정된 항목이 없습니다.');
       return;
     }
     
@@ -555,7 +560,7 @@ export default function PriceManagementPage() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(`${result.data.count}개 품목의 단가가 저장되었습니다.`);
+        showSuccess(`${result.data.count}개 품목의 단가가 저장되었습니다.`);
         fetchPriceHistory();
       } else {
         const errorData = await response.json();
@@ -563,8 +568,8 @@ export default function PriceManagementPage() {
       }
     } catch (error) {
       console.error('Batch save failed:', error);
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-      alert(`일괄 저장 중 오류가 발생했습니다: ${errorMessage}`);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(`일괄 저장 중 오류가 발생했습니다: ${extractErrorMessage(error) || '알 수 없는 오류'}`);
     } finally {
       setSaving(false);
     }
@@ -597,13 +602,14 @@ export default function PriceManagementPage() {
         if (result.success) {
           const copiedCount = result.stats?.copied || 0;
           if (copiedCount === 0) {
-            alert(`${prevMonthStr}에 저장된 단가가 없거나 모든 항목이 이미 존재합니다.`);
+            showError(`${prevMonthStr}에 저장된 단가가 없거나 모든 항목이 이미 존재합니다.`);
           } else {
-            alert(`${copiedCount}개 품목의 단가를 복사했습니다.`);
+            showSuccess(`${copiedCount}개 품목의 단가를 복사했습니다.`);
           }
           fetchPriceHistory(); // 새로고침
         } else {
-          throw new Error(result.error || '단가 복사 실패');
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          throw new Error(extractErrorMessage(result.error) || '단가 복사 실패');
         }
       } else {
         const errorData = await response.json().catch(() => ({ error: '단가 복사 실패' }));
@@ -611,8 +617,8 @@ export default function PriceManagementPage() {
       }
     } catch (error) {
       console.error('Copy failed:', error);
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-      alert(`단가 복사 중 오류가 발생했습니다: ${errorMessage}`);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(`단가 복사 중 오류가 발생했습니다: ${extractErrorMessage(error) || '알 수 없는 오류'}`);
     } finally {
       setSaving(false);
     }

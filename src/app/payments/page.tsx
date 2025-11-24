@@ -18,7 +18,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/contexts/ToastContext';
@@ -28,7 +29,7 @@ import { QuickDateSelector } from '@/components/ui/QuickDateSelector';
 const Modal = dynamicImport(() => import('@/components/Modal'), { ssr: false });
 const PaymentForm = dynamicImport(() => import('@/components/forms/PaymentForm'), { ssr: false });
 
-type PaymentMethod = 'CASH' | 'TRANSFER' | 'CHECK' | 'CARD';
+type PaymentMethod = 'CASH' | 'TRANSFER' | 'CHECK' | 'CARD' | 'BILL';
 
 type Payment = {
   payment_id: number;
@@ -72,6 +73,9 @@ export default function PaymentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<PaymentMethod | ''>('');
   const [startDate, setStartDate] = useState('');
@@ -110,7 +114,8 @@ export default function PaymentsPage() {
       if (result.success) {
         setPayments(result.data);
       } else {
-        showToast(result.error || '지급 내역 조회 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '지급 내역 조회 실패', 'error');
       }
     } catch (error) {
       console.error('Error fetching payments:', error);
@@ -156,6 +161,8 @@ export default function PaymentsPage() {
 
   // 지급 삭제
   const handleDelete = async (payment: Payment) => {
+    if (isDeleting === payment.payment_id) return;
+
     const confirmed = await confirm({
       title: '지급 내역 삭제',
       message: `지급번호 ${payment.payment_no}를 삭제하시겠습니까?\n매입 거래의 지급 금액이 조정됩니다.`,
@@ -165,6 +172,7 @@ export default function PaymentsPage() {
 
     if (!confirmed) return;
 
+    setIsDeleting(payment.payment_id);
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
       const result = await safeFetchJson(`/api/payments?id=${payment.payment_id}`, {
@@ -179,11 +187,14 @@ export default function PaymentsPage() {
         showToast('지급 내역이 삭제되었습니다', 'success');
         fetchPayments();
       } else {
-        showToast(result.error || '삭제 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '삭제 실패', 'error');
       }
     } catch (error) {
       console.error('Error deleting payment:', error);
       showToast('삭제 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -203,6 +214,9 @@ export default function PaymentsPage() {
 
   // 폼 저장
   const handleSavePayment = async (data: Partial<Payment>) => {
+    if (isSaving) return;
+
+    setIsSaving(true);
     try {
       const url = selectedPayment
         ? `/api/payments?id=${selectedPayment.payment_id}`
@@ -227,18 +241,25 @@ export default function PaymentsPage() {
           'success'
         );
         setIsFormOpen(false);
+        setSelectedPayment(null);
         fetchPayments();
       } else {
-        showToast(result.error || '저장 실패', 'error');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showToast(extractErrorMessage(result.error) || '저장 실패', 'error');
       }
     } catch (error) {
       console.error('Error saving payment:', error);
       showToast('저장 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   // Excel 다운로드
   const handleExcelDownload = async () => {
+    if (isDownloading) return;
+
+    setIsDownloading(true);
     try {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
@@ -271,6 +292,8 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error('Error downloading Excel:', error);
       showToast('Excel 다운로드 중 오류가 발생했습니다', 'error');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -447,10 +470,20 @@ export default function PaymentsPage() {
         <div className="mt-4 flex justify-end gap-1.5">
           <button
             onClick={handleExcelDownload}
-            className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs whitespace-nowrap"
+            disabled={isDownloading}
+            className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="w-3.5 h-3.5" />
-            Excel 다운로드
+            {isDownloading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                다운로드 중...
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                Excel 다운로드
+              </>
+            )}
           </button>
           <button
             onClick={handleResetFilters}
@@ -760,10 +793,15 @@ export default function PaymentsPage() {
                           </button>
                           <button
                             onClick={() => handleDelete(payment)}
-                            className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                            disabled={isDeleting === payment.payment_id}
+                            className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="삭제"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeleting === payment.payment_id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -840,10 +878,20 @@ export default function PaymentsPage() {
                     </button>
                     <button
                       onClick={() => handleDelete(payment)}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
+                      disabled={isDeleting === payment.payment_id}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      삭제
+                      {isDeleting === payment.payment_id ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          삭제 중...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-3 h-3" />
+                          삭제
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -862,7 +910,12 @@ export default function PaymentsPage() {
         <PaymentForm
           payment={selectedPayment}
           onSave={handleSavePayment}
-          onCancel={() => setIsFormOpen(false)}
+          onCancel={() => {
+            if (!isSaving) {
+              setIsFormOpen(false);
+              setSelectedPayment(null);
+            }
+          }}
         />
       </Modal>
     </div>

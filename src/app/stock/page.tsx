@@ -19,6 +19,7 @@ import { StockExportButton } from '@/components/ExcelExportButton';
 import CategoryFilter from '@/components/CategoryFilter';
 import { CompanyFilterSelect } from '@/components/filters';
 import { useCompanyFilter } from '@/contexts/CompanyFilterContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface StockItem {
   item_id: number;
@@ -56,6 +57,7 @@ interface StockHistory {
 export default function StockPage() {
   const router = useRouter();
   const { companies, loading: companiesLoading, error: companiesError, refetch: refetchCompanies } = useCompanyFilter();
+  const { success: showSuccess, error: showError } = useToast();
   const [activeTab, setActiveTab] = useState('current');
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [stockHistory, setStockHistory] = useState<StockHistory[]>([]);
@@ -177,7 +179,8 @@ export default function StockPage() {
       // 최종 실패 시 사용자 알림은 showLoading이 true일 때만
       if (showLoading) {
         console.error('재고 조회 최종 실패:', error);
-        alert('재고 조회 중 오류가 발생했습니다. 페이지를 새로고침해주세요.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(extractErrorMessage(error) || '재고 조회 중 오류가 발생했습니다. 페이지를 새로고침해주세요.');
       }
       // 주기적 업데이트 실패 시에는 기존 데이터 유지
     } finally {
@@ -210,14 +213,16 @@ export default function StockPage() {
         setStockHistory(result.data.history || []);
       } else {
         if (showLoading) {
-        alert(`이력 조회 실패: ${result.error}`);
+          const { extractErrorMessage } = await import('@/lib/fetch-utils');
+          showError(`이력 조회 실패: ${extractErrorMessage(result.error)}`);
         }
         setStockHistory([]);
       }
     } catch (error) {
       console.error('이력 조회 오류:', error);
       if (showLoading) {
-      alert('이력 조회 중 오류가 발생했습니다.');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(extractErrorMessage(error) || '이력 조회 중 오류가 발생했습니다.');
       }
       setStockHistory([]);
     } finally {
@@ -488,17 +493,19 @@ export default function StockPage() {
       const result = await response.json();
 
       if (result.success) {
-        alert('재고 조정이 성공적으로 완료되었습니다.');
+        showSuccess('재고 조정이 성공적으로 완료되었습니다.');
         setShowAdjustmentForm(false);
         // 양쪽 탭 모두 새로고침
         fetchStockItems();
         fetchStockHistory();
       } else {
-        alert(`재고 조정 실패: ${result.error}`);
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        showError(`재고 조정 실패: ${extractErrorMessage(result.error)}`);
       }
     } catch (error) {
       console.error('재고 조정 오류:', error);
-      alert('재고 조정 중 오류가 발생했습니다.');
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      showError(extractErrorMessage(error) || '재고 조정 중 오류가 발생했습니다.');
     }
   };
 

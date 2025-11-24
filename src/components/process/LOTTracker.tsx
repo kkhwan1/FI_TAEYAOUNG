@@ -101,7 +101,8 @@ export default function LOTTracker() {
         setData(result.data);
         toast.success('LOT 정보를 불러왔습니다');
       } else {
-        toast.error(result.error || 'LOT를 찾을 수 없습니다');
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        toast.error(extractErrorMessage(result.error) || 'LOT를 찾을 수 없습니다');
         setData(null);
       }
     } catch (error) {
