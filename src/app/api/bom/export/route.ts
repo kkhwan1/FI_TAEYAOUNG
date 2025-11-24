@@ -546,6 +546,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const parentItemId = searchParams.get('parent_item_id');
     const includeInactive = searchParams.get('include_inactive') === 'true';
     const includeCostAnalysis = searchParams.get('include_cost_analysis') !== 'false'; // Default true
+    const includeMasterData = searchParams.get('include_master_data') === 'true'; // 전체 기준정보 포함 여부
     const priceMonth = searchParams.get('price_month'); // 월별단가 기준 월 (YYYY-MM 형식)
 
     const supabase = getSupabaseClient();
@@ -794,7 +795,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         includeInactive,
         includeCostAnalysis,
         filterByParentId: parentItemId ? parseInt(parentItemId) : undefined,
-        includeMasterData
+        includeMasterData: includeMasterData || false
       },
       supabase,
       priceMonth || undefined
