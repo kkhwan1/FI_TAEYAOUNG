@@ -219,7 +219,45 @@ export const bomHeaderMapping: HeaderMapping = {
   'child_supplier_phone': 'child_supplier_phone',
   'child_supplier_email': 'child_supplier_email',
   'child_supplier_address': 'child_supplier_address',
-  'child_supplier_type': 'child_supplier_type'
+  'child_supplier_type': 'child_supplier_type',
+  
+  // 새로운 템플릿 구조 헤더 매핑 (태창금속 BOM.xlsx 구조)
+  // 주의: 업로드 API에서 컬럼 위치에 따라 '품번', '품명', '차종', '단가'를
+  // '모품목코드', '자품목코드' 등으로 변환하므로 여기서는 변환된 헤더명을 매핑
+  // 모품목 영역 (A-G)
+  '납품처': 'parent_supplier_name',
+  '모품목코드': 'parent_item_code', // 업로드 시 컬럼 위치로 변환됨
+  '모품목명': 'parent_item_name', // 업로드 시 컬럼 위치로 변환됨
+  '모품목차종': 'parent_vehicle_model', // 업로드 시 컬럼 위치로 변환됨
+  '모품목단가': 'parent_unit_price', // 업로드 시 컬럼 위치로 변환됨
+  '마감수량': 'parent_quantity',
+  '마감금액': 'parent_amount',
+  // 자품목 영역 (I부터 시작, H열은 빈 열)
+  '구매처': 'child_supplier_name',
+  '업체구분': 'supplier_category',
+  '협력업체 철판': 'supplier_sector', // 협력업체 원자재 섹터 구분
+  '자품목코드': 'child_item_code', // 업로드 시 컬럼 위치로 변환됨
+  '자품목명': 'child_item_name', // 업로드 시 컬럼 위치로 변환됨
+  '자품목차종': 'child_vehicle_model', // 업로드 시 컬럼 위치로 변환됨
+  '자품목단가': 'child_unit_price', // 업로드 시 컬럼 위치로 변환됨
+  'U/S': 'quantity_required', // 소요량
+  '소요량': 'quantity_required', // U/S와 동일
+  '구매수량': 'child_quantity',
+  '구매금액': 'child_amount',
+  // 추가 정보 영역
+  'KG단가': 'price_per_kg',
+  '단품단가': 'unit_price',
+  '재질': 'material',
+  '두께': 'thickness',
+  '폭': 'width',
+  '길이': 'length',
+  'SEP': 'sep',
+  '비중': 'specific_gravity',
+  'EA중량': 'weight_per_piece',
+  '실적수량': 'actual_quantity',
+  '스크랩중량': 'scrap_weight',
+  '스크랩 단가': 'scrap_unit_price',
+  '스크랩금액': 'scrap_amount'
 };
 
 /**

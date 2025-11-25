@@ -65,10 +65,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { data: bomEntries, error } = await query;
 
     if (error) {
-      console.error('BOM query failed:', error);
+      console.error('[BOM API] BOM query failed:', error);
+      console.error('[BOM API] Error details:', JSON.stringify(error, null, 2));
       return NextResponse.json({
         success: false,
-        error: 'BOM 조회에 실패했습니다.'
+        error: `BOM 조회에 실패했습니다: ${error.message || 'Unknown error'}`
       }, { status: 500 });
     }
 
@@ -80,7 +81,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Step 1: 월별 단가 및 재료비 계산
+    // Step 1: 코일 스펙 정보 일괄 조회 (N+1 문제 방지)
+    const childItemIds = filteredEntries.map((item: any) => item.child_item_id);
+    const coilSpecsMap = new Map<number, { material_grade: string; weight_per_piece?: number }>();
+    
+    // childItemIds가 있을 때만 조회
+    if (childItemIds.length > 0) {
+      const { data: coilSpecsData, error: coilSpecsError } = await supabase
+        .from('coil_specs')
+        .select('item_id, material_grade, weight_per_piece')
+        .in('item_id', childItemIds);
+
+      if (coilSpecsError) {
+        console.error('[BOM API] Coil specs query error:', coilSpecsError);
+        // 에러가 발생해도 계속 진행 (코일 스펙이 없는 경우도 있음)
+      } else if (coilSpecsData) {
+        coilSpecsData.forEach((spec: any) => {
+          coilSpecsMap.set(spec.item_id, {
+            material_grade: spec.material_grade,
+            weight_per_piece: spec.weight_per_piece
+          });
+        });
+      }
+    }
+
+    // Step 2: 월별 단가 및 재료비 계산
     const entriesWithPrice = await Promise.all(
       filteredEntries.map(async (item: any) => {
         // 월별 단가 조회 (없으면 items.price 사용)
@@ -96,6 +121,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
         const unitPrice = priceData?.unit_price || item.child?.price || 0;
         const materialCost = item.quantity_required * unitPrice;
+
+        // 코일 스펙 정보 추가 (T4: 코일 연계 뱃지 표시용)
+        const coilSpec = coilSpecsMap.get(item.child_item_id);
 
         return {
           ...item,
@@ -114,12 +142,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           item_type: item.child?.category === '원자재' || item.child?.category === '부자재' 
             ? 'external_purchase' 
             : 'internal_production',
+          // T4: 코일 스펙 정보 추가
+          material_grade: coilSpec?.material_grade,
+          weight_per_piece: coilSpec?.weight_per_piece,
           is_active: true
         };
       })
     );
 
-    // Step 2: 배치 스크랩 수익 계산 (N+1 문제 해결)
+    // Step 3: 배치 스크랩 수익 계산 (N+1 문제 해결)
     const itemQuantities = entriesWithPrice.map(item => ({
       item_id: item.child_item_id,
       quantity: item.quantity_required
@@ -127,7 +158,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     const scrapRevenueMap = await calculateBatchScrapRevenue(supabase, itemQuantities);
 
-    // Step 3: 스크랩 수익 및 순 원가 추가
+    // Step 4: 스크랩 수익 및 순 원가 추가
     const enrichedEntries = entriesWithPrice.map((item: any) => {
       const itemScrapRevenue = scrapRevenueMap.get(item.child_item_id) || 0;
       
@@ -155,7 +186,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       total_overhead_cost: totalOverheadCost,
       total_scrap_revenue: totalScrapRevenue,
       total_net_cost: totalMaterialCost + totalLaborCost + totalOverheadCost - totalScrapRevenue,
-      coil_count: 0,
+      coil_count: enrichedEntries.filter(item => item.material_grade && item.material_grade.trim() !== '').length,
       purchased_count: enrichedEntries.filter(item => item.item_type === 'external_purchase').length
     };
 
@@ -190,12 +221,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
       }
     });
-  } catch (error) {
-    console.error('Error fetching BOM:', error);
+  } catch (error: any) {
+    console.error('[BOM API] Error fetching BOM:', error);
+    console.error('[BOM API] Error stack:', error?.stack);
+    console.error('[BOM API] Error message:', error?.message);
     return NextResponse.json(
       {
         success: false,
-        error: 'BOM 조회 중 오류가 발생했습니다.'
+        error: `BOM 조회 중 오류가 발생했습니다: ${error?.message || 'Unknown error'}`
       },
       { status: 500 }
     );

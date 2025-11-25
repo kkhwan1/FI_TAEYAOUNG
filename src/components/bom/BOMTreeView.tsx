@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronRight, ChevronDown, Package, Loader2, AlertCircle } from 'lucide-react';
+import { ChevronRight, ChevronDown, Package, Loader2, AlertCircle, Circle } from 'lucide-react';
 import { useFontSize } from '@/contexts/FontSizeContext';
 
 interface BOMTreeNode {
@@ -28,15 +28,28 @@ interface BOMTreeNode {
 interface TreeNodeProps {
   node: BOMTreeNode;
   children: BOMTreeNode[];
+  allNodes: BOMTreeNode[];  // T3: 전체 노드 목록 (재귀 탐색용)
   expandedNodes: Set<number>;
   onToggleExpand: (nodeId: number) => void;
 }
 
-function TreeNode({ node, children, expandedNodes, onToggleExpand }: TreeNodeProps) {
+// T4: 코일 연계 품목인지 확인하는 헬퍼 함수
+function isCoilLinkedItem(itemType: string | null | undefined): boolean {
+  if (!itemType) return false;
+  const coilTypes = ['코일', 'COIL', '원자재', 'RAW', '판재', 'PLATE'];
+  return coilTypes.some(type =>
+    itemType.toUpperCase().includes(type.toUpperCase())
+  );
+}
+
+function TreeNode({ node, children, allNodes, expandedNodes, onToggleExpand }: TreeNodeProps) {
   const { getFontSizeClasses } = useFontSize();
   const isExpanded = expandedNodes.has(node.child_item_id);
   const hasChildren = children.length > 0;
   const indentLevel = node.level - 1;
+
+  // T4: 코일 연계 여부 확인
+  const isCoilLinked = isCoilLinkedItem(node.child_item_type);
 
   return (
     <div className="tree-node">
@@ -76,11 +89,17 @@ function TreeNode({ node, children, expandedNodes, onToggleExpand }: TreeNodePro
           </span>
         </div>
 
-        {/* Item name */}
-        <div className="flex-1 min-w-[200px]">
+        {/* Item name + T4: 코일 연계 뱃지 */}
+        <div className="flex-1 min-w-[200px] flex items-center gap-2">
           <span className={`${getFontSizeClasses('table')} text-gray-700 dark:text-gray-300`}>
             {node.child_item_name}
           </span>
+          {isCoilLinked && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+              <Circle className="w-2.5 h-2.5 fill-current" />
+              코일
+            </span>
+          )}
         </div>
 
         {/* Spec */}
@@ -123,12 +142,14 @@ function TreeNode({ node, children, expandedNodes, onToggleExpand }: TreeNodePro
       {hasChildren && isExpanded && (
         <div className="children">
           {children.map(child => {
-            const grandChildren = children.filter(n => n.parent_item_id === child.child_item_id);
+            // T3: 전체 노드 목록에서 손자 노드 찾기 (2레벨 이상 재귀 수정)
+            const grandChildren = allNodes.filter(n => n.parent_item_id === child.child_item_id);
             return (
               <TreeNode
                 key={child.bom_id}
                 node={child}
                 children={grandChildren}
+                allNodes={allNodes}
                 expandedNodes={expandedNodes}
                 onToggleExpand={onToggleExpand}
               />
@@ -327,6 +348,7 @@ export default function BOMTreeView({ className = '' }: BOMTreeViewProps) {
               key={rootNode.bom_id}
               node={rootNode}
               children={children}
+              allNodes={treeData}
               expandedNodes={expandedNodes}
               onToggleExpand={handleToggleExpand}
             />

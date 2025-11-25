@@ -1,31 +1,39 @@
+/**
+ * BOM (Bill of Materials) React Query 훅
+ * 중앙화된 타입 정의와 유틸리티 함수를 사용하여 중복 제거
+ */
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bomKeys, type BOMFilters } from '@/lib/query-keys';
 
-// API Response types
-interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
+// 중앙화된 타입 정의 import
+import type {
+  BOMEntry,
+  BOMTreeNode,
+  BOMAPIResponse,
+  BOMCreateRequest,
+  BOMUpdateRequest,
+  BOMStatistics,
+} from '@/types/bom';
 
-// BOM interface matching the actual database schema
-export interface BOMItem {
-  bom_id: number;
-  parent_item_id: number;
-  parent_item_code?: string;
-  parent_item_name?: string;
-  child_item_id: number;
-  child_item_code?: string;
-  child_item_name?: string;
-  quantity: number;
-  unit?: string;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-}
+// 중앙화된 유틸리티 함수 import
+import {
+  extractBOMEntries,
+  buildBOMTree,
+  flattenBOMTree,
+  calculateBOMStatistics,
+  searchBOMEntries,
+  hasCoilSpec,
+} from '@/lib/bom-utils';
 
-// BOM Tree structure for hierarchical display
+// 기존 타입 호환성을 위한 re-export
+export type { BOMEntry, BOMTreeNode, BOMCreateRequest, BOMUpdateRequest };
+
+// Legacy 타입 별칭 (기존 코드 호환성 유지)
+/** @deprecated Use BOMEntry instead */
+export type BOMItem = BOMEntry;
+
+/** @deprecated Use BOMTreeNode instead */
 export interface BOMTree {
   item_id: number;
   item_code: string;
@@ -47,10 +55,10 @@ export interface BOMFlat {
 }
 
 // Create BOM data type (without bom_id and timestamps)
-export type CreateBOMData = Omit<BOMItem, 'bom_id' | 'created_at' | 'updated_at' | 'parent_item_code' | 'parent_item_name' | 'child_item_code' | 'child_item_name'>;
+export type CreateBOMData = BOMCreateRequest;
 
 // Update BOM data type
-export type UpdateBOMData = Partial<CreateBOMData> & { id: number };
+export type UpdateBOMData = BOMUpdateRequest;
 
 // ==================== API FUNCTIONS ====================
 

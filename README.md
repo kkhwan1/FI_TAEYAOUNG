@@ -2,7 +2,7 @@
 
 한글 자동차 부품 제조업체를 위한 클라우드 네이티브 ERP 시스템
 
-**Tech Stack**: Next.js 15.5.4 + React 19.1.0 + TypeScript + Supabase PostgreSQL
+**Tech Stack**: Next.js 14.2.16 + React 18.3.1 + TypeScript + Supabase PostgreSQL
 
 **Production URL**: https://taechangmetal.vercel.app
 
@@ -306,4 +306,4 @@ Private - 태창 내부 사용만 허용
 
 **마지막 업데이트**: 2025년 10월
 **프로젝트 버전**: Phase 7 Complete (100% Production Ready)
-**Tech Stack**: Next.js 15.5.4 + React 19.1.0 + TypeScript + Supabase PostgreSQL
+**Tech Stack**: Next.js 14.2.16 + React 18.3.1 + TypeScript + Supabase PostgreSQL

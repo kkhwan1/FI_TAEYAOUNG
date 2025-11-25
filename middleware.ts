@@ -29,6 +29,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // 개발 환경에서 인증 우회 옵션 (환경 변수로 제어)
+  const bypassAuth = process.env.BYPASS_AUTH === 'true' || process.env.NODE_ENV === 'development';
+  const devUserId = process.env.DEV_USER_ID;
+
+  if (bypassAuth && devUserId) {
+    console.log('[MIDDLEWARE] Development mode: Bypassing auth with DEV_USER_ID:', devUserId);
+    // 개발용 user_id 쿠키 설정
+    const response = NextResponse.next();
+    if (!request.cookies.get('user_id')) {
+      response.cookies.set('user_id', devUserId, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+      console.log('[MIDDLEWARE] Set dev user_id cookie:', devUserId);
+    }
+    return response;
+  }
+
   // 페이지 라우트는 인증 체크
   console.log('[MIDDLEWARE] Checking authentication for page:', pathname);
   const user = await getCurrentUser(request);

@@ -14,37 +14,15 @@ import {
   AlertCircle,
   Check,
   X,
-  RefreshCw
+  RefreshCw,
+  Disc
 } from 'lucide-react';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { useToast } from '../../contexts/ToastContext';
 import { useConfirm } from '../../hooks/useConfirm';
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface BOMEntry {
-  bom_id: number;
-  parent_item_id: number;
-  parent_item_code: string;
-  parent_item_name: string;
-  child_item_id: number;
-  child_item_code: string;
-  child_item_name: string;
-  quantity_required: number;
-  level: number;
-  item_type: 'internal_production' | 'external_purchase';
-  // Cost data
-  piece_unit_price?: number;
-  material_cost?: number;
-  scrap_revenue?: number;
-  net_cost?: number;
-  // Specs
-  material_grade?: string;
-  weight_per_piece?: number;
-  is_active: boolean;
-}
+// 중앙화된 타입 및 유틸리티 import
+import type { BOMEntry } from '@/types/bom';
+import { entryHasCoilSpec } from '@/lib/bom-utils';
 
 interface BOMViewerProps {
   parentItemId?: number;
@@ -52,6 +30,7 @@ interface BOMViewerProps {
   onDelete?: (bomId: number) => Promise<void>;
   onAdd?: (parentId: number, childId: number, quantity: number) => Promise<void>;
   readOnly?: boolean;
+  initialSearchTerm?: string; // 메인 검색 필드와 동기화를 위한 prop
 }
 
 interface CostSummary {
@@ -80,13 +59,17 @@ const formatCurrency = (value?: number): string => {
 const getItemIcon = (itemType: string): React.ReactNode => {
   switch (itemType) {
     case 'internal_production':
-      return <Wrench className="w-4 h-4 text-gray-500" />;
+      return <Wrench className="w-4 h-4 text-blue-500" />;
     case 'external_purchase':
-      return ;
+      return <AlertCircle className="w-4 h-4 text-orange-500" />;
     default:
-      return ;
+      return <AlertCircle className="w-4 h-4 text-gray-400" />;
   }
 };
+
+// 코일 연계 여부 확인 (T4: 코일 스펙 연결 시각화)
+// 중앙화된 함수 사용: entryHasCoilSpec from '@/lib/bom-utils'
+const hasCoilSpec = entryHasCoilSpec;
 
 // ============================================================================
 // MAIN COMPONENT
@@ -97,7 +80,8 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   onUpdate,
   onDelete,
   onAdd,
-  readOnly = false
+  readOnly = false,
+  initialSearchTerm = ''
 }) => {
   const toast = useToast();
   const { deleteConfirm } = useConfirm();
@@ -107,12 +91,17 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [filterLevel, setFilterLevel] = useState<number | null>(null);
   const [filterItemType, setFilterItemType] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [editingBomId, setEditingBomId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Partial<BOMEntry>>({});
+
+  // initialSearchTerm이 변경되면 searchTerm 동기화
+  useEffect(() => {
+    setSearchTerm(initialSearchTerm);
+  }, [initialSearchTerm]);
 
   // ============================================================================
   // DATA FETCHING
@@ -136,7 +125,23 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
       });
 
       if (result.success) {
-        setBOMData(result.data.bomEntries || []);
+        // API returns bom_entries (snake_case), handle both formats for compatibility
+        const rawData = result.data.bom_entries || result.data.bomEntries || [];
+        
+        // API 응답 필드명을 BOMViewer가 기대하는 형식으로 변환
+        // API: parent_code, child_code, level_no
+        // BOMViewer: parent_item_code, child_item_code, level
+        const normalizedData = rawData.map((entry: any) => ({
+          ...entry,
+          parent_item_code: entry.parent_code || entry.parent_item_code,
+          parent_item_name: entry.parent_name || entry.parent_item_name,
+          child_item_code: entry.child_code || entry.child_item_code,
+          child_item_name: entry.child_name || entry.child_item_name,
+          level: entry.level_no || entry.level || 1,
+          bom_id: entry.bom_id || entry.id
+        }));
+        
+        setBOMData(normalizedData);
       } else {
         const { extractErrorMessage } = await import('@/lib/fetch-utils');
         const errorMsg = extractErrorMessage(result.error) || 'BOM 데이터 로드 실패';
@@ -165,27 +170,42 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
     const nodeMap = new Map<number, TreeNode>();
     const roots: TreeNode[] = [];
 
-    // Create nodes
+    // Create nodes for all entries
     entries.forEach(entry => {
       nodeMap.set(entry.bom_id, { entry, children: [] });
     });
 
-    // Build tree structure
+    // Build tree structure (T3 버그 수정: 올바른 부모-자식 관계 매핑)
     entries.forEach(entry => {
       const node = nodeMap.get(entry.bom_id);
       if (!node) return;
 
       if (entry.level === 1) {
+        // Level 1은 루트 노드
         roots.push(node);
       } else {
-        // Find parent by matching child_item_id with parent's parent_item_id
+        // 부모 찾기: 현재 entry의 parent_item_id가 부모 entry의 child_item_id와 일치
+        // 그리고 부모의 level은 현재보다 1 작음
         const parentEntry = entries.find(
-          e => e.parent_item_id === entry.parent_item_id && e.level === entry.level - 1
+          e => e.child_item_id === entry.parent_item_id && e.level === entry.level - 1
         );
         if (parentEntry) {
           const parentNode = nodeMap.get(parentEntry.bom_id);
           if (parentNode) {
             parentNode.children.push(node);
+          }
+        } else {
+          // 부모를 찾지 못한 경우, 같은 parent_item_id를 가진 level-1 노드 찾기
+          const altParentEntry = entries.find(
+            e => e.parent_item_id === entry.parent_item_id &&
+                 e.child_item_id !== entry.child_item_id &&
+                 e.level === entry.level - 1
+          );
+          if (altParentEntry) {
+            const altParentNode = nodeMap.get(altParentEntry.bom_id);
+            if (altParentNode) {
+              altParentNode.children.push(node);
+            }
           }
         }
       }
@@ -201,10 +221,10 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   const filteredBOMData = useMemo(() => {
     return bomData.filter(entry => {
       const matchesSearch = searchTerm === '' ||
-        entry.child_item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.child_item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.parent_item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.parent_item_name.toLowerCase().includes(searchTerm.toLowerCase());
+        (entry.child_item_code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (entry.child_item_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (entry.parent_item_code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (entry.parent_item_name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesLevel = filterLevel === null || entry.level === filterLevel;
 
@@ -405,9 +425,25 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
                 <span className="text-xs text-gray-500 dark:text-gray-400 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
                   L{entry.level}
                 </span>
+                {/* T4: 코일 연계 표시 - 코일 스펙 연결된 품목에 시각적 표시 */}
+                {hasCoilSpec(entry) && (
+                  <span
+                    className="flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded"
+                    title={`코일 규격: ${entry.material_grade}`}
+                  >
+                    <Disc className="w-3 h-3" />
+                    <span>코일</span>
+                  </span>
+                )}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
                 {entry.child_item_name}
+                {/* 코일 규격 표시 */}
+                {hasCoilSpec(entry) && (
+                  <span className="ml-2 text-xs text-purple-500 dark:text-purple-400">
+                    ({entry.material_grade})
+                  </span>
+                )}
               </div>
             </div>
 

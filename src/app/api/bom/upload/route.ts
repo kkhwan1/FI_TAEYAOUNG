@@ -121,21 +121,173 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
   try {
     // Parse Excel file
     const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-
-    if (!sheetName) {
+    
+    // 고객사별 시트 찾기 (최신단가 시트 제외)
+    const customerSheetNames = workbook.SheetNames.filter(name => name !== '최신단가');
+    
+    if (customerSheetNames.length === 0) {
       return {
         valid: false,
         data: [],
-        errors: [{ row: 0, field: 'file', message: 'Excel 파일에 시트가 없습니다' }],
+        errors: [{ row: 0, field: 'file', message: 'Excel 파일에 고객사 시트가 없습니다' }],
         stats: { total_rows: 0, valid_rows: 0, error_rows: 0 }
       };
     }
 
-    const worksheet = workbook.Sheets[sheetName];
-    const rawData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+    // 모든 고객사 시트에서 데이터 읽기
+    let allRawData: Record<string, unknown>[] = [];
+    
+    customerSheetNames.forEach(sheetName => {
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // 헤더가 6번째 행(인덱스 5)에 있으므로, range를 사용하여 6번째 행부터 읽기
+      // XLSX는 0-indexed이므로 헤더 행은 5 (Excel Row 6), 데이터는 6부터 (Excel Row 7)
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
 
-    if (rawData.length === 0) {
+      // 헤더 행(6번째 행, Excel 1-indexed = 0-indexed 5)에서 헤더 읽기
+      const headerRow: string[] = [];
+      for (let C = 0; C <= range.e.c; C++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 5, c: C }); // 6번째 행 (0-indexed: 5)
+        const cell = worksheet[cellAddress];
+        headerRow.push(cell && cell.v ? String(cell.v) : '');
+      }
+
+      // 7번째 행(인덱스 6)부터 데이터 읽기 (Excel Row 7)
+      const dataRows: Record<string, unknown>[] = [];
+      let currentParentRow: Record<string, unknown> | null = null;
+
+      for (let R = 6; R <= range.e.r; R++) {
+        const row: Record<string, unknown> = {};
+        let hasData = false;
+        
+        // A-G열 데이터 확인 (모품목 여부 판단)
+        let isParentRow = false;
+        for (let C = 0; C <= 6; C++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          const cell = worksheet[cellAddress];
+          if (cell && cell.v !== undefined && cell.v !== null && cell.v !== '') {
+            isParentRow = true;
+            break;
+          }
+        }
+        
+        if (isParentRow) {
+          // 모품목 행: A-G열 모두 읽기
+          currentParentRow = {};
+          for (let C = 0; C <= 6; C++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = worksheet[cellAddress];
+            const header = headerRow[C];
+            if (header && header.trim() !== '') {
+              const value = cell && cell.v !== undefined && cell.v !== null ? cell.v : '';
+              // 모품목 헤더 매핑
+              let mappedHeader = header;
+              if (header === '품번') mappedHeader = '모품목코드';
+              else if (header === '품명') mappedHeader = '모품목명';
+              else if (header === '차종') mappedHeader = '모품목차종';
+              else if (header === '단가') mappedHeader = '모품목단가';
+              if (value !== '') {
+                currentParentRow[mappedHeader] = value;
+              }
+            }
+          }
+          // 모품목 행은 자품목이 없으면 건너뛰기
+          continue;
+        } else {
+          // 자품목 행: I열부터 읽기 (H열 건너뛰기)
+          for (let C = 8; C < headerRow.length; C++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = worksheet[cellAddress];
+            const header = headerRow[C];
+            
+            if (header && header.trim() !== '') {
+              const value = cell && cell.v !== undefined && cell.v !== null ? cell.v : '';
+              
+              // 자품목 헤더 매핑 (종합 시트 형식)
+              let mappedHeader = header;
+              if (C >= 8 && C <= 15) {
+                // I-P 영역 (자품목 기본 정보)
+                if (header === '품번') mappedHeader = '자품목코드';
+                else if (header === '품명') mappedHeader = '자품목명';
+                else if (header === '차종') mappedHeader = '자품목차종';
+                else if (header === '단가') mappedHeader = '자품목단가';
+                else if (header === 'U/S' || header === '소요량') mappedHeader = 'quantity_required';
+                else if (header === '구매처') mappedHeader = '자품목공급사명';
+              } else if (C >= 16) {
+                // Q 이후 영역 (자품목 상세 정보)
+                if (header === '비고') mappedHeader = 'notes';
+                else if (header === 'KG단가') mappedHeader = '자품목KG단가';
+                else if (header === '단품단가') mappedHeader = '자품목단품단가';
+                else if (header === '재질') mappedHeader = '자품목재질';
+                else if (header === '두께') mappedHeader = '자품목두께';
+                else if (header === '폭') mappedHeader = '자품목폭';
+                else if (header === '길이') mappedHeader = '자품목길이';
+                else if (header === 'SEP') mappedHeader = '자품목SEP';
+                else if (header === '비중') mappedHeader = '자품목비중';
+                else if (header === 'EA중량') mappedHeader = '자품목EA중량';
+                else if (header === '실적수량') mappedHeader = '자품목실적수량';
+                else if (header === '스크랩중량') mappedHeader = '자품목스크랩중량';
+                else if (header === '스크랩단가') mappedHeader = '자품목스크랩단가';
+                else if (header === '스크랩금액') mappedHeader = '자품목스크랩금액';
+              }
+              
+              if (value !== '' || hasData) {
+                row[mappedHeader] = value;
+                if (value !== '') hasData = true;
+              }
+            }
+          }
+          
+          // 모품목 정보 병합
+          if (currentParentRow) {
+            Object.assign(row, currentParentRow);
+            // 모품목 헤더 매핑 보정
+            if (currentParentRow['모품목코드']) {
+              row['parent_item_code'] = currentParentRow['모품목코드'];
+            }
+            if (currentParentRow['모품목명']) {
+              row['parent_item_name'] = currentParentRow['모품목명'];
+            }
+            if (currentParentRow['모품목차종']) {
+              row['parent_car_model'] = currentParentRow['모품목차종'];
+            }
+            if (currentParentRow['모품목단가']) {
+              row['parent_unit_price'] = currentParentRow['모품목단가'];
+            }
+            if (currentParentRow['납품처']) {
+              row['parent_supplier'] = currentParentRow['납품처'];
+              row['parent_supplier_name'] = currentParentRow['납품처'];
+            }
+          }
+          
+          // 자품목 헤더 매핑 보정
+          if (row['자품목코드']) {
+            row['child_item_code'] = row['자품목코드'];
+          }
+          if (row['자품목명']) {
+            row['child_item_name'] = row['자품목명'];
+          }
+          if (row['자품목차종']) {
+            row['child_car_model'] = row['자품목차종'];
+          }
+          if (row['자품목단가']) {
+            row['child_unit_price'] = row['자품목단가'];
+          }
+          if (row['자품목공급사명']) {
+            row['child_supplier'] = row['자품목공급사명'];
+            row['child_supplier_name'] = row['자품목공급사명'];
+          }
+          
+          if (hasData) {
+            dataRows.push(row);
+          }
+        }
+      }
+      
+      allRawData = allRawData.concat(dataRows);
+    });
+
+    if (allRawData.length === 0) {
       return {
         valid: false,
         data: [],
@@ -145,11 +297,11 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
     }
 
     // 한글 헤더를 영문 필드명으로 매핑
-    const mappedData = mapExcelHeaders(rawData, bomHeaderMapping);
+    const mappedData = mapExcelHeaders(allRawData, bomHeaderMapping);
 
     // Validate each row
     mappedData.forEach((row, index) => {
-      const rowNumber = index + 2; // Excel row number (1-indexed + header)
+      const rowNumber = index + 7; // Excel row number (6번째 행이 헤더, 7번째 행부터 데이터)
       const rowErrors: ValidationError[] = [];
 
       // Required fields validation - Parent item
@@ -190,8 +342,8 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
         });
       }
 
-      // Optional: Validate inventory_type enum values
-      const validInventoryTypes = ['RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED_PRODUCT', 'SUPPLIES'];
+      // Inventory type validation (DB accepts Korean values: '완제품', '반제품', '고객재고', '원재료', '코일')
+      const validInventoryTypes = ['완제품', '반제품', '고객재고', '원재료', '코일'];
       if (row.parent_inventory_type && !validInventoryTypes.includes(row.parent_inventory_type)) {
         rowErrors.push({
           row: rowNumber,
@@ -611,6 +763,19 @@ interface ItemPayload {
   vehicle_model?: string; // DB 컬럼명: vehicle_model
   location?: string;
   supplier_id?: number;
+  // 종합 시트 형식의 상세 정보
+  material?: string;
+  thickness?: number;
+  width?: number;
+  height?: number;
+  specific_gravity?: number;
+  mm_weight?: number;
+  sep?: number;
+  kg_unit_price?: number;
+  scrap_weight?: number;
+  scrap_unit_price?: number;
+  actual_quantity?: number;
+  price?: number;
 }
 
 async function upsertItem(
@@ -623,7 +788,20 @@ async function upsertItem(
   inventoryType?: string,
   carModel?: string,
   location?: string,
-  supplierId?: number
+  supplierId?: number,
+  // 종합 시트 형식의 상세 정보
+  material?: string,
+  thickness?: number,
+  width?: number,
+  height?: number,
+  specificGravity?: number,
+  mmWeight?: number,
+  sep?: number,
+  kgUnitPrice?: number,
+  scrapWeight?: number,
+  scrapUnitPrice?: number,
+  actualQuantity?: number,
+  price?: number
 ): Promise<{ item_id: number; item_code: string }> {
   // Prepare item payload
   const itemPayload: ItemPayload = {
@@ -634,11 +812,26 @@ async function upsertItem(
 
   if (spec) itemPayload.spec = spec.trim();
   if (unit) itemPayload.unit = unit.trim();
-  if (category) itemPayload.category = category.trim();
-  if (inventoryType) itemPayload.inventory_type = inventoryType;
+  // category는 필수 필드이므로 기본값 설정 (enum: 원자재, 부자재, 반제품, 제품, 상품)
+  itemPayload.category = category ? category.trim() : '부자재';
+  // inventory_type도 필수 필드이므로 기본값 설정 (가능한 값: 완제품, 반제품, 고객재고, 원재료, 코일)
+  itemPayload.inventory_type = inventoryType ? inventoryType : '원재료';
   if (carModel) itemPayload.vehicle_model = carModel.trim(); // DB 컬럼명: vehicle_model
   if (location) itemPayload.location = location.trim();
   if (supplierId) itemPayload.supplier_id = supplierId;
+  // 종합 시트 형식의 상세 정보 추가
+  if (material) itemPayload.material = material.trim();
+  if (thickness !== undefined && thickness !== null) itemPayload.thickness = Number(thickness);
+  if (width !== undefined && width !== null) itemPayload.width = Number(width);
+  if (height !== undefined && height !== null) itemPayload.height = Number(height);
+  if (specificGravity !== undefined && specificGravity !== null) itemPayload.specific_gravity = Number(specificGravity);
+  if (mmWeight !== undefined && mmWeight !== null) itemPayload.mm_weight = Number(mmWeight);
+  if (sep !== undefined && sep !== null) itemPayload.sep = Number(sep);
+  if (kgUnitPrice !== undefined && kgUnitPrice !== null) itemPayload.kg_unit_price = Number(kgUnitPrice);
+  if (scrapWeight !== undefined && scrapWeight !== null) itemPayload.scrap_weight = Number(scrapWeight);
+  if (scrapUnitPrice !== undefined && scrapUnitPrice !== null) itemPayload.scrap_unit_price = Number(scrapUnitPrice);
+  if (actualQuantity !== undefined && actualQuantity !== null) itemPayload.actual_quantity = Number(actualQuantity);
+  if (price !== undefined && price !== null) itemPayload.price = Number(price);
 
   // Upsert item (INSERT ... ON CONFLICT UPDATE)
   const { data, error } = await supabase
@@ -826,6 +1019,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       location?: string;
       supplier?: string;
       supplier_id?: number; // Add supplier_id for direct lookup
+      // 종합 시트 형식의 상세 정보
+      material?: string;
+      thickness?: number;
+      width?: number;
+      height?: number;
+      specific_gravity?: number;
+      mm_weight?: number;
+      sep?: number;
+      kg_unit_price?: number;
+      scrap_weight?: number;
+      scrap_unit_price?: number;
+      actual_quantity?: number;
+      price?: number;
     }>();
 
     // Helper function to get supplier_id from company info
@@ -893,8 +1099,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           car_model: row.child_car_model,
           location: row.child_location,
           supplier: row.child_supplier_name || row.child_supplier_code || row.child_supplier,
-          supplier_id: supplierId
+          supplier_id: supplierId,
+          // 종합 시트 형식의 상세 정보 추가
+          material: (row as any).자품목재질,
+          thickness: (row as any).자품목두께 ? Number((row as any).자품목두께) : undefined,
+          width: (row as any).자품목폭 ? Number((row as any).자품목폭) : undefined,
+          height: (row as any).자품목길이 ? Number((row as any).자품목길이) : undefined,
+          specific_gravity: (row as any).자품목비중 ? Number((row as any).자품목비중) : undefined,
+          mm_weight: (row as any).자품목EA중량 ? Number((row as any).자품목EA중량) : undefined,
+          sep: (row as any).자품목SEP ? Number((row as any).자품목SEP) : undefined,
+          kg_unit_price: (row as any).자품목KG단가 ? Number((row as any).자품목KG단가) : undefined,
+          scrap_weight: (row as any).자품목스크랩중량 ? Number((row as any).자품목스크랩중량) : undefined,
+          scrap_unit_price: (row as any).자품목스크랩단가 ? Number((row as any).자품목스크랩단가) : undefined,
+          actual_quantity: (row as any).자품목실적수량 ? Number((row as any).자품목실적수량) : undefined,
+          price: row.child_unit_price ? Number(row.child_unit_price) : undefined
         });
+      } else {
+        // 기존 항목이 있으면 상세 정보 업데이트 (null이 아닌 값만)
+        const existing = uniqueItems.get(row.child_item_code)!;
+        if ((row as any).자품목재질 && !existing.material) existing.material = (row as any).자품목재질;
+        if ((row as any).자품목두께 && !existing.thickness) existing.thickness = Number((row as any).자품목두께);
+        if ((row as any).자품목폭 && !existing.width) existing.width = Number((row as any).자품목폭);
+        if ((row as any).자품목길이 && !existing.height) existing.height = Number((row as any).자품목길이);
+        if ((row as any).자품목비중 && !existing.specific_gravity) existing.specific_gravity = Number((row as any).자품목비중);
+        if ((row as any).자품목EA중량 && !existing.mm_weight) existing.mm_weight = Number((row as any).자품목EA중량);
+        if ((row as any).자품목SEP && !existing.sep) existing.sep = Number((row as any).자품목SEP);
+        if ((row as any).자품목KG단가 && !existing.kg_unit_price) existing.kg_unit_price = Number((row as any).자품목KG단가);
+        if ((row as any).자품목스크랩중량 && !existing.scrap_weight) existing.scrap_weight = Number((row as any).자품목스크랩중량);
+        if ((row as any).자품목스크랩단가 && !existing.scrap_unit_price) existing.scrap_unit_price = Number((row as any).자품목스크랩단가);
+        if ((row as any).자품목실적수량 && !existing.actual_quantity) existing.actual_quantity = Number((row as any).자품목실적수량);
+        if (row.child_unit_price && !existing.price) existing.price = Number(row.child_unit_price);
       }
     });
 
@@ -915,7 +1149,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       inventoryType?: string,
       carModel?: string,
       location?: string,
-      supplierId?: number
+      supplierId?: number,
+      // 종합 시트 형식의 상세 정보
+      material?: string,
+      thickness?: number,
+      width?: number,
+      height?: number,
+      specificGravity?: number,
+      mmWeight?: number,
+      sep?: number,
+      kgUnitPrice?: number,
+      scrapWeight?: number,
+      scrapUnitPrice?: number,
+      actualQuantity?: number,
+      price?: number
     ): Promise<{ item_id: number; item_code: string }> => {
       // Prepare item payload
       const itemPayload: ItemPayload = {
@@ -926,11 +1173,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       if (spec) itemPayload.spec = spec.trim();
       if (unit) itemPayload.unit = unit.trim();
-      if (category) itemPayload.category = category.trim();
-      if (inventoryType) itemPayload.inventory_type = inventoryType;
+      // category는 필수 필드이므로 기본값 설정 (enum: 원자재, 부자재, 반제품, 제품, 상품)
+      itemPayload.category = category ? category.trim() : '부자재';
+      // inventory_type도 필수 필드이므로 기본값 설정 (가능한 값: 완제품, 반제품, 고객재고, 원재료, 코일)
+      itemPayload.inventory_type = inventoryType ? inventoryType : '원재료';
       if (carModel) itemPayload.vehicle_model = carModel.trim(); // DB 컬럼명: vehicle_model
       if (location) itemPayload.location = location.trim();
       if (supplierId) itemPayload.supplier_id = supplierId;
+      // 종합 시트 형식의 상세 정보 추가
+      if (material) itemPayload.material = material.trim();
+      if (thickness !== undefined && thickness !== null) itemPayload.thickness = Number(thickness);
+      if (width !== undefined && width !== null) itemPayload.width = Number(width);
+      if (height !== undefined && height !== null) itemPayload.height = Number(height);
+      if (specificGravity !== undefined && specificGravity !== null) itemPayload.specific_gravity = Number(specificGravity);
+      if (mmWeight !== undefined && mmWeight !== null) itemPayload.mm_weight = Number(mmWeight);
+      if (sep !== undefined && sep !== null) itemPayload.sep = Number(sep);
+      if (kgUnitPrice !== undefined && kgUnitPrice !== null) itemPayload.kg_unit_price = Number(kgUnitPrice);
+      if (scrapWeight !== undefined && scrapWeight !== null) itemPayload.scrap_weight = Number(scrapWeight);
+      if (scrapUnitPrice !== undefined && scrapUnitPrice !== null) itemPayload.scrap_unit_price = Number(scrapUnitPrice);
+      if (actualQuantity !== undefined && actualQuantity !== null) itemPayload.actual_quantity = Number(actualQuantity);
+      if (price !== undefined && price !== null) itemPayload.price = Number(price);
 
       // Upsert item (INSERT ... ON CONFLICT UPDATE)
       const { data, error } = await supabase
@@ -962,7 +1224,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           itemDetails.inventory_type,
           itemDetails.car_model,
           itemDetails.location,
-          itemDetails.supplier_id // Use supplier_id directly
+          itemDetails.supplier_id, // Use supplier_id directly
+          // 종합 시트 형식의 상세 정보 전달
+          itemDetails.material,
+          itemDetails.thickness,
+          itemDetails.width,
+          itemDetails.height,
+          itemDetails.specific_gravity,
+          itemDetails.mm_weight,
+          itemDetails.sep,
+          itemDetails.kg_unit_price,
+          itemDetails.scrap_weight,
+          itemDetails.scrap_unit_price,
+          itemDetails.actual_quantity,
+          itemDetails.price
         );
         return { item_code, item_id: upsertedItem.item_id };
       });
@@ -1143,7 +1418,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       notes?: string;
     }
 
-    const bomInserts: BOMInsert[] = parseResult.data.map(row => {
+    // Create BOM entries and deduplicate by parent_item_id + child_item_id
+    // PostgreSQL ON CONFLICT cannot handle duplicate keys in a single batch
+    const bomInsertMap = new Map<string, BOMInsert>();
+
+    parseResult.data.forEach(row => {
       const parentId = itemCodeMap.get(row.parent_item_code);
       const childId = itemCodeMap.get(row.child_item_code);
 
@@ -1153,15 +1432,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      return {
+      const key = `${parentId}_${childId}`;
+      // Keep the last occurrence (or first, if you prefer)
+      bomInsertMap.set(key, {
         parent_item_id: parentId,
         child_item_id: childId,
         quantity_required: row.quantity_required,
         level_no: row.level_no ?? 1, // Use nullish coalescing to preserve 0
         is_active: true,
         notes: row.notes ? String(row.notes).trim() : undefined
-      };
+      });
     });
+
+    const bomInserts: BOMInsert[] = Array.from(bomInsertMap.values());
 
     // 6. Insert BOM entries with upsert (update on conflict)
     const { data: insertedBOMs, error: insertError } = await supabase

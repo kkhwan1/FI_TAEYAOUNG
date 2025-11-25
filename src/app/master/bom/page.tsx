@@ -22,7 +22,9 @@ import {
   List,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  GitBranch,
+  Loader2
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import BOMForm from '@/components/BOMForm';
@@ -33,6 +35,7 @@ import { BOMExportButton } from '@/components/ExcelExportButton';
 import PrintButton from '@/components/PrintButton';
 import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie } from 'recharts';
 import { useCompanyFilter } from '@/hooks/useCompanyFilter';
+import BOMViewer from '@/components/bom/BOMViewer';
 
 interface BOM {
   bom_id: number;
@@ -112,7 +115,7 @@ interface FilterState {
 }
 
 type TabType = 'structure' | 'coil-specs' | 'cost-analysis';
-type ViewMode = 'table' | 'grouped';
+type ViewMode = 'table' | 'grouped' | 'tree';
 type CoilSpecsViewMode = 'table' | 'card';
 type CostAnalysisViewMode = 'overview' | 'table' | 'charts';
 
@@ -135,6 +138,7 @@ export default function BOMPage() {
   const [deletingBomId, setDeletingBomId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [uploading, setUploading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedCoilItem, setSelectedCoilItem] = useState<number | null>(null);
   const [costSummary, setCostSummary] = useState<any>(null);
@@ -808,16 +812,44 @@ export default function BOMPage() {
     }
   };
 
-  const handleExportToExcel = () => {
-    const params = new URLSearchParams();
-    params.append('include_cost_analysis', 'true');
-    params.append('include_master_data', 'true'); // 전체 기준정보 포함
-    // 현재 선택된 기준 월을 전달
-    if (priceMonth) {
-      params.append('price_month', priceMonth);
-    }
+  const handleExportToExcel = async () => {
+    try {
+      setIsDownloading(true);
 
-    window.location.href = `/api/bom/export?${params}`;
+      // 템플릿 형식으로 전체 BOM 데이터 내보내기
+      const { safeFetch } = await import('@/lib/fetch-utils');
+      const response = await safeFetch('/api/download/template/bom', {}, {
+        timeout: 120000, // 전체 데이터이므로 타임아웃 증가 (2분)
+        maxRetries: 1,
+        retryDelay: 1000
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'BOM 내보내기에 실패했습니다.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      // 당일 날짜로 파일명 설정 (한국 시간 기준)
+      const now = new Date();
+      const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+      const today = koreaTime.toISOString().split('T')[0];
+      a.download = `BOM_전체_${today}.xlsx`;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      success('BOM 내보내기 완료', '전체 BOM 데이터가 템플릿 형식으로 성공적으로 내보내졌습니다.');
+    } catch (err) {
+      console.error('BOM export error:', err);
+      error('BOM 내보내기 실패', err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   // 현재 화면에 표시된 데이터를 템플릿 형식으로 엑셀 파일로 내보내기
@@ -1834,6 +1866,22 @@ export default function BOMPage() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'structure':
+        // 트리 뷰 모드
+        if (viewMode === 'tree') {
+          return (
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm overflow-hidden p-4">
+              <BOMViewer
+                parentItemId={selectedParentItem ? parseInt(selectedParentItem) : undefined}
+                readOnly={false}
+                onUpdate={() => fetchBOMData()}
+                onDelete={() => fetchBOMData()}
+                onAdd={() => fetchBOMData()}
+                initialSearchTerm={filters.searchTerm}
+              />
+            </div>
+          );
+        }
+
         // 뷰 모드에 따라 테이블 또는 그룹화 뷰 선택
         // 모품목이 선택된 경우 항상 테이블 뷰
         if (viewMode === 'grouped' && !selectedParentItem) {
@@ -2084,14 +2132,6 @@ export default function BOMPage() {
 
             {/* 그룹 3: 파일 관련 */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              <button
-                onClick={handleTemplateDownload}
-                className="flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors whitespace-nowrap text-xs"
-              >
-                <Download className="w-3.5 h-3.5" />
-                템플릿
-              </button>
-
               <label
                 className={`flex items-center gap-1 px-2 py-1 border-2 border-dashed rounded-lg cursor-pointer transition-colors whitespace-nowrap text-xs ${
                   dragActive
@@ -2115,9 +2155,9 @@ export default function BOMPage() {
               </label>
 
               <button
-                onClick={handleExportCurrentDataToExcel}
+                onClick={handleTemplateDownload}
                 className="flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-700 whitespace-nowrap text-xs"
-                title="현재 화면에 표시된 데이터를 엑셀 템플릿으로 다운로드"
+                title="BOM 템플릿 파일 다운로드 (4개 시트: 고객사별 + 종합 + 최신단가)"
               >
                 <Download className="w-3.5 h-3.5" />
                 템플릿 다운로드
@@ -2125,11 +2165,21 @@ export default function BOMPage() {
 
               <button
                 onClick={handleExportToExcel}
-                className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap text-xs"
+                disabled={isDownloading}
+                className="flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 title="전체 BOM 데이터를 서버에서 내보내기"
               >
-                <Download className="w-3.5 h-3.5" />
-                전체 내보내기
+                {isDownloading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    내보내는 중...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    전체 내보내기
+                  </>
+                )}
               </button>
 
               <PrintButton
@@ -2366,6 +2416,18 @@ export default function BOMPage() {
                   >
                     <LayoutGrid className="w-3.5 h-3.5" />
                     그룹화
+                  </button>
+                  <button
+                    onClick={() => setViewMode('tree')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
+                      viewMode === 'tree'
+                        ? 'bg-gray-800 text-white dark:bg-gray-700 dark:text-white'
+                        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                    }`}
+                    title="트리 뷰"
+                  >
+                    <GitBranch className="w-3.5 h-3.5" />
+                    트리
                   </button>
                 </>
               )}
