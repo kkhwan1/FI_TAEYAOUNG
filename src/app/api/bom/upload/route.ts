@@ -66,6 +66,7 @@ interface BOMExcelRow {
   child_supplier_type?: string;
   child_supplier_business_number?: string;
   child_supplier_representative?: string;
+  child_supplier_category?: string; // 업체구분 (H열) - 협력업체, 사급, 하드웨어, 태창금속 등
 
   // BOM relationship fields
   quantity_required: number;
@@ -194,18 +195,21 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           // 모품목 행은 자품목이 없으면 건너뛰기
           continue;
         } else {
-          // 자품목 행: I열부터 읽기 (H열 건너뛰기)
-          for (let C = 8; C < headerRow.length; C++) {
+          // 자품목 행: H열(업체구분)부터 읽기
+          for (let C = 7; C < headerRow.length; C++) {
             const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
             const cell = worksheet[cellAddress];
             const header = headerRow[C];
-            
+
             if (header && header.trim() !== '') {
               const value = cell && cell.v !== undefined && cell.v !== null ? cell.v : '';
-              
+
               // 자품목 헤더 매핑 (종합 시트 형식)
               let mappedHeader = header;
-              if (C >= 8 && C <= 15) {
+              if (C === 7) {
+                // H열 (업체구분) - 협력업체, 사급, 하드웨어, 태창금속 등
+                if (header === '업체구분') mappedHeader = 'child_supplier_category';
+              } else if (C >= 8 && C <= 15) {
                 // I-P 영역 (자품목 기본 정보)
                 if (header === '품번') mappedHeader = '자품목코드';
                 else if (header === '품명') mappedHeader = '자품목명';
@@ -441,6 +445,7 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           child_supplier_type: row.child_supplier_type ? String(row.child_supplier_type).trim() : undefined,
           child_supplier_business_number: row.child_supplier_business_number ? String(row.child_supplier_business_number).trim() : undefined,
           child_supplier_representative: row.child_supplier_representative ? String(row.child_supplier_representative).trim() : undefined,
+          child_supplier_category: row.child_supplier_category ? String(row.child_supplier_category).trim() : undefined, // 업체구분 (H열)
           // Monthly price information (parent)
           parent_price_month: row.parent_price_month ? String(row.parent_price_month).trim() : undefined,
           parent_unit_price: row.parent_unit_price ? (typeof row.parent_unit_price === 'number' ? row.parent_unit_price : parseFloat(String(row.parent_unit_price))) : undefined,
@@ -606,6 +611,7 @@ interface CompanyData {
   company_name: string;
   company_code?: string;
   company_type?: string;
+  company_category?: string; // 업체구분 (H열) - 협력업체, 사급, 하드웨어, 태창금속 등
   phone?: string;
   email?: string;
   address?: string;
@@ -675,6 +681,7 @@ async function upsertCompany(
   if (companyData.address) companyPayload.address = companyData.address.trim();
   if (companyData.business_number) companyPayload.business_number = companyData.business_number.trim();
   if (companyData.representative) companyPayload.representative = companyData.representative.trim();
+  if (companyData.company_category) companyPayload.company_category = companyData.company_category.trim();
 
   // Generate company_code if not provided and company doesn't exist
   if (!companyCode && !existingCompany) {
@@ -968,6 +975,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             company_name: row.child_supplier_name || row.child_supplier || '',
             company_code: row.child_supplier_code,
             company_type: row.child_supplier_type || '공급사',
+            company_category: row.child_supplier_category, // 업체구분 (H열) - 협력업체, 사급, 하드웨어, 태창금속 등
             phone: row.child_supplier_phone,
             email: row.child_supplier_email,
             address: row.child_supplier_address,
