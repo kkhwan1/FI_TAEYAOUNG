@@ -220,6 +220,11 @@ export const TopItemsByValue: React.FC<TopItemsByValueProps> = ({
     // Take top N items
     const topItems = filtered.slice(0, topCount);
 
+    // 데이터가 없으면 빈 배열 반환
+    if (topItems.length === 0) {
+      return [];
+    }
+
     // Add display value and colors
     // TransactionDistribution과 완전히 동일한 패턴 사용: 필요한 필드만 포함
     const result = topItems.map((item, index) => {

@@ -93,10 +93,10 @@ function getSupplierCategory(supplierName: string | null): string {
  * 스타일 정의 (기준 Excel 분석 결과)
  */
 const STYLES = {
-  // 배경색
-  PARENT_ROW_BG: 'F8CBAD',  // 피치색 (모품목 행 I-L열)
-  UNIT_PRICE_BG: 'FFFF00',  // 노란색 (단가 N열)
-  HEADER_BG: 'D9E1F2',      // 연한 파란색 (헤더 행)
+  // 배경색 (ARGB 형식: FF + RGB)
+  PARENT_ROW_BG: 'FFF8CBAD',  // 피치색 (모품목 행 I-L열)
+  UNIT_PRICE_BG: 'FFFFFF00',  // 노란색 (단가 N열)
+  HEADER_BG: 'FFD9E1F2',      // 연한 파란색 (헤더 행)
 
   // 테두리
   BORDER_THIN: {
@@ -192,9 +192,37 @@ const COLUMN_WIDTHS = [
 async function createCustomerSheet(
   workbook: ExcelJS.Workbook,
   customerName: string,
-  bomData?: ParentBomData[]
+  bomData?: ParentBomData[],
+  usedSheetNames?: Set<string>
 ): Promise<void> {
-  const safeSheetName = customerName.slice(0, 31).replace(/[\\\/\*\?\[\]:]/g, '_');
+  // 시트명 안전 변환 (Excel 제약: 31자, 특수문자 제거)
+  // 1. 공백 정규화 (연속 공백을 하나로, 앞뒤 공백 제거)
+  let normalizedName = customerName.replace(/\s+/g, ' ').trim();
+  // 2. 특수문자 제거 (Excel 시트명에서 허용되지 않는 문자)
+  normalizedName = normalizedName.replace(/[\\\/\*\?\[\]:]/g, '_');
+  // 3. 31자 제한 (Excel 시트명 최대 길이)
+  let baseSheetName = normalizedName.slice(0, 31);
+  
+  // 중복 시트명 처리
+  let safeSheetName = baseSheetName;
+  let counter = 1;
+  
+  if (usedSheetNames) {
+    while (usedSheetNames.has(safeSheetName) || workbook.worksheets.some(ws => ws.name === safeSheetName)) {
+      const suffix = `(${counter})`;
+      const maxLength = 31 - suffix.length;
+      safeSheetName = baseSheetName.slice(0, maxLength) + suffix;
+      counter++;
+      
+      // 무한 루프 방지
+      if (counter > 999) {
+        safeSheetName = baseSheetName.slice(0, 20) + '_' + Date.now().toString().slice(-8);
+        break;
+      }
+    }
+    usedSheetNames.add(safeSheetName);
+  }
+  
   const sheet = workbook.addWorksheet(safeSheetName);
 
   // 컬럼 너비 설정
@@ -366,6 +394,7 @@ async function createCustomerSheet(
 
 /**
  * 종합 시트 생성 (모든 BOM 데이터 통합)
+ * 고객사별 시트와 동일한 구조로 생성
  */
 async function createSummarySheet(
   workbook: ExcelJS.Workbook,
@@ -374,21 +403,17 @@ async function createSummarySheet(
 ): Promise<void> {
   const sheet = workbook.addWorksheet('종합');
 
-  // 컬럼 너비 설정 (동일한 구조)
+  // 컬럼 너비 설정 (고객사별 시트와 동일)
   sheet.columns = COLUMN_WIDTHS.map((width, index) => ({
     key: String.fromCharCode(65 + index),
     width: width,
   }));
 
-  // 1-5행: 메타 정보
-  sheet.getCell('A1').value = '종합 BOM 데이터';
-  sheet.getCell('A1').font = { bold: true, size: 14 };
-  sheet.getCell('A2').value = `생성일: ${new Date().toLocaleDateString('ko-KR')}`;
-  sheet.getCell('A3').value = `총 고객사: ${customerSheets.length}개`;
-  sheet.getCell('A4').value = `총 모품목: ${bomData.length}개`;
-
-  const totalChildItems = bomData.reduce((sum, p) => sum + p.childItems.length, 0);
-  sheet.getCell('A5').value = `총 자품목: ${totalChildItems}개`;
+  // 1-5행: 메타 정보 (고객사별 시트와 동일한 위치)
+  sheet.getCell('AD1').value = 362;  // 스크랩 단가 기준값
+  sheet.getCell('M3').value = 14.5;
+  sheet.getCell('E5').value = 10;
+  sheet.getCell('F5').value = 11;
 
   // 6행: 헤더
   const headerRow = sheet.getRow(6);
@@ -405,7 +430,7 @@ async function createSummarySheet(
     cell.border = STYLES.BORDER_THIN;
   });
 
-  // 7행부터: 모든 BOM 데이터
+  // 7행부터: 모든 BOM 데이터 (고객사별 시트와 동일한 구조)
   let currentRow = 7;
 
   bomData.forEach((parentBom) => {
@@ -422,6 +447,7 @@ async function createSummarySheet(
     parentRow.getCell(4).value = parentBom.parentItem.item_name;              // D: 품명
     parentRow.getCell(5).value = parentBom.parentItem.price || 0;             // E: 단가
     parentRow.getCell(5).numFmt = STYLES.NUMBER_INTEGER;
+    // F, G: 마감수량, 마감금액 (빈 값)
 
     // I-L열: 모품목 정보 반복 (피치색 배경)
     parentRow.getCell(9).value = parentBom.customerName || '(미지정)';        // I: 구매처
@@ -475,6 +501,7 @@ async function createSummarySheet(
 
   /**
    * 종합 시트용 자품목 정보를 I-AE열에 채우는 헬퍼 함수
+   * 고객사별 시트와 동일한 구조
    */
   function fillSummaryChildItemCells(row: ExcelJS.Row, child: ParentBomData['childItems'][0]) {
     const childItem = child.childItem;
@@ -495,6 +522,8 @@ async function createSummarySheet(
       fgColor: { argb: STYLES.UNIT_PRICE_BG },
     };
 
+    // O, P: 구매수량, 구매금액 (빈 값)
+    
     // R열: KG단가
     const kgPriceCell = row.getCell(18);
     kgPriceCell.value = childItem?.kg_unit_price || '';
@@ -752,47 +781,128 @@ export async function GET() {
     });
     console.log(`[BOM Template] ${mappedCount}/${groupedBomData.length} 개 BOM에 고객사 매핑됨`);
 
-    // 고객사 목록
+    // 고객사 목록 수집 (BOM에 매핑된 고객사명도 포함)
     const defaultCustomers = ['대우공업', '풍기산업', '다인', '호원오토', '인알파코리아'];
-    const customerSheets = customers && customers.length > 0
+    const rawCustomerNames = customers && customers.length > 0
       ? customers.map(c => c.company_name).filter(Boolean)
       : defaultCustomers;
+
+    // BOM 데이터에서 실제 사용되는 고객사명 수집
+    const bomCustomerNames = new Set<string>();
+    groupedBomData.forEach((bomGroup) => {
+      if (bomGroup.customerName) {
+        bomCustomerNames.add(bomGroup.customerName);
+      }
+    });
+
+    // 두 소스의 고객사명 병합 (정규화 후 중복 제거)
+    const normalizeCustomerName = (name: string): string => {
+      return name.replace(/\s+/g, ' ').trim();
+    };
+    
+    const allCustomerNames = new Set<string>();
+    const normalizedNames = new Map<string, string>(); // 정규화된 이름 -> 원본 이름 매핑
+    
+    // companies 테이블 고객사명 (정규화 후 추가)
+    rawCustomerNames.forEach(name => {
+      const normalized = normalizeCustomerName(name);
+      if (normalized && !allCustomerNames.has(normalized)) {
+        allCustomerNames.add(normalized);
+        normalizedNames.set(normalized, name); // 원본 이름 보관 (로깅용)
+      }
+    });
+    
+    // BOM 매핑 고객사명 (정규화 후 추가)
+    bomCustomerNames.forEach(name => {
+      const normalized = normalizeCustomerName(name);
+      if (normalized && !allCustomerNames.has(normalized)) {
+        allCustomerNames.add(normalized);
+        normalizedNames.set(normalized, name);
+      }
+    });
+
+    // 중복 제거 전후 로깅
+    const originalCount = rawCustomerNames.length;
+    const bomCount = bomCustomerNames.size;
+    const customerSheets = Array.from(allCustomerNames);
+    const duplicatesRemoved = (rawCustomerNames.length + bomCustomerNames.size) - customerSheets.length;
+
+    if (duplicatesRemoved > 0) {
+      console.log(`[BOM Template] 중복된 고객사명 ${duplicatesRemoved}건 제거됨 (${originalCount} + ${bomCount} → ${customerSheets.length})`);
+      
+      // 정규화로 인해 중복 제거된 경우 로깅
+      const rawAllNames = [...rawCustomerNames, ...Array.from(bomCustomerNames)];
+      const normalizedMap = new Map<string, string[]>();
+      rawAllNames.forEach(name => {
+        const normalized = normalizeCustomerName(name);
+        if (!normalizedMap.has(normalized)) {
+          normalizedMap.set(normalized, []);
+        }
+        normalizedMap.get(normalized)!.push(name);
+      });
+      
+      const duplicates = Array.from(normalizedMap.entries())
+        .filter(([_, names]) => names.length > 1);
+      
+      if (duplicates.length > 0) {
+        console.log('[BOM Template] 정규화로 인해 통합된 고객사명:', duplicates.map(([norm, names]) => 
+          `${norm} ← [${names.join(', ')}]`
+        ));
+      }
+    }
+    if (bomCustomerNames.size > 0) {
+      console.log(`[BOM Template] BOM 데이터에서 ${bomCustomerNames.size}개 고객사 발견:`, Array.from(bomCustomerNames));
+    }
+    console.log('[BOM Template] 최종 시트 생성 대상:', customerSheets);
 
     // ExcelJS 워크북 생성
     const workbook = new ExcelJS.Workbook();
     workbook.creator = '태창 ERP';
     workbook.created = new Date();
 
-    // 고객사별 시트 생성
+    // 고객사별 시트 생성 (중복 시트명 방지)
+    const usedSheetNames = new Set<string>();
+    
     for (const customerName of customerSheets) {
-      await createCustomerSheet(workbook, customerName, groupedBomData);
+      await createCustomerSheet(workbook, customerName, groupedBomData, usedSheetNames);
     }
-
-    // 종합 시트 추가 (마지막에)
-    await createSummarySheet(workbook, groupedBomData, customerSheets);
 
     // 최신단가 시트 추가
     await createPriceSheet(workbook);
+
+    // 종합 시트 추가 (마지막 시트로 - 전체 데이터 통합)
+    await createSummarySheet(workbook, groupedBomData, customerSheets);
 
     // Excel 버퍼 생성
     const buffer = await workbook.xlsx.writeBuffer();
 
     // 응답 반환 (파일명은 프론트엔드에서 설정)
+    // ExcelJS writeBuffer()는 Buffer를 반환하며 NextResponse가 직접 처리
+    // 한글 파일명은 RFC 5987 형식으로 인코딩
+    const filename = 'BOM_템플릿.xlsx';
+    const encodedFilename = encodeURIComponent(filename);
+    
     return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment',
+        'Content-Disposition': `attachment; filename="BOM_template.xlsx"; filename*=UTF-8''${encodedFilename}`,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
 
   } catch (error) {
-    console.error('Error generating BOM template:', error);
+    console.error('[BOM Template] 오류 발생:', error);
+    if (error instanceof Error) {
+      console.error('[BOM Template] 오류 메시지:', error.message);
+      console.error('[BOM Template] 오류 스택:', error.stack);
+    }
     return NextResponse.json(
       {
         success: false,
         error: 'Excel 템플릿 생성에 실패했습니다',
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 }
     );

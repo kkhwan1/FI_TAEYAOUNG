@@ -21,7 +21,8 @@ export const GET = createValidatedRoute(
       const [itemsResult, transactionsResult, companiesResult] = (await Promise.all([
         supabaseAdmin
           .from('items')
-          .select('item_id, item_code, item_name, current_stock, safety_stock, price, is_active, created_at'),
+          .select('item_id, item_code, item_name, current_stock, safety_stock, price, is_active, created_at')
+          .eq('is_active', true), // 활성 품목만 조회
         supabaseAdmin
           .from('inventory_transactions')
           .select('transaction_id, transaction_type, quantity, transaction_date, item_id, total_amount')
@@ -29,7 +30,8 @@ export const GET = createValidatedRoute(
           .order('transaction_date', { ascending: false }),
         supabaseAdmin
           .from('companies')
-          .select('company_id, company_name, company_type, is_active, created_at'),
+          .select('company_id, company_name, company_type, is_active, created_at')
+          .eq('is_active', true), // 활성 회사만 조회
       ])) as any;
 
       if (itemsResult.error) throw itemsResult.error;

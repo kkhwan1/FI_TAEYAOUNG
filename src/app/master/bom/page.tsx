@@ -816,9 +816,9 @@ export default function BOMPage() {
     try {
       setIsDownloading(true);
 
-      // 템플릿 형식으로 전체 BOM 데이터 내보내기
+      // 실제 DB 데이터로 전체 BOM 데이터 내보내기
       const { safeFetch } = await import('@/lib/fetch-utils');
-      const response = await safeFetch('/api/download/template/bom', {}, {
+      const response = await safeFetch('/api/bom/export?includeMasterData=true', {}, {
         timeout: 120000, // 전체 데이터이므로 타임아웃 증가 (2분)
         maxRetries: 1,
         retryDelay: 1000
@@ -836,14 +836,14 @@ export default function BOMPage() {
       const now = new Date();
       const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
       const today = koreaTime.toISOString().split('T')[0];
-      a.download = `BOM_전체_${today}.xlsx`;
+      a.download = `BOM_종합_${today}.xlsx`;
       a.href = url;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      success('BOM 내보내기 완료', '전체 BOM 데이터가 템플릿 형식으로 성공적으로 내보내졌습니다.');
+      success('BOM 내보내기 완료', '전체 BOM 데이터가 성공적으로 내보내졌습니다.');
     } catch (err) {
       console.error('BOM export error:', err);
       error('BOM 내보내기 실패', err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');

@@ -186,7 +186,8 @@ export async function GET() {
 
     // Create stocks array with top items by value
     // TopItemsByValue 컴포넌트가 기대하는 TopItemData 형식으로 변환
-    const stocks = topItemsByValue.map((item: any, index: number) => ({
+    // 데이터가 없으면 빈 배열 반환
+    const stocks = (topItemsByValue.length > 0) ? topItemsByValue.map((item: any, index: number) => ({
       // 기본 필수 필드들
       item_id: String(item.item_id || ''),
       item_name: item.item_name ?? item.item_code ?? '미상',
@@ -211,7 +212,7 @@ export async function GET() {
       supplier: null,
       stockStatus: 'normal' as 'low' | 'normal' | 'high' | 'overstock',
       rank: index + 1
-    }));
+    })) : [];
 
     const transactionsByDate = dailyTransactions.reduce<Record<string, DailyAggregate>>((acc, transaction) => {
       const { transaction_type: type, quantity } = transaction;
@@ -485,6 +486,12 @@ export async function GET() {
       success: true,
       data: chartData,
       ...(debugInfo && { debug: debugInfo })
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
   } catch (error) {
     console.error('Dashboard charts API error:', error);
