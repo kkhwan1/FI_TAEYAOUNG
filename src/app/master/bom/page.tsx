@@ -816,9 +816,9 @@ export default function BOMPage() {
     try {
       setIsDownloading(true);
 
-      // 실제 DB 데이터로 전체 BOM 데이터 내보내기
+      // 거래처별 시트 + 최신단가 + 종합 형식으로 BOM 데이터 내보내기
       const { safeFetch } = await import('@/lib/fetch-utils');
-      const response = await safeFetch('/api/bom/export?includeMasterData=true', {}, {
+      const response = await safeFetch('/api/download/template/bom', {}, {
         timeout: 120000, // 전체 데이터이므로 타임아웃 증가 (2분)
         maxRetries: 1,
         retryDelay: 1000
