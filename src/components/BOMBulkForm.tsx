@@ -255,7 +255,7 @@ export default function BOMBulkForm({ items, onSubmit, onCancel }: BOMBulkFormPr
   }, []);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 h-full">
       {/* 전역 에러 */}
       {globalError && (
         <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
@@ -292,7 +292,7 @@ export default function BOMBulkForm({ items, onSubmit, onCancel }: BOMBulkFormPr
       </div>
 
       {/* 항목 목록 */}
-      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+      <div className="space-y-2 flex-1 min-h-[50vh] max-h-[75vh] overflow-y-auto">
         {entries.map((entry, index) => (
           <div
             key={entry.id}

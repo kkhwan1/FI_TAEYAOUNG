@@ -370,7 +370,7 @@ export const calculateKPIs = (data: KPIData): KPIResult => {
   // 재고 부족 품목 수 계산
   const lowStockItems = items.filter(item => {
     const current = item.current_stock || 0;
-    const minimum = item.safety_stock || 0;
+    const minimum = item.minimum_stock || item.min_stock_level || 0;
     return current < minimum && item.is_active;
   }).length;
 

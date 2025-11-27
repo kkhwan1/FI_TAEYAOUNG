@@ -56,12 +56,12 @@ export default function Modal({
 
   const heightClasses = {
     auto: '',
-    tall: 'max-h-[85vh]'
+    tall: 'min-h-[85vh] max-h-[95vh]'
   };
 
   const contentHeightClasses = {
     auto: '',
-    tall: 'max-h-[calc(85vh-80px)] overflow-y-auto'
+    tall: 'flex-1 min-h-0 overflow-y-auto'
   };
 
   return (

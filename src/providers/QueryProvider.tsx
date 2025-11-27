@@ -45,7 +45,7 @@ const queryClient = new QueryClient({
       throwOnError: false,
 
       // Refetch on mount: only if stale
-      refetchOnMount: 'if-stale',
+      refetchOnMount: true,
     },
     mutations: {
       // Retry mutations once (avoid duplicate submissions)

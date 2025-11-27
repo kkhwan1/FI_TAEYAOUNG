@@ -64,11 +64,12 @@ export class ItemsHandler extends CRUDHandler {
   protected async validateUpdate(id: number | string, data: any): Promise<void> {
     // Check duplicate item_code (exclude current item)
     if (data.item_code) {
+      const numericId = typeof id === 'string' ? Number(id) : id;
       const { data: existing, error } = await this.supabase
         .from('items')
         .select('item_id')
         .eq('item_code', data.item_code)
-        .neq('item_id', id)
+        .neq('item_id', numericId)
         .eq('is_active', true);
 
       if (error) {
@@ -87,11 +88,12 @@ export class ItemsHandler extends CRUDHandler {
    * Validation: Delete item - check dependencies
    */
   protected async validateDelete(id: number | string): Promise<void> {
+    const numericId = typeof id === 'string' ? Number(id) : id;
     // Check BOM usage
     const { count: bomCount, error: bomError } = await this.supabase
       .from('bom')
       .select('*', { count: 'exact', head: true })
-      .or(`parent_item_id.eq.${id},child_item_id.eq.${id}`)
+      .or(`parent_item_id.eq.${numericId},child_item_id.eq.${numericId}`)
       .eq('is_active', true);
 
     if (bomError) {
@@ -108,7 +110,7 @@ export class ItemsHandler extends CRUDHandler {
     const { count: transactionCount, error: transactionError } = await this.supabase
       .from('inventory_transactions')
       .select('*', { count: 'exact', head: true })
-      .eq('item_id', id);
+      .eq('item_id', numericId);
 
     if (transactionError) {
       console.error('Error checking transaction history:', transactionError);
