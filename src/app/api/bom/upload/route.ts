@@ -187,12 +187,13 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
               else if (header === '품명') mappedHeader = '모품목명';
               else if (header === '차종') mappedHeader = '모품목차종';
               else if (header === '단가') mappedHeader = '모품목단가';
+              else if (header === '납품처') mappedHeader = '납품처'; // 납품처는 그대로 저장 (나중에 parent_supplier로 매핑)
               if (value !== '') {
                 currentParentRow[mappedHeader] = value;
               }
             }
           }
-          // 모품목 행은 자품목이 없으면 건너뛰기
+          // 모품목 행은 다음 자품목 행들을 위해 currentParentRow만 저장하고 건너뛰기
           continue;
         } else {
           // 자품목 행: H열(업체구분)부터 읽기
@@ -242,26 +243,47 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
             }
           }
           
+          // 모품목 정보가 없으면 건너뛰기
+          if (!currentParentRow) {
+            continue;
+          }
+          
+          // 품번과 품명으로 모품목-자품목 관계 판단
+          const childItemCode = String(row['자품목코드'] || '').trim();
+          const childItemName = String(row['자품목명'] || '').trim();
+          const parentItemCode = String(currentParentRow['모품목코드'] || '').trim();
+          const parentItemName = String(currentParentRow['모품목명'] || '').trim();
+          
+          // 품번과 품명이 모두 다를 때만 자품목으로 처리
+          const isDifferentItem = childItemCode && parentItemCode && 
+                                  childItemCode !== parentItemCode &&
+                                  childItemName && parentItemName &&
+                                  childItemName !== parentItemName;
+          
+          // 품번과 품명이 다르고, 소요량이 있을 때만 BOM 엔트리 생성
+          if (!isDifferentItem || !row['quantity_required'] || Number(row['quantity_required']) <= 0) {
+            continue;
+          }
+          
           // 모품목 정보 병합
-          if (currentParentRow) {
-            Object.assign(row, currentParentRow);
-            // 모품목 헤더 매핑 보정
-            if (currentParentRow['모품목코드']) {
-              row['parent_item_code'] = currentParentRow['모품목코드'];
-            }
-            if (currentParentRow['모품목명']) {
-              row['parent_item_name'] = currentParentRow['모품목명'];
-            }
-            if (currentParentRow['모품목차종']) {
-              row['parent_car_model'] = currentParentRow['모품목차종'];
-            }
-            if (currentParentRow['모품목단가']) {
-              row['parent_unit_price'] = currentParentRow['모품목단가'];
-            }
-            if (currentParentRow['납품처']) {
-              row['parent_supplier'] = currentParentRow['납품처'];
-              row['parent_supplier_name'] = currentParentRow['납품처'];
-            }
+          Object.assign(row, currentParentRow);
+          
+          // 모품목 헤더 매핑 보정
+          if (currentParentRow['모품목코드']) {
+            row['parent_item_code'] = currentParentRow['모품목코드'];
+          }
+          if (currentParentRow['모품목명']) {
+            row['parent_item_name'] = currentParentRow['모품목명'];
+          }
+          if (currentParentRow['모품목차종']) {
+            row['parent_car_model'] = currentParentRow['모품목차종'];
+          }
+          if (currentParentRow['모품목단가']) {
+            row['parent_unit_price'] = currentParentRow['모품목단가'];
+          }
+          if (currentParentRow['납품처']) {
+            row['parent_supplier'] = currentParentRow['납품처'];
+            row['parent_supplier_name'] = currentParentRow['납품처'];
           }
           
           // 자품목 헤더 매핑 보정
@@ -282,9 +304,8 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
             row['child_supplier_name'] = row['자품목공급사명'];
           }
           
-          if (hasData) {
-            dataRows.push(row);
-          }
+          // BOM 엔트리 추가
+          dataRows.push(row);
         }
       }
       

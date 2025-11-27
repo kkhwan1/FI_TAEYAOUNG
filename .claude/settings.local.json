@@ -1,31 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)",
-      "Bash(npm run build:*)",
-      "Bash(dir:*)",
-      "Bash(powershell -Command \"Add-Type -AssemblyName ''System.IO.Compression.FileSystem''; $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path ''태창금속 BOM.xlsx'').Path); $zip.Entries | Where-Object { $_Name -match ''sheet|workbook'' } | Select-Object FullName | Format-Table -AutoSize\")",
-      "Bash(npm run restart:*)",
-      "Bash(git checkout:*)",
-      "Bash(npx kill-port:*)",
-      "Bash(findstr:*)",
-      "Bash(powershell -Command:*)",
-      "Bash(netstat:*)",
-      "Bash(timeout /t 15 /nobreak)",
-      "Bash(cat:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(npx vercel:*)",
-      "Bash(npx supabase:*)",
-      "Bash(cmd.exe:*)",
-      "Bash(tasklist:*)",
-      "Bash(copy database.types.ts.fresh database.types.ts /Y)",
-      "Bash(copy:*)",
-      "Bash(node -e:*)",
-      "Bash(rm:*)",
-      "Bash(npm run type-check:*)",
-      "Bash(find:*)"
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(codex exec:*)"
     ],
     "deny": [],
     "ask": []

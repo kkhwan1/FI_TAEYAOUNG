@@ -23,10 +23,14 @@ const companyTypeMap: Record<string, string> = {
  * GET /api/companies
  * List companies with filters
  * Query parameters:
- * - type: Filter by company type (accepts both Korean and English values)
+ * - type: Filter by company type (accepts both Korean and English values, comma-separated for multiple types)
  * - search: Search in company name, business registration number, contact person, phone, email
  * - limit: Number of records to return (default: 20)
  * - offset: Pagination offset (default: 0)
+ *
+ * Example usage:
+ * - Single type: ?type=CUSTOMER → WHERE company_type = '고객사'
+ * - Multiple types: ?type=SUPPLIER,BOTH → WHERE company_type IN ('공급사', '협력사')
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
@@ -53,8 +57,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Apply filters safely - map English to Korean for database query
     if (type) {
-      const dbType = companyTypeMap[type] || type;
-      query = query.eq('company_type', dbType as '고객사' | '공급사');
+      // Check if multiple types are provided (comma-separated)
+      if (type.includes(',')) {
+        // Split and map each type to Korean
+        const types = type.split(',').map(t => t.trim());
+        const dbTypes = types.map(t => companyTypeMap[t] || t) as ('고객사' | '공급사' | '협력사' | '기타')[];
+        query = query.in('company_type', dbTypes);
+      } else {
+        // Single type - use .eq() for backward compatibility
+        const dbType = companyTypeMap[type] || type;
+        query = query.eq('company_type', dbType as '고객사' | '공급사');
+      }
     }
 
     if (search) {
@@ -84,10 +97,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .from('companies')
       .select('*', { count: 'exact', head: true });
 
-    // Apply same filters for count - use mapped dbType for consistency
+    // Apply same filters for count - handle multiple types
     if (type) {
-      const dbType = companyTypeMap[type] || type;
-      countQuery = countQuery.eq('company_type', dbType as '고객사' | '공급사');
+      if (type.includes(',')) {
+        // Multiple types
+        const types = type.split(',').map(t => t.trim());
+        const dbTypes = types.map(t => companyTypeMap[t] || t) as ('고객사' | '공급사' | '협력사' | '기타')[];
+        countQuery = countQuery.in('company_type', dbTypes);
+      } else {
+        // Single type
+        const dbType = companyTypeMap[type] || type;
+        countQuery = countQuery.eq('company_type', dbType as '고객사' | '공급사');
+      }
     }
 
     if (search) {

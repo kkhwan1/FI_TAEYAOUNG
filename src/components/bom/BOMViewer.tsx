@@ -15,7 +15,9 @@ import {
   Check,
   X,
   RefreshCw,
-  Disc
+  Disc,
+  FileEdit,
+  Pencil
 } from 'lucide-react';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { useToast } from '../../contexts/ToastContext';
@@ -24,13 +26,26 @@ import { useConfirm } from '../../hooks/useConfirm';
 import type { BOMEntry } from '@/types/bom';
 import { entryHasCoilSpec } from '@/lib/bom-utils';
 
+interface Company {
+  company_id: number;
+  company_name: string;
+}
+
 interface BOMViewerProps {
   parentItemId?: number;
   onUpdate?: (bomId: number, updates: Partial<BOMEntry>) => Promise<void>;
   onDelete?: (bomId: number) => Promise<void>;
   onAdd?: (parentId: number, childId: number, quantity: number) => Promise<void>;
+  onEditFull?: (entry: BOMEntry) => void;  // 전체 수정 (모달) 콜백
   readOnly?: boolean;
   initialSearchTerm?: string; // 메인 검색 필드와 동기화를 위한 prop
+  // 필터 props - 메인 페이지 필터와 동기화
+  customerId?: number | null;         // 납품처 ID
+  purchaseSupplierId?: number | null; // 구매처 ID (parent item의 supplier)
+  supplierId?: number | null;         // 공급처 ID (child item의 supplier)
+  vehicleType?: string;               // 차종
+  // 회사 목록 (드롭다운용)
+  suppliers?: Company[];              // 공급사 목록 (구매처 선택용)
 }
 
 interface CostSummary {
@@ -80,8 +95,14 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   onUpdate,
   onDelete,
   onAdd,
+  onEditFull,
   readOnly = false,
-  initialSearchTerm = ''
+  initialSearchTerm = '',
+  customerId,
+  purchaseSupplierId,
+  supplierId,
+  vehicleType,
+  suppliers = []
 }) => {
   const toast = useToast();
   const { deleteConfirm } = useConfirm();
@@ -97,6 +118,15 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   const [showFilters, setShowFilters] = useState(false);
   const [editingBomId, setEditingBomId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Partial<BOMEntry>>({});
+  // 인라인 편집 확장: 수량, 레벨, 비고, 차종, 단가, 구매처 동시 편집 가능
+  const [editingFields, setEditingFields] = useState<{
+    quantity_required?: number;
+    level_no?: number;
+    remarks?: string;
+    vehicle_model?: string;
+    unit_price?: number;
+    purchase_supplier_id?: number | null; // 구매처 (parent item의 supplier_id)
+  }>({});
 
   // initialSearchTerm이 변경되면 searchTerm 동기화
   useEffect(() => {
@@ -115,6 +145,19 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
       const params = new URLSearchParams();
       if (parentItemId) {
         params.append('parent_item_id', parentItemId.toString());
+      }
+      // 납품처/구매처/공급처/차종 필터 파라미터 추가
+      if (customerId) {
+        params.append('customer_id', customerId.toString());
+      }
+      if (purchaseSupplierId) {
+        params.append('purchase_supplier_id', purchaseSupplierId.toString());
+      }
+      if (supplierId) {
+        params.append('supplier_id', supplierId.toString());
+      }
+      if (vehicleType) {
+        params.append('vehicle_type', vehicleType);
       }
 
       const { safeFetchJson } = await import('@/lib/fetch-utils');
@@ -156,7 +199,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [parentItemId, toast]);
+  }, [parentItemId, customerId, purchaseSupplierId, supplierId, vehicleType, toast]);
 
   useEffect(() => {
     fetchBOMData();
@@ -288,21 +331,107 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   // EDIT HANDLERS
   // ============================================================================
 
-  const handleEdit = useCallback((entry: BOMEntry) => {
+  // 인라인 편집 시작 (수량, 레벨, 비고, 차종, 단가, 구매처)
+  const handleInlineEdit = useCallback((entry: BOMEntry) => {
     setEditingBomId(entry.bom_id);
+    setEditingFields({
+      quantity_required: entry.quantity_required,
+      level_no: entry.level ?? entry.level_no ?? 1,
+      remarks: entry.remarks ?? '',
+      vehicle_model: entry.vehicle_model ?? '',
+      unit_price: entry.unit_price ?? 0,
+      purchase_supplier_id: entry.parent_supplier?.company_id ?? null
+    });
     setEditValues({ quantity_required: entry.quantity_required });
   }, []);
 
+  // 기존 handleEdit는 인라인 편집용으로 유지 (호환성)
+  const handleEdit = useCallback((entry: BOMEntry) => {
+    handleInlineEdit(entry);
+  }, [handleInlineEdit]);
+
+  // 전체 편집 (모달) - parent/child/customer/supplier 변경용
+  const handleFullEdit = useCallback((entry: BOMEntry) => {
+    if (onEditFull) {
+      onEditFull(entry);
+    }
+  }, [onEditFull]);
+
   const handleSave = async () => {
-    if (editingBomId && onUpdate && editValues.quantity_required) {
+    if (editingBomId && onUpdate) {
       try {
-        await onUpdate(editingBomId, editValues);
-        toast.success('수정 완료', '수량이 성공적으로 업데이트되었습니다');
+        // 현재 편집 중인 BOM 엔트리 찾기
+        const currentEntry = bomData.find(entry => entry.bom_id === editingBomId);
+        if (!currentEntry) {
+          toast.error('저장 실패', 'BOM 엔트리를 찾을 수 없습니다');
+          return;
+        }
+
+        // 인라인 편집: 수량, 레벨, 비고, 차종, 단가 저장
+        const bomUpdates: Partial<BOMEntry> = {};
+
+        if (editingFields.quantity_required !== undefined) {
+          bomUpdates.quantity_required = editingFields.quantity_required;
+        }
+        if (editingFields.level_no !== undefined) {
+          bomUpdates.level_no = editingFields.level_no;
+        }
+        if (editingFields.remarks !== undefined) {
+          bomUpdates.remarks = editingFields.remarks;
+        }
+        if (editingFields.vehicle_model !== undefined) {
+          bomUpdates.vehicle_model = editingFields.vehicle_model;
+        }
+        if (editingFields.unit_price !== undefined) {
+          bomUpdates.unit_price = editingFields.unit_price;
+        }
+
+        // 구매처(parent item의 supplier_id) 변경 여부 확인
+        const purchaseSupplierChanged =
+          editingFields.purchase_supplier_id !== undefined &&
+          editingFields.purchase_supplier_id !== (currentEntry.parent_supplier?.company_id ?? null);
+
+        if (Object.keys(bomUpdates).length === 0 && !purchaseSupplierChanged) {
+          toast.warning('변경 없음', '수정된 내용이 없습니다');
+          return;
+        }
+
+        // 1. BOM 테이블 업데이트 (수량, 레벨, 비고, 차종, 단가 등)
+        if (Object.keys(bomUpdates).length > 0) {
+          await onUpdate(editingBomId, bomUpdates);
+        }
+
+        // 2. 구매처 변경 시 Items API 호출 (parent item의 supplier_id 업데이트)
+        if (purchaseSupplierChanged && currentEntry.parent_item_id) {
+          try {
+            const itemUpdateResponse = await fetch(`/api/items/${currentEntry.parent_item_id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json; charset=utf-8'
+              },
+              body: JSON.stringify({
+                supplier_id: editingFields.purchase_supplier_id
+              })
+            });
+
+            if (!itemUpdateResponse.ok) {
+              const errorData = await itemUpdateResponse.json();
+              throw new Error(errorData.message || '구매처 업데이트 실패');
+            }
+          } catch (itemError) {
+            console.error('구매처 업데이트 실패:', itemError);
+            toast.error('구매처 수정 실패', itemError instanceof Error ? itemError.message : '구매처 업데이트에 실패했습니다');
+            // BOM 업데이트는 성공했으므로 계속 진행
+          }
+        }
+
+        toast.success('수정 완료', 'BOM 정보가 성공적으로 업데이트되었습니다');
         setEditingBomId(null);
+        setEditingFields({});
         setEditValues({});
         await fetchBOMData();
       } catch (error) {
-        toast.error('수정 실패', '수량 업데이트에 실패했습니다');
+        toast.error('수정 실패', 'BOM 업데이트에 실패했습니다');
         console.error('Update error:', error);
       }
     }
@@ -310,6 +439,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
 
   const handleCancel = useCallback(() => {
     setEditingBomId(null);
+    setEditingFields({});
     setEditValues({});
   }, []);
 
@@ -391,6 +521,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
             flex items-center py-3 px-4 border-b border-gray-200 dark:border-gray-700
             hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors
             ${level > 0 ? 'border-l-2 border-gray-300 dark:border-gray-600' : ''}
+            ${isEditing ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
           `}
         >
           {/* Expand/Collapse Button */}
@@ -414,121 +545,275 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
             {getItemIcon(entry.item_type || '')}
           </div>
 
-          {/* Item Info */}
-          <div className="flex-1 min-w-0 grid grid-cols-12 gap-4 items-center">
-            {/* Item Code & Name */}
-            <div className="col-span-4 min-w-0">
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-900 dark:text-white truncate">
+          {/* Item Info - 편집 모드일 때와 아닐 때 레이아웃 다르게 */}
+          {isEditing ? (
+            // 인라인 편집 UI (수량, 레벨, 비고, 차종, 단가)
+            <div className="flex-1 min-w-0">
+              <div className="mb-2">
+                <span className="font-medium text-gray-900 dark:text-white">
                   {entry.child_item_code}
                 </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
-                  L{entry.level}
+                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                  {entry.child_item_name}
                 </span>
-                {/* T4: 코일 연계 표시 - 코일 스펙 연결된 품목에 시각적 표시 */}
-                {hasCoilSpec(entry) && (
-                  <span
-                    className="flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded"
-                    title={`코일 규격: ${entry.material_grade}`}
-                  >
-                    <Disc className="w-3 h-3" />
-                    <span>코일</span>
-                  </span>
-                )}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                {entry.child_item_name}
-                {/* 코일 규격 표시 */}
-                {hasCoilSpec(entry) && (
-                  <span className="ml-2 text-xs text-purple-500 dark:text-purple-400">
-                    ({entry.material_grade})
-                  </span>
-                )}
+              <div className="grid grid-cols-12 gap-3 items-end">
+                {/* 수량 */}
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">소요량</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editingFields.quantity_required ?? ''}
+                    onChange={(e) => setEditingFields(prev => ({
+                      ...prev,
+                      quantity_required: e.target.value ? parseFloat(e.target.value) : undefined
+                    }))}
+                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
+                    autoFocus
+                  />
+                </div>
+                {/* 레벨 */}
+                <div className="col-span-1">
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">레벨</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={editingFields.level_no ?? ''}
+                    onChange={(e) => setEditingFields(prev => ({
+                      ...prev,
+                      level_no: e.target.value ? parseInt(e.target.value) : undefined
+                    }))}
+                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
+                  />
+                </div>
+                {/* 구매처 (parent item의 supplier) */}
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">구매처</label>
+                  <select
+                    value={editingFields.purchase_supplier_id ?? ''}
+                    onChange={(e) => setEditingFields(prev => ({
+                      ...prev,
+                      purchase_supplier_id: e.target.value ? parseInt(e.target.value) : null
+                    }))}
+                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
+                  >
+                    <option value="">선택 안함</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.company_id} value={supplier.company_id}>
+                        {supplier.company_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* 차종 */}
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">차종</label>
+                  <input
+                    type="text"
+                    value={editingFields.vehicle_model ?? ''}
+                    onChange={(e) => setEditingFields(prev => ({
+                      ...prev,
+                      vehicle_model: e.target.value
+                    }))}
+                    placeholder="차종 입력..."
+                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
+                  />
+                </div>
+                {/* 단가 */}
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">단가</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editingFields.unit_price ?? ''}
+                    onChange={(e) => setEditingFields(prev => ({
+                      ...prev,
+                      unit_price: e.target.value ? parseFloat(e.target.value) : undefined
+                    }))}
+                    placeholder="0"
+                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
+                  />
+                </div>
+                {/* 비고 */}
+                <div className="col-span-1">
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">비고</label>
+                  <input
+                    type="text"
+                    value={editingFields.remarks ?? ''}
+                    onChange={(e) => setEditingFields(prev => ({
+                      ...prev,
+                      remarks: e.target.value
+                    }))}
+                    placeholder="비고 입력..."
+                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
+                  />
+                </div>
+                {/* 저장/취소 버튼 */}
+                <div className="col-span-2 flex justify-end space-x-1">
+                  <button
+                    onClick={handleSave}
+                    className="p-1.5 text-white bg-blue-500 hover:bg-blue-600 rounded"
+                    title="저장"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="p-1.5 text-gray-600 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded"
+                    title="취소"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
+          ) : (
+            // 일반 표시 UI
+            <div className="flex-1 min-w-0 grid grid-cols-12 gap-4 items-center">
+              {/* Item Code & Name */}
+              <div className="col-span-4 min-w-0">
+                <div className="flex items-center space-x-2">
+                  <span className="font-medium text-gray-900 dark:text-white truncate">
+                    {entry.child_item_code}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
+                    L{entry.level}
+                  </span>
+                  {/* T4: 코일 연계 표시 - 코일 스펙 연결된 품목에 시각적 표시 */}
+                  {hasCoilSpec(entry) && (
+                    <span
+                      className="flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded"
+                      title={`코일 규격: ${entry.material_grade}`}
+                    >
+                      <Disc className="w-3 h-3" />
+                      <span>코일</span>
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                  {entry.child_item_name}
+                  {/* 코일 규격 표시 */}
+                  {hasCoilSpec(entry) && (
+                    <span className="ml-2 text-xs text-purple-500 dark:text-purple-400">
+                      ({entry.material_grade})
+                    </span>
+                  )}
+                </div>
+                {/* 비고 표시 */}
+                {entry.remarks && (
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                    📝 {entry.remarks}
+                  </div>
+                )}
+              </div>
 
-            {/* Quantity */}
-            <div className="col-span-2">
-              {isEditing ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editValues.quantity_required || ''}
-                  onChange={(e) => setEditValues({ quantity_required: parseFloat(e.target.value) })}
-                  className="w-full px-2 py-1 border border-gray-500 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-400"
-                  autoFocus
-                />
-              ) : (
+              {/* Quantity */}
+              <div className="col-span-1">
                 <div className="text-sm">
                   <span className="text-gray-500 dark:text-gray-400">수량: </span>
                   <span className="font-medium text-gray-900 dark:text-white">
                     {entry.quantity_required}
                   </span>
                 </div>
+              </div>
+
+              {/* Vehicle Model */}
+              <div className="col-span-2">
+                <div className="text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">차종: </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {entry.vehicle_model || '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Purchase Company (구매처) */}
+              <div className="col-span-2">
+                <div className="text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">구매처: </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {entry.parent_supplier?.company_name || '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Supplier (공급처) */}
+              <div className="col-span-2">
+                <div className="text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">공급처: </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {entry.child_supplier?.company_name || '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Unit Price */}
+              <div className="col-span-2">
+                <div className="text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">단가: </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    ₩{formatCurrency(entry.unit_price)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Material Cost */}
+              {entry.material_cost !== undefined && (
+                <div className="col-span-1 text-right">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">자재비</div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    ₩{formatCurrency(entry.material_cost)}
+                  </div>
+                </div>
+              )}
+
+              {/* Net Cost */}
+              {entry.net_cost !== undefined && (
+                <div className="col-span-1 text-right">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">순원가</div>
+                  <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    ₩{formatCurrency(entry.net_cost)}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions - 3가지 버튼: 빠른수정, 전체수정, 삭제 */}
+              {!readOnly && (
+                <div className="col-span-2 flex justify-end space-x-1">
+                  {/* 빠른 수정 (인라인: 수량, 레벨, 비고) */}
+                  <button
+                    onClick={() => handleInlineEdit(entry)}
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded"
+                    title="빠른 수정 (수량, 레벨, 비고)"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  {/* 전체 수정 (모달: 품목, 거래처 포함) */}
+                  {onEditFull && (
+                    <button
+                      onClick={() => handleFullEdit(entry)}
+                      className="p-1.5 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20 rounded"
+                      title="전체 수정 (품목, 거래처 포함)"
+                    >
+                      <FileEdit className="w-4 h-4" />
+                    </button>
+                  )}
+                  {/* 삭제 */}
+                  <button
+                    onClick={() => handleDelete(entry.bom_id)}
+                    className="p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded"
+                    title="삭제"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
-
-            {/* Material Cost */}
-            {entry.material_cost !== undefined && (
-              <div className="col-span-2 text-right">
-                <div className="text-xs text-gray-500 dark:text-gray-400">자재비</div>
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  ₩{formatCurrency(entry.material_cost)}
-                </div>
-              </div>
-            )}
-
-            {/* Net Cost */}
-            {entry.net_cost !== undefined && (
-              <div className="col-span-2 text-right">
-                <div className="text-xs text-gray-500 dark:text-gray-400">순원가</div>
-                <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  ₩{formatCurrency(entry.net_cost)}
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            {!readOnly && (
-              <div className="col-span-2 flex justify-end space-x-2">
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={handleSave}
-                      className="p-1 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 rounded"
-                      title="저장"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      className="p-1 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                      title="취소"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleEdit(entry)}
-                      className="p-1 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 rounded"
-                      title="편집"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(entry.bom_id)}
-                      className="p-1 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 rounded"
-                      title="삭제"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Children */}
@@ -539,7 +824,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
         )}
       </div>
     );
-  }, [expandedNodes, editingBomId, editValues, readOnly, toggleExpand, handleEdit, handleSave, handleCancel, handleDelete]);
+  }, [expandedNodes, editingBomId, editingFields, readOnly, toggleExpand, handleInlineEdit, handleFullEdit, handleSave, handleCancel, handleDelete, onEditFull]);
 
   // ============================================================================
   // RENDER

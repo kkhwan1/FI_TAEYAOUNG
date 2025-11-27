@@ -150,7 +150,7 @@ export async function PUT(
       'unit', 'safety_stock', 'price', 'location', 'description',
       'category', 'material_type', 'material', 'thickness', 'width', 'height',
       'specific_gravity', 'mm_weight', 'coating_status', 'scrap_rate',
-      'scrap_unit_price', 'yield_rate', 'overhead_rate'
+      'scrap_unit_price', 'yield_rate', 'overhead_rate', 'supplier_id'
     ];
 
     const updateData: any = {};

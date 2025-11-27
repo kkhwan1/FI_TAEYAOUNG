@@ -34,6 +34,7 @@ export const COMPANY_FK_COLUMNS: Record<string, {
   // Master data
   items: { supplier: 'supplier_id' },
   customer_bom_templates: { customer: 'customer_id' },
+  bom: { customer: 'customer_id' },  // BOM 관계 (프로젝트별 분리)
 
   // Sales & Collections
   sales_transactions: { customer: 'customer_id' },

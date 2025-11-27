@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/db-unified';
 import { calculateBatchScrapRevenue } from '@/lib/bom';
+import { extractCompanyId, applyCompanyFilter } from '@/lib/filters';
 import type { Database } from '@/types/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic';
  * GET /api/bom
  * List BOM entries with filters
  * Query parameters:
+ * - company_id: Filter by customer/project (프로젝트별 BOM 분리)
  * - parent_item_id: Filter by parent item
  * - child_item_id: Filter by child item
  * - level_no: Filter by BOM level
@@ -20,10 +22,15 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const searchParams = request.nextUrl.searchParams;
+    // Support both company_id and customer_id for backward compatibility
+    const customerId = extractCompanyId(searchParams, 'company_id') ?? extractCompanyId(searchParams, 'customer_id');
     const parentItemId = searchParams.get('parent_item_id');
     const childItemId = searchParams.get('child_item_id');
     const levelNo = searchParams.get('level_no');
     const coilOnly = searchParams.get('coil_only') === 'true'; // Track 2C: Coil filter
+    const purchaseSupplierId = searchParams.get('purchase_supplier_id'); // 구매처 (parent item의 supplier) 필터
+    const supplierId = searchParams.get('supplier_id'); // 공급처 (child item의 supplier) 필터
+    const vehicleType = searchParams.get('vehicle_type'); // 차종 필터
     const priceMonth = searchParams.get('price_month') ||
       new Date().toISOString().slice(0, 7) + '-01';
     const limit = parseInt(searchParams.get('limit') || '100');
@@ -32,30 +39,51 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const supabase = getSupabaseClient();
 
     // 기존 BOM 데이터 조회 (Track 2C: inventory_type 추가)
+    // Use explicit FK names to avoid ambiguity
     let query = supabase
       .from('bom')
       .select(`
         *,
-        parent:items!parent_item_id (
+        parent:items!bom_parent_item_id_fkey (
           item_code,
           item_name,
           spec,
-          price
+          price,
+          vehicle_model,
+          parent_supplier:companies!items_supplier_id_fkey (
+            company_id,
+            company_name,
+            company_code
+          )
         ),
-        child:items!child_item_id (
+        child:items!bom_child_item_id_fkey (
           item_code,
           item_name,
           spec,
           unit,
           price,
           category,
-          inventory_type
+          inventory_type,
+          vehicle_model
+        ),
+        customer:companies!bom_customer_id_fkey (
+          company_id,
+          company_name,
+          company_code
+        ),
+        child_supplier:companies!bom_child_supplier_id_fkey (
+          company_id,
+          company_name,
+          company_code
         )
       `)
       .eq('is_active', true)
       .order('parent_item_id', { ascending: true });
 
-    // 필터 적용
+    // 프로젝트(고객사) 필터 적용
+    query = applyCompanyFilter(query, 'bom', customerId, 'customer');
+
+    // 기존 필터 적용
     if (parentItemId) query = query.eq('parent_item_id', parseInt(parentItemId));
     if (childItemId) query = query.eq('child_item_id', parseInt(childItemId));
     if (levelNo) query = query.eq('level_no', parseInt(levelNo));
@@ -81,10 +109,39 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // 구매처 필터 (parent item의 supplier)
+    if (purchaseSupplierId) {
+      filteredEntries = filteredEntries.filter((entry: any) =>
+        entry.parent?.parent_supplier?.company_id === parseInt(purchaseSupplierId)
+      );
+    }
+
+    // 공급처 필터 (child item의 supplier via bom.child_supplier_id)
+    if (supplierId) {
+      filteredEntries = filteredEntries.filter((entry: any) =>
+        entry.child_supplier?.company_id === parseInt(supplierId)
+      );
+    }
+
+    // 차종 필터
+    if (vehicleType) {
+      filteredEntries = filteredEntries.filter((entry: any) =>
+        entry.parent?.vehicle_model === vehicleType ||
+        entry.child?.vehicle_model === vehicleType
+      );
+    }
+
     // Step 1: 코일 스펙 정보 일괄 조회 (N+1 문제 방지)
-    const childItemIds = filteredEntries.map((item: any) => item.child_item_id);
+    // Deduplicate child IDs to reduce payload and DB workload
+    const childItemIds = Array.from(
+      new Set(
+        filteredEntries
+          .map((item: any) => item.child_item_id)
+          .filter(Boolean)
+      )
+    );
     const coilSpecsMap = new Map<number, { material_grade: string; weight_per_piece?: number }>();
-    
+
     // childItemIds가 있을 때만 조회
     if (childItemIds.length > 0) {
       const { data: coilSpecsData, error: coilSpecsError } = await supabase
@@ -132,8 +189,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           child_item_id: item.child_item_id,
           parent_code: item.parent?.item_code,
           parent_name: item.parent?.item_name,
+          parent_vehicle: item.parent?.vehicle_model || null,
           child_code: item.child?.item_code,
           child_name: item.child?.item_name,
+          child_vehicle: item.child?.vehicle_model || null,
           quantity_required: item.quantity_required,
           level_no: item.level_no || 1,
           unit: item.child?.unit || 'EA',
@@ -145,6 +204,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           // T4: 코일 스펙 정보 추가
           material_grade: coilSpec?.material_grade,
           weight_per_piece: coilSpec?.weight_per_piece,
+          // customer와 child_supplier, parent_supplier 정보 명시적으로 포함
+          customer: item.customer || null,
+          child_supplier: item.child_supplier || null,
+          parent_supplier: item.parent?.parent_supplier || null,
           is_active: true
         };
       })
@@ -196,7 +259,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
 
-    // Apply same filters for count
+    // Apply same filters for count (including customer filter)
+    countQuery = applyCompanyFilter(countQuery, 'bom', customerId, 'customer');
     if (parentItemId) countQuery = countQuery.eq('parent_item_id', parseInt(parentItemId));
     if (childItemId) countQuery = countQuery.eq('child_item_id', parseInt(childItemId));
     if (levelNo) countQuery = countQuery.eq('level_no', parseInt(levelNo));
@@ -207,6 +271,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error('Count query failed:', countError);
     }
 
+    // When coil_only is active, use filtered entries length as total
+    // since DB count doesn't reflect post-fetch coil filter
+    const finalTotal = coilOnly ? filteredEntries.length : (totalCount || 0);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -214,10 +282,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         cost_summary: costSummary,
         price_month: priceMonth,
         pagination: {
-          total: totalCount || 0,
+          total: finalTotal,
           limit,
           offset,
-          has_more: offset + limit < (totalCount || 0)
+          has_more: offset + limit < finalTotal
         }
       }
     });
@@ -242,7 +310,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  *   parent_item_id: number,
  *   child_item_id: number,
  *   quantity_required: number,
- *   level_no?: number (default: 1)
+ *   level_no?: number (default: 1),
+ *   customer_id?: number (납품처 - 고객사),
+ *   child_supplier_id?: number (자품목 공급처)
  * }
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -256,7 +326,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       child_item_id,
       quantity_required,
       level_no = 1,
-      notes
+      notes,
+      customer_id,
+      child_supplier_id
     } = body;
 
     const supabase = getSupabaseClient();
@@ -394,6 +466,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 400 });
     }
 
+    // Validate customer_id if provided (must be type '고객사')
+    if (customer_id) {
+      const { data: customerCompany, error: customerError } = await supabase
+        .from('companies')
+        .select('company_id, company_name, company_type, is_active')
+        .eq('company_id', customer_id)
+        .single() as any;
+
+      if (customerError || !customerCompany) {
+        return NextResponse.json({
+          success: false,
+          error: '납품처(고객사)를 찾을 수 없습니다.'
+        }, { status: 404 });
+      }
+
+      if (!customerCompany.is_active) {
+        return NextResponse.json({
+          success: false,
+          error: '비활성화된 납품처(고객사)입니다.'
+        }, { status: 400 });
+      }
+
+      if (customerCompany.company_type !== '고객사') {
+        return NextResponse.json({
+          success: false,
+          error: '납품처는 고객사 유형만 선택 가능합니다.'
+        }, { status: 400 });
+      }
+    }
+
+    // Validate child_supplier_id if provided (must be type '공급사' or '협력사')
+    if (child_supplier_id) {
+      const { data: supplierCompany, error: supplierError } = await supabase
+        .from('companies')
+        .select('company_id, company_name, company_type, is_active')
+        .eq('company_id', child_supplier_id)
+        .single() as any;
+
+      if (supplierError || !supplierCompany) {
+        return NextResponse.json({
+          success: false,
+          error: '공급처를 찾을 수 없습니다.'
+        }, { status: 404 });
+      }
+
+      if (!supplierCompany.is_active) {
+        return NextResponse.json({
+          success: false,
+          error: '비활성화된 공급처입니다.'
+        }, { status: 400 });
+      }
+
+      if (!['공급사', '협력사'].includes(supplierCompany.company_type)) {
+        return NextResponse.json({
+          success: false,
+          error: '공급처는 공급사 또는 협력사 유형만 선택 가능합니다.'
+        }, { status: 400 });
+      }
+    }
+
     // Check for duplicate BOM entry (활성 + 비활성 모두 확인)
     const { data: existingBom } = await supabase
       .from('bom')
@@ -426,7 +558,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         quantity_required,
         level_no,
         is_active: true,
-        notes: notes || null
+        notes: notes || null,
+        customer_id: customer_id || null,
+        child_supplier_id: child_supplier_id || null
       } as any)
       .select()
       .single()) as any;
@@ -463,9 +597,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  * Update existing BOM entry
  * Body: {
  *   bom_id: number,
+ *   parent_item_id?: number,
+ *   child_item_id?: number,
  *   quantity_required?: number,
  *   level_no?: number,
- *   is_active?: boolean
+ *   is_active?: boolean,
+ *   customer_id?: number | null (납품처 - 고객사),
+ *   child_supplier_id?: number | null (자품목 공급처)
  * }
  */
 export async function PUT(request: NextRequest): Promise<NextResponse> {
@@ -507,6 +645,152 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       }, { status: 404 });
     }
 
+    // Validate parent_item_id if being updated
+    if (updateData.parent_item_id !== undefined) {
+      const { data: parentItem, error: parentError } = await supabase
+        .from('items')
+        .select('item_id, item_name, is_active')
+        .eq('item_id', updateData.parent_item_id)
+        .single() as any;
+
+      if (parentError || !parentItem) {
+        return NextResponse.json({
+          success: false,
+          error: '모품목을 찾을 수 없습니다.'
+        }, { status: 404 });
+      }
+
+      if (!parentItem.is_active) {
+        return NextResponse.json({
+          success: false,
+          error: '비활성화된 모품목입니다.'
+        }, { status: 400 });
+      }
+
+      // Check for self-reference
+      const childId = updateData.child_item_id ?? existingBom.child_item_id;
+      if (updateData.parent_item_id === childId) {
+        return NextResponse.json({
+          success: false,
+          error: '모품목과 자품목이 동일할 수 없습니다.'
+        }, { status: 400 });
+      }
+    }
+
+    // Validate child_item_id if being updated
+    if (updateData.child_item_id !== undefined) {
+      const { data: childItem, error: childError } = await supabase
+        .from('items')
+        .select('item_id, item_name, is_active')
+        .eq('item_id', updateData.child_item_id)
+        .single() as any;
+
+      if (childError || !childItem) {
+        return NextResponse.json({
+          success: false,
+          error: '자품목을 찾을 수 없습니다.'
+        }, { status: 404 });
+      }
+
+      if (!childItem.is_active) {
+        return NextResponse.json({
+          success: false,
+          error: '비활성화된 자품목입니다.'
+        }, { status: 400 });
+      }
+
+      // Check for self-reference
+      const parentId = updateData.parent_item_id ?? existingBom.parent_item_id;
+      if (updateData.child_item_id === parentId) {
+        return NextResponse.json({
+          success: false,
+          error: '모품목과 자품목이 동일할 수 없습니다.'
+        }, { status: 400 });
+      }
+    }
+
+    // Validate customer_id if being updated (must be type '고객사' or null)
+    if (updateData.customer_id !== undefined && updateData.customer_id !== null) {
+      const { data: customerCompany, error: customerError } = await supabase
+        .from('companies')
+        .select('company_id, company_name, company_type, is_active')
+        .eq('company_id', updateData.customer_id)
+        .single() as any;
+
+      if (customerError || !customerCompany) {
+        return NextResponse.json({
+          success: false,
+          error: '납품처(고객사)를 찾을 수 없습니다.'
+        }, { status: 404 });
+      }
+
+      if (!customerCompany.is_active) {
+        return NextResponse.json({
+          success: false,
+          error: '비활성화된 납품처(고객사)입니다.'
+        }, { status: 400 });
+      }
+
+      if (customerCompany.company_type !== '고객사') {
+        return NextResponse.json({
+          success: false,
+          error: '납품처는 고객사 유형만 선택 가능합니다.'
+        }, { status: 400 });
+      }
+    }
+
+    // Validate child_supplier_id if being updated (must be type '공급사' or '협력사' or null)
+    if (updateData.child_supplier_id !== undefined && updateData.child_supplier_id !== null) {
+      const { data: supplierCompany, error: supplierError } = await supabase
+        .from('companies')
+        .select('company_id, company_name, company_type, is_active')
+        .eq('company_id', updateData.child_supplier_id)
+        .single() as any;
+
+      if (supplierError || !supplierCompany) {
+        return NextResponse.json({
+          success: false,
+          error: '공급처를 찾을 수 없습니다.'
+        }, { status: 404 });
+      }
+
+      if (!supplierCompany.is_active) {
+        return NextResponse.json({
+          success: false,
+          error: '비활성화된 공급처입니다.'
+        }, { status: 400 });
+      }
+
+      if (!['공급사', '협력사'].includes(supplierCompany.company_type)) {
+        return NextResponse.json({
+          success: false,
+          error: '공급처는 공급사 또는 협력사 유형만 선택 가능합니다.'
+        }, { status: 400 });
+      }
+    }
+
+    // Check for duplicate BOM entry if parent or child is being changed
+    if (updateData.parent_item_id !== undefined || updateData.child_item_id !== undefined) {
+      const newParentId = updateData.parent_item_id ?? existingBom.parent_item_id;
+      const newChildId = updateData.child_item_id ?? existingBom.child_item_id;
+
+      const { data: duplicateBom } = await supabase
+        .from('bom')
+        .select('bom_id')
+        .eq('parent_item_id', newParentId)
+        .eq('child_item_id', newChildId)
+        .eq('is_active', true)
+        .neq('bom_id', bom_id)
+        .maybeSingle();
+
+      if (duplicateBom) {
+        return NextResponse.json({
+          success: false,
+          error: '동일한 모품목-자품목 조합의 BOM이 이미 존재합니다.'
+        }, { status: 400 });
+      }
+    }
+
     // Update BOM entry
     type BOMRow = Database['public']['Tables']['bom']['Row'];
     const { data: bomEntry, error } = await supabase
@@ -516,7 +800,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       .select(`
         *,
         parent_item:items!bom_parent_item_id_fkey(item_code, item_name, spec, unit),
-        child_item:items!bom_child_item_id_fkey(item_code, item_name, spec, unit)
+        child_item:items!bom_child_item_id_fkey(item_code, item_name, spec, unit),
+        customer:companies!customer_id(company_id, company_name, company_code),
+        child_supplier:companies!bom_child_supplier_id_fkey(company_id, company_name, company_code)
       `)
       .single() as { data: BOMRow | null; error: any };
 

@@ -24,7 +24,8 @@ import {
   ArrowDown,
   ArrowUpDown,
   GitBranch,
-  Loader2
+  Loader2,
+  Package
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import BOMForm from '@/components/BOMForm';
@@ -34,8 +35,21 @@ import { useConfirm } from '@/hooks/useConfirm';
 import { BOMExportButton } from '@/components/ExcelExportButton';
 import PrintButton from '@/components/PrintButton';
 import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie } from 'recharts';
-import { useCompanyFilter } from '@/hooks/useCompanyFilter';
 import BOMViewer from '@/components/bom/BOMViewer';
+
+// 납품처 정보 인터페이스
+interface CustomerInfo {
+  company_id: number;
+  company_name: string;
+  company_code?: string;
+}
+
+// 공급처 정보 인터페이스
+interface SupplierInfo {
+  company_id: number;
+  company_name: string;
+  company_code?: string;
+}
 
 interface BOM {
   bom_id: number;
@@ -51,6 +65,7 @@ interface BOM {
   parent_category?: string;
   parent_inventory_type?: string;
   parent_car_model?: string;
+  parent_vehicle?: string | null; // API에서 반환되는 차종 필드
   parent_location?: string;
   // Child item details
   child_spec?: string;
@@ -58,6 +73,7 @@ interface BOM {
   child_category?: string;
   child_inventory_type?: string;
   child_car_model?: string;
+  child_vehicle?: string | null; // API에서 반환되는 차종 필드
   child_location?: string;
   // Supplier information (parent)
   parent_supplier_name?: string;
@@ -90,6 +106,32 @@ interface BOM {
   item_type?: 'internal_production' | 'external_purchase';
   // 원가 정보 추가
   unit_price?: number;
+  // 납품처 정보 (API에서 제공)
+  customer?: CustomerInfo | null;
+  // 공급처 정보 (API에서 제공)
+  child_supplier?: SupplierInfo | null;
+  // BOM 트리 뷰용 - API full-tree 응답에서 사용
+  quantity_required?: number;
+  // 조인된 부모/자품목 상세 정보 (optional)
+  parent?: {
+    item_code?: string;
+    item_name?: string;
+    spec?: string;
+    unit?: string;
+    category?: string;
+    unit_price?: number;
+    vehicle_model?: string | null;
+    price?: number;
+  };
+  child?: {
+    item_code?: string;
+    item_name?: string;
+    spec?: string;
+    unit?: string;
+    category?: string;
+    vehicle_model?: string | null;
+    price?: number;
+  };
 }
 
 interface CoilSpecification {
@@ -112,6 +154,11 @@ interface FilterState {
   maxCost: number | null;
   category: string;
   materialType: string;
+  // 납품처/구매처/공급처/차량 필터 추가
+  customerId: number | null;
+  purchaseSupplierId: number | null; // 구매처 (parent item의 supplier)
+  supplierId: number | null;
+  vehicleType: string;
 }
 
 type TabType = 'structure' | 'coil-specs' | 'cost-analysis';
@@ -148,13 +195,11 @@ export default function BOMPage() {
   });
   const [showFilters, setShowFilters] = useState(false); // 필터 토글 (모바일용)
   const [expandedParents, setExpandedParents] = useState<Set<number>>(new Set()); // 그룹화 뷰 확장/축소
-  const [selectedCompany, setSelectedCompany] = useState<number | 'ALL'>('ALL'); // 거래처 필터
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [sortColumn, setSortColumn] = useState<string>('parent_item_code');
 
   const { success, error, info, warning } = useToast();
   const { warningConfirm, deleteWithToast, ConfirmDialog } = useConfirm();
-  const { companies, loading: companiesLoading } = useCompanyFilter();
 
   // Filters
   const [filters, setFilters] = useState<FilterState>({
@@ -164,8 +209,37 @@ export default function BOMPage() {
     minCost: null,
     maxCost: null,
     category: '',
-    materialType: ''
+    materialType: '',
+    customerId: null,
+    purchaseSupplierId: null,
+    supplierId: null,
+    vehicleType: ''
   });
+
+  // 납품처 목록 (고객사)
+  const [customers, setCustomers] = useState<CustomerInfo[]>([]);
+  // 공급처 목록
+  const [suppliers, setSuppliers] = useState<SupplierInfo[]>([]);
+  // 차량 목록 (BOM 데이터에서 추출)
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
+
+  // 모품목 상세정보 모달 상태
+  const [selectedParentDetail, setSelectedParentDetail] = useState<BOM | null>(null);
+  const [showParentDetailModal, setShowParentDetailModal] = useState(false);
+
+  // 모품목 더블클릭 핸들러 - 해당 모품목 관련 모든 BOM 조회
+  const handleParentDoubleClick = useCallback((bom: BOM) => {
+    setSelectedParentDetail(bom);
+    setShowParentDetailModal(true);
+  }, []);
+
+  // 모품목에 연결된 자품목 목록 계산
+  const getChildItemsForParent = useCallback((parentItemCode: string | undefined) => {
+    if (!parentItemCode) return [];
+    return bomData.filter(item =>
+      (item.parent_item_code === parentItemCode || item.parent?.item_code === parentItemCode)
+    );
+  }, [bomData]);
 
   // Print columns
   const printColumns = [
@@ -188,12 +262,62 @@ export default function BOMPage() {
         maxRetries: 2,
         retryDelay: 1000
       });
-      
+
       if (data.success) {
         setItems(data.data.items || []);
       }
     } catch (error) {
       console.error('Failed to fetch items:', error);
+    }
+  }, []);
+
+  // 납품처(고객사) 목록 가져오기
+  const fetchCustomers = useCallback(async () => {
+    try {
+      const { safeFetchJson } = await import('@/lib/fetch-utils');
+      const data = await safeFetchJson('/api/companies?type=고객사&limit=500', {}, {
+        timeout: 10000,
+        maxRetries: 2,
+        retryDelay: 1000
+      });
+
+      if (data.success && data.data) {
+        // API 응답 구조: { success: true, data: { data: [...], meta: {...} } }
+        const companies = data.data.data || data.data || [];
+        const customerList: CustomerInfo[] = companies.map((c: any) => ({
+          company_id: c.company_id,
+          company_name: c.company_name,
+          company_code: c.company_code
+        }));
+        setCustomers(customerList);
+      }
+    } catch (err) {
+      console.error('Failed to fetch customers:', err);
+    }
+  }, []);
+
+  // 공급처 목록 가져오기 (공급사 + 협력사)
+  const fetchSuppliers = useCallback(async () => {
+    try {
+      const { safeFetchJson } = await import('@/lib/fetch-utils');
+      const data = await safeFetchJson('/api/companies?type=공급사,협력사&limit=500', {}, {
+        timeout: 10000,
+        maxRetries: 2,
+        retryDelay: 1000
+      });
+
+      if (data.success && data.data) {
+        // API 응답 구조: { success: true, data: { data: [...], meta: {...} } }
+        const companies = data.data.data || data.data || [];
+        const supplierList: SupplierInfo[] = companies.map((s: any) => ({
+          company_id: s.company_id,
+          company_name: s.company_name,
+          company_code: s.company_code
+        }));
+        setSuppliers(supplierList);
+      }
+    } catch (err) {
+      console.error('Failed to fetch suppliers:', err);
     }
   }, []);
 
@@ -212,7 +336,7 @@ export default function BOMPage() {
 
       const url = buildFilteredApiUrl(
         '/api/bom',
-        selectedCompany === 'ALL' ? null : selectedCompany,
+        null, // 필터링 제거
         additionalParams
       );
 
@@ -230,17 +354,25 @@ export default function BOMPage() {
         const transformedBOM = bomArray.map((item: any) => ({
           ...item,
           // Map snake_case API fields to component expected format
-          parent_item_name: item.parent_name || '',
-          parent_item_code: item.parent_code || '',
-          child_item_name: item.child_name || '',
-          child_item_code: item.child_code || '',
+          parent_item_name: item.parent?.item_name || item.parent_name || '',
+          parent_item_code: item.parent?.item_code || item.parent_code || '',
+          parent_vehicle: item.parent_vehicle || item.parent?.vehicle_model || null,
+          parent_car_model: item.parent_vehicle || item.parent?.vehicle_model || null, // 모달에서 사용
+          child_item_name: item.child?.item_name || item.child_name || '',
+          child_item_code: item.child?.item_code || item.child_code || '',
+          child_vehicle: item.child_vehicle || item.child?.vehicle_model || null,
+          child_car_model: item.child_vehicle || item.child?.vehicle_model || null, // 모달에서 사용
           quantity: item.quantity_required || 0,
           level: item.level_no || 1,
           is_active: item.is_active !== undefined ? item.is_active : true,
           // 원가 정보 추가
           unit_price: item.unit_price || 0,
           material_cost: item.material_cost || 0,
-          net_cost: item.net_cost || 0
+          net_cost: item.net_cost || 0,
+          // customer 정보 유지
+          customer: item.customer || null,
+          // child_supplier 정보 유지 (BOM 레벨의 구매처)
+          child_supplier: item.child_supplier || null
         }));
 
         const bomList = showActiveOnly
@@ -259,13 +391,27 @@ export default function BOMPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedParentItem, showActiveOnly, priceMonth, selectedCompany, filters.category, filters.materialType]);
+  }, [selectedParentItem, showActiveOnly, priceMonth, filters.category, filters.materialType]);
 
   // Initial fetch
   useEffect(() => {
     fetchBOMData();
     fetchItems();
-  }, [fetchBOMData, fetchItems]);
+    fetchCustomers();
+    fetchSuppliers();
+  }, [fetchBOMData, fetchItems, fetchCustomers, fetchSuppliers]);
+
+  // BOM 데이터에서 차량 목록 추출
+  useEffect(() => {
+    if (bomData.length > 0) {
+      const vehicles = new Set<string>();
+      bomData.forEach(item => {
+        if (item.parent_car_model) vehicles.add(item.parent_car_model);
+        if (item.child_car_model) vehicles.add(item.child_car_model);
+      });
+      setVehicleTypes(Array.from(vehicles).filter(v => v && v.trim() !== '').sort());
+    }
+  }, [bomData]);
 
   // Auto-refresh
   useEffect(() => {
@@ -363,6 +509,26 @@ export default function BOMPage() {
       }
       if (filters.maxCost !== null && (entry.net_cost || 0) > filters.maxCost) {
         return false;
+      }
+
+      // 납품처(고객사) 필터
+      if (filters.customerId !== null) {
+        const customerMatch = entry.customer?.company_id === filters.customerId;
+        if (!customerMatch) return false;
+      }
+
+      // 공급처 필터
+      if (filters.supplierId !== null) {
+        const supplierMatch = entry.child_supplier?.company_id === filters.supplierId;
+        if (!supplierMatch) return false;
+      }
+
+      // 차량 필터
+      if (filters.vehicleType && filters.vehicleType.trim() !== '') {
+        const vehicleMatch =
+          entry.parent_car_model === filters.vehicleType ||
+          entry.child_car_model === filters.vehicleType;
+        if (!vehicleMatch) return false;
       }
 
       return true;
@@ -1007,67 +1173,236 @@ export default function BOMPage() {
 
   // Render functions
   const renderBOMRows = (bomList: BOM[]): React.ReactElement[] => {
-    return bomList.map((bom) => (
-      <tr key={bom.bom_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap overflow-hidden text-ellipsis">
-          <div className="flex items-center" style={{ paddingLeft: `${(bom.level || 0) * 20}px` }}>
-            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-              {bom.parent_item_code || '-'}
-            </span>
-          </div>
-        </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 overflow-hidden">
-          <span className="text-sm text-gray-900 dark:text-white block truncate" title={bom.parent_item_name || '-'}>
-            {bom.parent_item_name || '-'}
+    // 전체보기 모드(filters.customerId === null)일 때 납품처 셀 병합을 위한 그룹화
+    const shouldMergeCustomer = filters.customerId === null;
+    
+    if (shouldMergeCustomer) {
+      // 모든 BOM을 표시하되, 동일한 모품목(품번 + 차종 + 납품처)에 대해서만 납품처 셀 병합
+      // 먼저 모품목별로 그룹화하여 rowspan 계산
+      const groupedByParent = new Map<string, BOM[]>();
+      bomList.forEach((bom: any) => {
+        const parentCode = bom.parent_item_code || bom.parent?.item_code || '';
+        const parentVehicle = bom.parent_vehicle || bom.parent?.vehicle_model || '';
+        const customerId = bom.customer?.company_id || '';
+        const key = `${parentCode}_${parentVehicle}_${customerId}`;
+        if (!groupedByParent.has(key)) {
+          groupedByParent.set(key, []);
+        }
+        groupedByParent.get(key)!.push(bom);
+      });
+
+      // 모든 BOM을 순서대로 표시하되, 납품처 셀만 병합
+      const rows: React.ReactElement[] = [];
+      const processedKeys = new Set<string>();
+      
+      bomList.forEach((bom: any) => {
+        const parentCode = bom.parent_item_code || bom.parent?.item_code || '';
+        const parentVehicle = bom.parent_vehicle || bom.parent?.vehicle_model || '';
+        const customerId = bom.customer?.company_id || '';
+        const key = `${parentCode}_${parentVehicle}_${customerId}`;
+        const boms = groupedByParent.get(key) || [];
+        const isFirstRow = !processedKeys.has(key);
+        
+        if (isFirstRow) {
+          processedKeys.add(key);
+        }
+        
+        const rowSpan = boms.length;
+        const customerName = bom.customer?.company_name || '-';
+        
+        rows.push(
+          <tr key={bom.bom_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            {/* 납품처 - 첫 번째 행에만 표시하고 rowspan 적용 */}
+            {isFirstRow ? (
+              <td 
+                rowSpan={rowSpan}
+                className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600 align-top"
+              >
+                <span className="text-sm text-gray-900 dark:text-white font-medium">
+                  {customerName}
+                </span>
+              </td>
+            ) : null}
+            {/* 차종 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+              <span className="text-sm text-gray-900 dark:text-white">
+                {bom.parent_vehicle || bom.parent?.vehicle_model || '-'}
+              </span>
+            </td>
+            {/* 품번 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                {bom.parent_item_code || bom.parent?.item_code || '-'}
+              </span>
+            </td>
+            {/* 품명 - 더블클릭 시 상세정보 표시 */}
+            <td
+              className="px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              onDoubleClick={() => handleParentDoubleClick(bom)}
+              title="더블클릭하여 상세정보 보기"
+            >
+              <span className="text-sm text-gray-900 dark:text-white block underline decoration-dashed decoration-gray-400 dark:decoration-gray-500">
+                {bom.parent_item_name || bom.parent?.item_name || '-'}
+              </span>
+            </td>
+            {/* 단가 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600">
+              <span className="text-gray-900 dark:text-white">
+                {(bom.parent?.price && bom.parent.price > 0) ? bom.parent.price.toLocaleString() : '-'}
+              </span>
+            </td>
+            {/* 구매처 (parent item의 supplier) */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+              <span className="text-sm text-gray-900 dark:text-white">
+                {bom.parent_supplier?.company_name || bom.parent?.supplier?.company_name || bom.parent_supplier_name || '-'}
+              </span>
+            </td>
+            {/* 공급처 (child item의 supplier) */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+              <span className="text-sm text-gray-900 dark:text-white">
+                {bom.child_supplier?.company_name || bom.child?.supplier?.company_name || bom.child_supplier_name || '-'}
+              </span>
+            </td>
+            {/* 차종 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+              <span className="text-sm text-gray-900 dark:text-white">
+                {bom.child_vehicle || bom.child?.vehicle_model || '-'}
+              </span>
+            </td>
+            {/* 품번 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {bom.child_item_code || bom.child?.item_code || '-'}
+              </span>
+            </td>
+            {/* 품명 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400 block" title={bom.child_item_name || bom.child?.item_name || '-'}>
+                {bom.child_item_name || bom.child?.item_name || '-'}
+              </span>
+            </td>
+            {/* U/S */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-center text-gray-900 dark:text-white">
+              {parseFloat((bom.quantity || bom.quantity_required || 0).toString()).toLocaleString()}
+            </td>
+            {/* 단가 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+              {((bom.child?.price && bom.child.price > 0) ? bom.child.price.toLocaleString() : 
+                (bom.unit_price && bom.unit_price > 0) ? bom.unit_price.toLocaleString() : '-')}
+            </td>
+            {/* 작업 */}
+            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-center">
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => {
+                    setEditingBOM(bom);
+                    setShowAddModal(true);
+                  }}
+                  className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                  title="수정"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(bom)}
+                  disabled={deletingBomId === bom.bom_id}
+                  className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="삭제"
+                >
+                  {deletingBomId === bom.bom_id ? (
+                    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </td>
+          </tr>
+        );
+        });
+      
+      return rows;
+    }
+    
+    // 특정 납품처 선택 시 기존 방식 (병합 없음)
+    return bomList.map((bom: any) => (
+      <tr key={bom.bom_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        {/* 납품처 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+          <span className="text-sm text-gray-900 dark:text-white">
+            {bom.customer?.company_name || '-'}
           </span>
         </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 overflow-hidden text-ellipsis">
-          <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
-            {bom.child_item_code || '-'}
+        {/* 차종 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+          <span className="text-sm text-gray-900 dark:text-white">
+            {bom.parent_vehicle || bom.parent?.vehicle_model || '-'}
           </span>
         </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 overflow-hidden">
-          <span className="text-sm text-gray-600 dark:text-gray-400 block truncate" title={bom.child_item_name || '-'}>
-            {bom.child_item_name || '-'}
+        {/* 품번 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            {bom.parent_item_code || bom.parent?.item_code || '-'}
           </span>
         </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
-          {parseFloat((bom.quantity || 0).toString()).toLocaleString()}
+        {/* 품명 - 더블클릭 시 상세정보 표시 */}
+        <td
+          className="px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+          onDoubleClick={() => handleParentDoubleClick(bom)}
+          title="더블클릭하여 상세정보 보기"
+        >
+          <span className="text-sm text-gray-900 dark:text-white block underline decoration-dashed decoration-gray-400 dark:decoration-gray-500">
+            {bom.parent_item_name || bom.parent?.item_name || '-'}
+          </span>
         </td>
+        {/* 단가 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600">
+          <span className="text-gray-900 dark:text-white">
+            {(bom.parent?.price && bom.parent.price > 0) ? bom.parent.price.toLocaleString() : '-'}
+          </span>
+        </td>
+        {/* 구매처 (parent item의 supplier) */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+          <span className="text-sm text-gray-900 dark:text-white">
+            {bom.parent_supplier?.company_name || bom.parent?.supplier?.company_name || bom.parent_supplier_name || '-'}
+          </span>
+        </td>
+        {/* 공급처 (child item의 supplier) */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+          <span className="text-sm text-gray-900 dark:text-white">
+            {bom.child_supplier?.company_name || bom.child?.supplier?.company_name || bom.child_supplier_name || '-'}
+          </span>
+        </td>
+        {/* 차종 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+          <span className="text-sm text-gray-900 dark:text-white">
+            {bom.child_vehicle || bom.child?.vehicle_model || '-'}
+          </span>
+        </td>
+        {/* 품번 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {bom.child_item_code || bom.child?.item_code || '-'}
+          </span>
+        </td>
+        {/* 품명 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4">
+          <span className="text-sm text-gray-600 dark:text-gray-400 block" title={bom.child_item_name || bom.child?.item_name || '-'}>
+            {bom.child_item_name || bom.child?.item_name || '-'}
+          </span>
+        </td>
+        {/* U/S */}
         <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-center text-gray-900 dark:text-white">
-          EA
+          {parseFloat((bom.quantity || bom.quantity_required || 0).toString()).toLocaleString()}
         </td>
-        {/* 원가 정보 추가 */}
-        <td className="px-3 sm:px-4 py-3 sm:py-4 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
-          {bom.unit_price?.toLocaleString() || '-'}
+        {/* 단가 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {((bom.child?.price && bom.child.price > 0) ? bom.child.price.toLocaleString() : 
+            (bom.unit_price && bom.unit_price > 0) ? bom.unit_price.toLocaleString() : '-')}
         </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 text-sm text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-          {bom.material_cost?.toLocaleString() || '-'}
-        </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 text-center whitespace-nowrap">
-          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full border-2 border-gray-800 text-gray-800 bg-transparent dark:border-gray-300 dark:text-gray-300">
-            {bom.item_type === 'internal_production' ? '내부생산' : bom.item_type === 'external_purchase' ? '외부구매' : '-'}
-          </span>
-        </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 text-sm text-gray-600 dark:text-gray-400 overflow-hidden">
-          <span className="block truncate" title={bom.notes || '-'}>
-            {bom.notes || '-'}
-          </span>
-        </td>
-        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-center">
-          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full border-2 border-gray-800 text-gray-800 bg-transparent dark:border-gray-300 dark:text-gray-300">
-            {bom.is_active ? '활성' : '비활성'}
-          </span>
-        </td>
+        {/* 작업 */}
         <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-center">
           <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => handleCopyBOM(bom)}
-              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
-              title="BOM 복사"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
             <button
               onClick={() => {
                 setEditingBOM(bom);
@@ -1151,10 +1486,12 @@ export default function BOMPage() {
               key={parentId}
               className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm"
             >
-              {/* 모품목 헤더 */}
+              {/* 모품목 헤더 - 클릭 또는 더블클릭으로 확장/축소 */}
               <div
-                className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                 onClick={() => toggleParent(parentId)}
+                onDoubleClick={() => toggleParent(parentId)}
+                title="클릭 또는 더블클릭으로 펼치기/접기"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1185,7 +1522,7 @@ export default function BOMPage() {
               {/* BOM 항목 테이블 */}
               {isExpanded && (
                 <div className="overflow-x-auto">
-                  <table className="w-full table-fixed">
+                  <table className="w-full">
                     <thead className="bg-gray-100 dark:bg-gray-800">
                       <tr>
                         <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '12%', minWidth: '100px' }}>
@@ -1876,7 +2213,41 @@ export default function BOMPage() {
                 onUpdate={() => fetchBOMData()}
                 onDelete={() => fetchBOMData()}
                 onAdd={() => fetchBOMData()}
+                onEditFull={(entry) => {
+                  // BOMViewer의 entry를 BOM 페이지의 BOM 타입으로 변환
+                  const bomToEdit: BOM = {
+                    bom_id: entry.bom_id,
+                    parent_item_id: entry.parent_item_id,
+                    child_item_id: entry.child_item_id,
+                    parent_item_name: entry.parent_item_name,
+                    child_item_name: entry.child_item_name,
+                    parent_item_code: entry.parent_item_code,
+                    child_item_code: entry.child_item_code,
+                    quantity: entry.quantity_required,
+                    quantity_required: entry.quantity_required,
+                    level: entry.level ?? entry.level_no ?? 1,
+                    notes: entry.remarks ?? undefined,
+                    is_active: entry.is_active ?? true,
+                    customer: entry.customer ? {
+                      company_id: entry.customer.company_id,
+                      company_name: entry.customer.company_name,
+                      company_code: entry.customer.company_code
+                    } : null,
+                    child_supplier: entry.child_supplier ? {
+                      company_id: entry.child_supplier.company_id,
+                      company_name: entry.child_supplier.company_name,
+                      company_code: entry.child_supplier.company_code
+                    } : null
+                  };
+                  setEditingBOM(bomToEdit);
+                  setShowAddModal(true);
+                }}
                 initialSearchTerm={filters.searchTerm}
+                customerId={filters.customerId}
+                purchaseSupplierId={filters.purchaseSupplierId}
+                supplierId={filters.supplierId}
+                vehicleType={filters.vehicleType}
+                suppliers={suppliers}
               />
             </div>
           );
@@ -1892,128 +2263,46 @@ export default function BOMPage() {
         return (
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed">
+              <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-800">
                   <tr>
-                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '10%', minWidth: '100px' }}>
-                      <button
-                        onClick={() => handleSort('parent_item_code')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        모품번
-                        {sortColumn === 'parent_item_code' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+                      납품처
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider" style={{ width: '15%', minWidth: '150px' }}>
-                      <button
-                        onClick={() => handleSort('parent_item_name')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        모품명
-                        {sortColumn === 'parent_item_name' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      차종
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '10%', minWidth: '100px' }}>
-                      <button
-                        onClick={() => handleSort('child_item_code')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        자품번
-                        {sortColumn === 'child_item_code' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+                      품번
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider" style={{ width: '15%', minWidth: '150px' }}>
-                      <button
-                        onClick={() => handleSort('child_item_name')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        자품명
-                        {sortColumn === 'child_item_name' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      품명
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '7%', minWidth: '70px' }}>
-                      <button
-                        onClick={() => handleSort('quantity')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ml-auto"
-                      >
-                        소요량
-                        {sortColumn === 'quantity' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+                      단가
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '5%', minWidth: '50px' }}>
-                      단위
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      구매처
                     </th>
-                    {/* 원가 정보 컬럼 추가 */}
-                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '8%', minWidth: '90px' }}>
-                      <button
-                        onClick={() => handleSort('unit_price')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ml-auto"
-                      >
-                      단가 (₩)
-                        {sortColumn === 'unit_price' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      공급처
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '9%', minWidth: '100px' }}>
-                      <button
-                        onClick={() => handleSort('material_cost')}
-                        className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ml-auto"
-                      >
-                      재료비 (₩)
-                        {sortColumn === 'material_cost' ? (
-                          sortOrder === 'asc' ?
-                            <ArrowUp className="w-3 h-3" /> :
-                            <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-50" />
-                        )}
-                      </button>
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      차종
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '7%', minWidth: '80px' }}>
-                      구분
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      품번
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider" style={{ width: '8%', minWidth: '80px' }}>
-                      비고
+                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      품명
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '6%', minWidth: '60px' }}>
-                      상태
+                    <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      U/S
                     </th>
-                    <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '6%', minWidth: '80px' }}>
+                    <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                      단가
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                       작업
                     </th>
                   </tr>
@@ -2195,6 +2484,7 @@ export default function BOMPage() {
         </div>
       </div>
 
+
       {/* Filter Bar */}
       <div className="bg-white dark:bg-gray-900 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col gap-4">
@@ -2211,7 +2501,7 @@ export default function BOMPage() {
               />
             </div>
           </div>
-          
+
           {/* 두 번째 줄: 필터 토글 버튼 (모바일에서만 표시) */}
           <div className="md:hidden">
             <button
@@ -2222,7 +2512,7 @@ export default function BOMPage() {
               {showFilters ? '필터 접기' : '필터 보기'}
             </button>
           </div>
-          
+
           {/* 세 번째 줄: 필터 영역 */}
           <div className={`${showFilters ? 'flex' : 'hidden md:flex'} flex-nowrap gap-2 items-end overflow-x-auto pb-1`}>
             {/* 기준 월 선택 */}
@@ -2267,26 +2557,6 @@ export default function BOMPage() {
               <option value="external_purchase">외부구매</option>
             </select>
 
-            {/* 거래처 필터 */}
-            <div className="flex-shrink-0">
-              <label className="sr-only" htmlFor="company-filter">거래처 필터</label>
-              <select
-                id="company-filter"
-                value={selectedCompany}
-                onChange={(e) => setSelectedCompany(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                aria-label="거래처 필터"
-                disabled={companiesLoading}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
-              >
-                <option value="ALL">전체 거래처</option>
-                {companies.map((company) => (
-                  <option key={company.value} value={company.value}>
-                    {company.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* 카테고리 필터 */}
             <select
               value={filters.category}
@@ -2296,7 +2566,7 @@ export default function BOMPage() {
               }))}
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
-              <option value="">전체 카테고리</option>
+              <option value="">카테고리</option>
               <option value="원자재">원자재</option>
               <option value="부품">부품</option>
               <option value="완제품">완제품</option>
@@ -2313,10 +2583,87 @@ export default function BOMPage() {
               }))}
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
-              <option value="">전체 소재유형</option>
+              <option value="">소재유형</option>
               <option value="COIL">COIL</option>
               <option value="SHEET">SHEET</option>
               <option value="OTHER">OTHER</option>
+            </select>
+
+            {/* 납품처(고객사) 필터 */}
+            <select
+              value={filters.customerId || ''}
+              onChange={(e) => {
+                const customerId = e.target.value ? parseInt(e.target.value) : null;
+                setFilters(prev => ({
+                  ...prev,
+                  customerId: customerId
+                }));
+                // 납품처 선택에 따라 뷰 모드 자동 전환
+                if (customerId === null) {
+                  setViewMode('table'); // 전체 보기: 테이블 뷰
+                } else {
+                  setViewMode('grouped'); // 특정 납품처: 그룹화 뷰
+                }
+              }}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+            >
+              <option value="">납품처</option>
+              {customers.map(c => (
+                <option key={c.company_id} value={c.company_id}>
+                  {c.company_name}
+                </option>
+              ))}
+            </select>
+
+            {/* 구매처 필터 (모품목의 supplier) */}
+            <select
+              value={filters.purchaseSupplierId || ''}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                purchaseSupplierId: e.target.value ? parseInt(e.target.value) : null
+              }))}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+            >
+              <option value="">구매처</option>
+              {suppliers.map(s => (
+                <option key={s.company_id} value={s.company_id}>
+                  {s.company_name}
+                </option>
+              ))}
+            </select>
+
+            {/* 공급처 필터 (자품목의 supplier) */}
+            <select
+              value={filters.supplierId || ''}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                supplierId: e.target.value ? parseInt(e.target.value) : null
+              }))}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+            >
+              <option value="">공급처</option>
+              {suppliers.map(s => (
+                <option key={s.company_id} value={s.company_id}>
+                  {s.company_name}
+                </option>
+              ))}
+            </select>
+
+            {/* 차량 필터 */}
+            <select
+              value={filters.vehicleType}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                vehicleType: e.target.value
+              }))}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+            >
+              <option value="">차량</option>
+              {vehicleTypes.map(v => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
 
             <input
@@ -2348,7 +2695,7 @@ export default function BOMPage() {
               onChange={(e) => setSelectedParentItem(e.target.value)}
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[180px]"
             >
-              <option value="">전체 모품목</option>
+              <option value="">모품목</option>
               {items.filter(item => item.category === '제품').map(item => (
                 <option key={item.item_id} value={item.item_id}>
                   {item.item_code} - {item.item_name}
@@ -2378,9 +2725,11 @@ export default function BOMPage() {
                   minCost: null,
                   maxCost: null,
                   category: '',
-                  materialType: ''
+                  materialType: '',
+                  customerId: null,
+                  supplierId: null,
+                  vehicleType: ''
                 });
-                setSelectedCompany('ALL');
               }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
@@ -2583,6 +2932,144 @@ export default function BOMPage() {
           onSubmit={handleBulkSubmit}
           onCancel={handleCloseBulkModal}
         />
+      </Modal>
+
+      {/* 모품목 상세정보 모달 */}
+      <Modal
+        isOpen={showParentDetailModal}
+        onClose={() => {
+          setShowParentDetailModal(false);
+          setSelectedParentDetail(null);
+        }}
+        title={`모품목 상세정보: ${selectedParentDetail?.parent_item_name || selectedParentDetail?.parent?.item_name || ''}`}
+        size="xl"
+        maxHeight="tall"
+      >
+        {selectedParentDetail && (
+          <div className="space-y-6">
+            {/* 모품목 기본 정보 */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                모품목 정보
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">품번</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">품명</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {selectedParentDetail.parent_item_name || selectedParentDetail.parent?.item_name || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">규격</span>
+                  <span className="text-sm text-gray-900 dark:text-white">
+                    {selectedParentDetail.parent_spec || selectedParentDetail.parent?.spec || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">차종</span>
+                  <span className="text-sm text-gray-900 dark:text-white">
+                    {selectedParentDetail.parent_car_model || selectedParentDetail.parent_vehicle || selectedParentDetail.parent?.vehicle_model || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">납품처</span>
+                  <span className="text-sm text-gray-900 dark:text-white">
+                    {selectedParentDetail.customer?.company_name || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">단가</span>
+                  <span className="text-sm text-gray-900 dark:text-white">
+                    {selectedParentDetail.parent?.price && selectedParentDetail.parent.price > 0
+                      ? `${selectedParentDetail.parent.price.toLocaleString()} 원`
+                      : selectedParentDetail.parent?.unit_price && selectedParentDetail.parent.unit_price > 0
+                      ? `${selectedParentDetail.parent.unit_price.toLocaleString()} 원`
+                      : selectedParentDetail.unit_price && selectedParentDetail.unit_price > 0
+                      ? `${selectedParentDetail.unit_price.toLocaleString()} 원`
+                      : '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 연결된 자품목 목록 */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Network className="w-5 h-5" />
+                연결된 자품목 ({getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).length}개)
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-100 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">공급처</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">차종</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">품번</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">품명</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">소요량</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">단가</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).map((child, index) => (
+                      <tr key={child.bom_id || index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                          {child.child_supplier?.company_name || child.child_supplier_name || '-'}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                          {child.child_car_model || child.child_vehicle || child.child?.vehicle_model || '-'}
+                        </td>
+                        <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
+                          {child.child_item_code || child.child?.item_code || '-'}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                          {child.child_item_name || child.child?.item_name || '-'}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-white">
+                          {parseFloat((child.quantity || child.quantity_required || 0).toString()).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-white">
+                          {(child.child?.price && child.child.price > 0)
+                            ? `${child.child.price.toLocaleString()} 원`
+                            : (child.unit_price && child.unit_price > 0)
+                            ? `${child.unit_price.toLocaleString()} 원`
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    {getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                          연결된 자품목이 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 닫기 버튼 */}
+            <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  setShowParentDetailModal(false);
+                  setSelectedParentDetail(null);
+                }}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Confirmation Dialog */}

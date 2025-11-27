@@ -52,6 +52,16 @@ export interface CoilSpec {
 }
 
 /**
+ * 회사 정보 (납품처/공급처용)
+ */
+export interface BOMCompanyInfo {
+  company_id: number;
+  company_name: string;
+  company_code?: string;
+  company_type?: string;
+}
+
+/**
  * BOM 엔트리 (코일 스펙 정보 포함)
  * API 응답 및 컴포넌트에서 사용하는 확장 타입
  */
@@ -65,6 +75,13 @@ export interface BOMEntry extends BOMBase {
   // 관계 데이터 (선택적)
   parent_item?: BOMItem | null;
   child_item?: BOMItem | null;
+
+  // 납품처/공급처 관계 데이터 (새로 추가된 컬럼)
+  customer_id?: number | null;
+  child_supplier_id?: number | null;
+  customer?: BOMCompanyInfo | null;
+  child_supplier?: BOMCompanyInfo | null;
+  parent_supplier?: BOMCompanyInfo | null; // parent item의 supplier
 
   // 편의 필드 (API 응답에서 flatten된 데이터)
   parent_item_code?: string;

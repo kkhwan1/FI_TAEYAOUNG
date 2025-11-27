@@ -74,7 +74,9 @@ export type Database = {
         Row: {
           bom_id: number
           child_item_id: number
+          child_supplier_id: number | null
           created_at: string
+          customer_id: number | null
           is_active: boolean
           labor_cost: number | null
           level_no: number
@@ -88,7 +90,9 @@ export type Database = {
         Insert: {
           bom_id?: number
           child_item_id: number
+          child_supplier_id?: number | null
           created_at?: string
+          customer_id?: number | null
           is_active?: boolean
           labor_cost?: number | null
           level_no?: number
@@ -102,7 +106,9 @@ export type Database = {
         Update: {
           bom_id?: number
           child_item_id?: number
+          child_supplier_id?: number | null
           created_at?: string
+          customer_id?: number | null
           is_active?: boolean
           labor_cost?: number | null
           level_no?: number
@@ -134,6 +140,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mv_daily_stock_calendar"
             referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "bom_child_supplier_id_fkey"
+            columns: ["child_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bom_child_supplier_id_fkey"
+            columns: ["child_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_monthly_accounting"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bom_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bom_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_monthly_accounting"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "bom_parent_item_id_fkey"
