@@ -23,7 +23,7 @@ import { useConfirm } from '@/hooks/useConfirm';
 const Modal = dynamicImport(() => import('@/components/Modal'), { ssr: false });
 const PaymentForm = dynamicImport(() => import('@/components/forms/PaymentForm'), { ssr: false });
 
-type PaymentMethod = 'CASH' | 'TRANSFER' | 'CHECK' | 'CARD';
+type PaymentMethod = 'CASH' | 'TRANSFER' | 'CHECK' | 'CARD' | 'BILL';
 
 type Payment = {
   payment_id: number;
@@ -400,7 +400,7 @@ export default function PaymentsContent({ className }: PaymentsContentProps) {
           ? aValue.localeCompare(bValue, 'ko')
           : bValue.localeCompare(aValue, 'ko');
       } else {
-        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        return sortOrder === 'asc' ? Number(aValue) - Number(bValue) : Number(bValue) - Number(aValue);
       }
     });
 

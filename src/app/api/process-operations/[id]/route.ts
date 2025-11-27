@@ -15,6 +15,7 @@ import { getSupabaseClient, createSuccessResponse, handleSupabaseError } from '@
 import type {
   ProcessOperationWithItems,
   UpdateProcessOperationRequest,
+  OperationType,
   OperationStatus,
 } from '@/types/process';
 import { validateStatusTransition, calculateEfficiency } from '@/types/process';
@@ -70,7 +71,6 @@ export async function GET(
           status,
           process_date,
           yield_rate,
-          scrap_rate,
           notes
         )
       `)
@@ -95,59 +95,58 @@ export async function GET(
     // Transform response
     const operation: ProcessOperationWithItems = {
       operation_id: data.operation_id,
-      operation_type: data.operation_type,
+      operation_type: data.operation_type as OperationType,
       input_item_id: data.input_item_id,
       output_item_id: data.output_item_id,
-      input_quantity: parseFloat(data.input_quantity),
-      output_quantity: parseFloat(data.output_quantity),
-      efficiency: data.efficiency ? parseFloat(data.efficiency) : undefined,
-      operator_id: data.operator_id,
-      started_at: data.started_at,
-      completed_at: data.completed_at,
-      status: data.status,
-      notes: data.notes,
+      input_quantity: Number(data.input_quantity),
+      output_quantity: Number(data.output_quantity),
+      efficiency: data.efficiency ? Number(data.efficiency) : undefined,
+      operator_id: data.operator_id ?? undefined,
+      started_at: data.started_at ?? undefined,
+      completed_at: data.completed_at ?? undefined,
+      status: data.status as OperationStatus,
+      notes: data.notes ?? undefined,
       created_at: data.created_at,
       updated_at: data.updated_at,
       // LOT tracking fields
-      lot_number: data.lot_number,
-      parent_lot_number: data.parent_lot_number,
-      child_lot_number: data.child_lot_number,
+      lot_number: data.lot_number ?? undefined,
+      parent_lot_number: data.parent_lot_number ?? undefined,
+      child_lot_number: data.child_lot_number ?? undefined,
       // Chain management fields
-      chain_id: data.chain_id,
-      chain_sequence: data.chain_sequence,
-      parent_operation_id: data.parent_operation_id,
-      auto_next_operation: data.auto_next_operation,
-      next_operation_type: data.next_operation_type,
+      chain_id: data.chain_id ?? undefined,
+      chain_sequence: data.chain_sequence ?? undefined,
+      parent_operation_id: data.parent_operation_id ?? undefined,
+      auto_next_operation: data.auto_next_operation ?? undefined,
+      next_operation_type: data.next_operation_type ?? undefined,
       // Quality control fields
-      quality_status: data.quality_status,
-      scrap_quantity: data.scrap_quantity ? parseFloat(data.scrap_quantity) : undefined,
-      scheduled_date: data.scheduled_date,
+      quality_status: data.quality_status ?? undefined,
+      scrap_quantity: data.scrap_quantity ? Number(data.scrap_quantity) : undefined,
+      scheduled_date: data.scheduled_date ?? undefined,
       input_item: {
         item_id: data.input_item.item_id,
         item_name: data.input_item.item_name,
         item_code: data.input_item.item_code,
-        current_stock: parseFloat(data.input_item.current_stock),
-        unit: data.input_item.unit,
-        spec: data.input_item.spec,
+        current_stock: Number(data.input_item.current_stock),
+        unit: data.input_item.unit ?? undefined,
+        spec: data.input_item.spec ?? undefined,
       },
       output_item: {
         item_id: data.output_item.item_id,
         item_name: data.output_item.item_name,
         item_code: data.output_item.item_code,
-        current_stock: parseFloat(data.output_item.current_stock),
-        unit: data.output_item.unit,
-        spec: data.output_item.spec,
+        current_stock: Number(data.output_item.current_stock),
+        unit: data.output_item.unit ?? undefined,
+        spec: data.output_item.spec ?? undefined,
       },
       // Coil process tracking (bidirectional sync)
-      coil_process_id: data.coil_process_id,
+      coil_process_id: data.coil_process_id ?? undefined,
       coil_process: data.coil_process ? {
         process_id: data.coil_process.process_id,
         process_type: data.coil_process.process_type,
         status: data.coil_process.status,
-        process_date: data.coil_process.process_date,
-        yield_rate: data.coil_process.yield_rate ? parseFloat(data.coil_process.yield_rate) : undefined,
-        scrap_rate: data.coil_process.scrap_rate ? parseFloat(data.coil_process.scrap_rate) : undefined,
-        notes: data.coil_process.notes,
+        process_date: data.coil_process.process_date ?? undefined,
+        yield_rate: data.coil_process.yield_rate ? Number(data.coil_process.yield_rate) : undefined,
+        notes: data.coil_process.notes ?? undefined,
       } : undefined,
     };
 
@@ -238,7 +237,7 @@ export async function PATCH(
 
       // If transitioning to COMPLETED, validate stock availability
       if (body.status === 'COMPLETED') {
-        const inputQty = body.input_quantity ?? parseFloat(currentOp.input_quantity);
+        const inputQty = body.input_quantity ?? Number(currentOp.input_quantity);
 
         const { data: inputItem, error: stockError } = await supabase
           .from('items')
@@ -256,7 +255,7 @@ export async function PATCH(
           );
         }
 
-        const currentStock = parseFloat(inputItem.current_stock);
+        const currentStock = Number(inputItem.current_stock);
         if (currentStock < inputQty) {
           return NextResponse.json(
             {
@@ -276,8 +275,8 @@ export async function PATCH(
 
     // Auto-recalculate efficiency if quantities are updated
     if (body.input_quantity || body.output_quantity) {
-      const inputQty = body.input_quantity ?? parseFloat(currentOp.input_quantity);
-      const outputQty = body.output_quantity ?? parseFloat(currentOp.output_quantity);
+      const inputQty = body.input_quantity ?? Number(currentOp.input_quantity);
+      const outputQty = body.output_quantity ?? Number(currentOp.output_quantity);
       body.efficiency = calculateEfficiency(inputQty, outputQty);
     }
 
@@ -319,7 +318,6 @@ export async function PATCH(
           status,
           process_date,
           yield_rate,
-          scrap_rate,
           notes
         )
       `)
@@ -333,59 +331,58 @@ export async function PATCH(
     // Transform response
     const operation: ProcessOperationWithItems = {
       operation_id: updatedOp.operation_id,
-      operation_type: updatedOp.operation_type,
+      operation_type: updatedOp.operation_type as OperationType,
       input_item_id: updatedOp.input_item_id,
       output_item_id: updatedOp.output_item_id,
-      input_quantity: parseFloat(updatedOp.input_quantity),
-      output_quantity: parseFloat(updatedOp.output_quantity),
-      efficiency: updatedOp.efficiency ? parseFloat(updatedOp.efficiency) : undefined,
-      operator_id: updatedOp.operator_id,
-      started_at: updatedOp.started_at,
-      completed_at: updatedOp.completed_at,
-      status: updatedOp.status,
-      notes: updatedOp.notes,
+      input_quantity: Number(updatedOp.input_quantity),
+      output_quantity: Number(updatedOp.output_quantity),
+      efficiency: updatedOp.efficiency ? Number(updatedOp.efficiency) : undefined,
+      operator_id: updatedOp.operator_id ?? undefined,
+      started_at: updatedOp.started_at ?? undefined,
+      completed_at: updatedOp.completed_at ?? undefined,
+      status: updatedOp.status as OperationStatus,
+      notes: updatedOp.notes ?? undefined,
       created_at: updatedOp.created_at,
       updated_at: updatedOp.updated_at,
       // LOT tracking fields
-      lot_number: updatedOp.lot_number,
-      parent_lot_number: updatedOp.parent_lot_number,
-      child_lot_number: updatedOp.child_lot_number,
+      lot_number: updatedOp.lot_number ?? undefined,
+      parent_lot_number: updatedOp.parent_lot_number ?? undefined,
+      child_lot_number: updatedOp.child_lot_number ?? undefined,
       // Chain management fields
-      chain_id: updatedOp.chain_id,
-      chain_sequence: updatedOp.chain_sequence,
-      parent_operation_id: updatedOp.parent_operation_id,
-      auto_next_operation: updatedOp.auto_next_operation,
-      next_operation_type: updatedOp.next_operation_type,
+      chain_id: updatedOp.chain_id ?? undefined,
+      chain_sequence: updatedOp.chain_sequence ?? undefined,
+      parent_operation_id: updatedOp.parent_operation_id ?? undefined,
+      auto_next_operation: updatedOp.auto_next_operation ?? undefined,
+      next_operation_type: updatedOp.next_operation_type ?? undefined,
       // Quality control fields
-      quality_status: updatedOp.quality_status,
-      scrap_quantity: updatedOp.scrap_quantity ? parseFloat(updatedOp.scrap_quantity) : undefined,
-      scheduled_date: updatedOp.scheduled_date,
+      quality_status: updatedOp.quality_status ?? undefined,
+      scrap_quantity: updatedOp.scrap_quantity ? Number(updatedOp.scrap_quantity) : undefined,
+      scheduled_date: updatedOp.scheduled_date ?? undefined,
       input_item: {
         item_id: updatedOp.input_item.item_id,
         item_name: updatedOp.input_item.item_name,
         item_code: updatedOp.input_item.item_code,
-        current_stock: parseFloat(updatedOp.input_item.current_stock),
-        unit: updatedOp.input_item.unit,
-        spec: updatedOp.input_item.spec,
+        current_stock: Number(updatedOp.input_item.current_stock),
+        unit: updatedOp.input_item.unit ?? undefined,
+        spec: updatedOp.input_item.spec ?? undefined,
       },
       output_item: {
         item_id: updatedOp.output_item.item_id,
         item_name: updatedOp.output_item.item_name,
         item_code: updatedOp.output_item.item_code,
-        current_stock: parseFloat(updatedOp.output_item.current_stock),
-        unit: updatedOp.output_item.unit,
-        spec: updatedOp.output_item.spec,
+        current_stock: Number(updatedOp.output_item.current_stock),
+        unit: updatedOp.output_item.unit ?? undefined,
+        spec: updatedOp.output_item.spec ?? undefined,
       },
       // Coil process tracking (bidirectional sync)
-      coil_process_id: updatedOp.coil_process_id,
+      coil_process_id: updatedOp.coil_process_id ?? undefined,
       coil_process: updatedOp.coil_process ? {
         process_id: updatedOp.coil_process.process_id,
         process_type: updatedOp.coil_process.process_type,
         status: updatedOp.coil_process.status,
-        process_date: updatedOp.coil_process.process_date,
-        yield_rate: updatedOp.coil_process.yield_rate ? parseFloat(updatedOp.coil_process.yield_rate) : undefined,
-        scrap_rate: updatedOp.coil_process.scrap_rate ? parseFloat(updatedOp.coil_process.scrap_rate) : undefined,
-        notes: updatedOp.coil_process.notes,
+        process_date: updatedOp.coil_process.process_date ?? undefined,
+        yield_rate: updatedOp.coil_process.yield_rate ? Number(updatedOp.coil_process.yield_rate) : undefined,
+        notes: updatedOp.coil_process.notes ?? undefined,
       } : undefined,
     };
 

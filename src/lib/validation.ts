@@ -27,10 +27,10 @@ export const ContractStatusSchema = z.enum(['ACTIVE', 'EXPIRED', 'TERMINATED']);
 
 // Inventory Classification enum schemas (Phase 3 - 2025-02-02)
 export const InventoryTypeSchema = z.enum(['완제품', '반제품', '고객재고', '원재료', '코일'], {
-  errorMap: () => ({ message: '재고 분류는 완제품/반제품/고객재고/원재료/코일 중 하나여야 합니다' })
+  message: '재고 분류는 완제품/반제품/고객재고/원재료/코일 중 하나여야 합니다'
 });
 export const QualityStatusSchema = z.enum(['검수중', '합격', '불합격', '보류'], {
-  errorMap: () => ({ message: '품질 상태는 검수중/합격/불합격/보류 중 하나여야 합니다' })
+  message: '품질 상태는 검수중/합격/불합격/보류 중 하나여야 합니다'
 });
 export const WarehouseZoneSchema = z.string().regex(/^[A-Z]-\d{2}$/, '보관 구역 형식: A-01, B-03').nullable().optional();
 

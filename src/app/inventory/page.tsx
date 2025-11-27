@@ -299,20 +299,21 @@ function InventoryContent() {
     if (!selectedTransaction) return;
 
     try {
-      setDeletingTransactionId(selectedTransaction.transaction_id);
+      const transactionId = selectedTransaction.transaction_id ?? 0;
+      setDeletingTransactionId(transactionId);
       let url = '';
       switch (activeTab) {
         case 'receiving':
-          url = `/api/inventory/receiving?id=${selectedTransaction.transaction_id}`;
+          url = `/api/inventory/receiving?id=${transactionId}`;
           break;
         case 'production':
-          url = `/api/inventory/production?id=${selectedTransaction.transaction_id}`;
+          url = `/api/inventory/production?id=${transactionId}`;
           break;
         case 'shipping':
-          url = `/api/inventory/shipping?id=${selectedTransaction.transaction_id}`;
+          url = `/api/inventory/shipping?id=${transactionId}`;
           break;
         default:
-          url = `/api/inventory/transactions?id=${selectedTransaction.transaction_id}`;
+          url = `/api/inventory/transactions?id=${transactionId}`;
       }
 
       const { safeFetchJson } = await import('@/lib/fetch-utils');
@@ -327,7 +328,7 @@ function InventoryContent() {
       if (result.success) {
         setSelectedIds(prev => {
           const next = new Set(prev);
-          next.delete(selectedTransaction.transaction_id);
+          next.delete(transactionId);
           return next;
         });
         setShowDeleteConfirm(false);
@@ -354,7 +355,7 @@ function InventoryContent() {
   // 전체 선택/해제
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(filteredTransactions.map(tx => tx.transaction_id)));
+      setSelectedIds(new Set(filteredTransactions.map(tx => tx.transaction_id ?? 0).filter(id => id !== 0)));
     } else {
       setSelectedIds(new Set());
     }
@@ -495,9 +496,9 @@ function InventoryContent() {
               item_id: item.item_id,
               quantity: item.quantity,
               unit_price: item.unit_price,
-              lot_no: item.lot_no,
-              expiry_date: item.expiry_date,
-              to_location: item.to_location,
+              lot_no: (item as ReceivingItem).lot_no,
+              expiry_date: (item as ReceivingItem).expiry_date,
+              to_location: (item as ReceivingItem).to_location,
               arrival_date: multiItemData.transaction_date
             })),
             reference_no: multiItemData.reference_no,
@@ -687,9 +688,7 @@ function InventoryContent() {
             requestBody.id = selectedTransaction.transaction_id;
           }
         } else {
-          requestBody = selectedTransaction && activeTab === 'production'
-            ? { id: selectedTransaction.transaction_id, ...formData }
-            : formData;
+          requestBody = formData;
         }
 
         const { safeFetchJson } = await import('@/lib/fetch-utils');
@@ -884,15 +883,15 @@ function InventoryContent() {
 
   // Memoized filtered data for both card view and table view
   const filteredStockInfo = useMemo(() => stockInfo
-    .filter((item) => !selectedClassification || item.inventory_type === selectedClassification)
-    .filter((item) => selectedCompany === 'ALL' || item.company_id === selectedCompany),
+    .filter((item) => !selectedClassification || (item as any).inventory_type === selectedClassification)
+    .filter((item) => selectedCompany === 'ALL' || (item as any).company_id === selectedCompany),
   [stockInfo, selectedClassification, selectedCompany]);
 
   // Filter transactions: classification and search only (company filter is handled server-side)
   const filteredTransactions = useMemo(() => transactions
     .filter((tx) => {
       if (!selectedClassification) return true;
-      const txClassification = tx.inventory_type || (tx as any).items?.inventory_type || null;
+      const txClassification = (tx as any).inventory_type || (tx as any).items?.inventory_type || null;
       return txClassification === selectedClassification;
     })
     .filter((tx) => {
@@ -902,7 +901,7 @@ function InventoryContent() {
       return (
         (tx.item_name ?? '').toLowerCase().includes(searchLower) ||
         (tx.item_code ?? '').toLowerCase().includes(searchLower) ||
-        (tx.reference_number && tx.reference_number.toLowerCase().includes(searchLower))
+        (tx.reference_no && tx.reference_no.toLowerCase().includes(searchLower))
       );
     }),
   [transactions, selectedClassification, searchTerm]);
@@ -980,9 +979,7 @@ function InventoryContent() {
               <>
                 <TransactionsExportButton
                   transactions={transactions.filter(t => t.transaction_type === '생산입고' || t.transaction_type === '생산출고')}
-                  filtered={false}
-                  title="생산 관리 거래내역"
-                  orientation="portrait"
+                  type="생산"
                   className="bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white whitespace-nowrap text-xs px-2 py-1 flex items-center gap-1 flex-shrink-0"
                 />
                 <button
@@ -1402,8 +1399,8 @@ function InventoryContent() {
                         <td className="px-3 sm:px-6 py-4 text-center">
                           <input
                             type="checkbox"
-                            checked={selectedIds.has(transaction.transaction_id)}
-                            onChange={(e) => handleSelectItem(transaction.transaction_id, e.target.checked)}
+                            checked={selectedIds.has(transaction.transaction_id ?? 0)}
+                            onChange={(e) => handleSelectItem(transaction.transaction_id ?? 0, e.target.checked)}
                             className="rounded border-gray-300 text-gray-600 focus:ring-gray-400 dark:focus:ring-gray-500"
                           />
                         </td>

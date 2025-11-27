@@ -27,47 +27,13 @@ const Modal = dynamicImport(() => import('@/components/Modal'), { ssr: false });
 const InvoiceForm = dynamicImport(() => import('@/components/invoices/InvoiceForm'), { ssr: false });
 const InvoiceItemGrid = dynamicImport(() => import('@/components/InvoiceItemGrid'), { ssr: false });
 import type { InvoiceItem } from '@/components/InvoiceItemGrid';
-
-type PaymentStatus = 'PENDING' | 'PARTIAL' | 'COMPLETE';
-
-type Invoice = {
-  transaction_id: number;
-  transaction_date: string;
-  transaction_no: string;
-  customer_id: number;
-  total_amount: number;
-  payment_method: string;
-  payment_status?: PaymentStatus;
-  payment_due_date?: string;
-  notes?: string;
-  is_active: boolean;
-  created_at?: string;
-  updated_at?: string;
-  customer?: {
-    company_id: number;
-    company_name: string;
-    company_code: string;
-  };
-  items?: Array<{
-    invoice_item_id: number;
-    item_id: number;
-    quantity: number;
-    unit_price: number;
-    total_amount: number;
-    item?: {
-      item_code: string;
-      item_name: string;
-      unit?: string;
-      spec?: string;
-    };
-  }>;
-};
+import type { Invoice, PaymentStatus } from '@/components/invoices/InvoiceForm';
 
 const PAYMENT_STATUS_OPTIONS = [
   { value: 'PENDING', label: '대기', color: 'text-yellow-600' },
   { value: 'PARTIAL', label: '부분', color: 'text-blue-600' },
-  { value: 'COMPLETE', label: '완료', color: 'text-green-600' }
-];
+  { value: 'COMPLETED', label: '완료', color: 'text-green-600' }
+] as const;
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -177,7 +143,7 @@ export default function InvoicesPage() {
     if (!confirmed) return;
 
     try {
-      setDeletingInvoiceId(invoice.transaction_id);
+      setDeletingInvoiceId(invoice.transaction_id ?? null);
       const { safeFetchJson } = await import('@/lib/fetch-utils');
       const result = await safeFetchJson(`/api/invoices/${invoice.transaction_id}`, {
         method: 'DELETE',
@@ -190,7 +156,9 @@ export default function InvoicesPage() {
       if (result.success) {
         setSelectedIds(prev => {
           const next = new Set(prev);
-          next.delete(invoice.transaction_id);
+          if (invoice.transaction_id !== undefined) {
+            next.delete(invoice.transaction_id);
+          }
           return next;
         });
         showToast('계산서가 삭제되었습니다', 'success');
@@ -210,7 +178,7 @@ export default function InvoicesPage() {
   // 전체 선택/해제
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(filteredInvoices.map(i => i.transaction_id)));
+      setSelectedIds(new Set(filteredInvoices.map(i => i.transaction_id).filter((id): id is number => id !== undefined)));
     } else {
       setSelectedIds(new Set());
     }
@@ -273,6 +241,16 @@ export default function InvoicesPage() {
       showToast('일괄 삭제 중 오류가 발생했습니다', 'error');
     } finally {
       setDeletingInvoiceId(null);
+    }
+  };
+
+  // 정렬 핸들러
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortOrder('desc');
     }
   };
 
@@ -620,20 +598,21 @@ export default function InvoicesPage() {
                   </tr>
                 ) : (
                   sortedInvoices.map((invoice) => {
-                    const isExpanded = expandedInvoices.has(invoice.transaction_id);
+                    const invoiceId = invoice.transaction_id ?? 0;
+                    const isExpanded = expandedInvoices.has(invoiceId);
                     return (
-                      <React.Fragment key={invoice.transaction_id}>
-                        <tr 
+                      <React.Fragment key={invoiceId}>
+                        <tr
                           className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-                          onClick={() => toggleExpand(invoice.transaction_id)}
+                          onClick={() => toggleExpand(invoiceId)}
                         >
                           <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
-                              checked={selectedIds.has(invoice.transaction_id)}
+                              checked={selectedIds.has(invoiceId)}
                               onChange={(e) => {
                                 e.stopPropagation();
-                                handleSelectItem(invoice.transaction_id, e.target.checked);
+                                handleSelectItem(invoiceId, e.target.checked);
                               }}
                               className="rounded border-gray-300 text-gray-600 focus:ring-gray-400 dark:focus:ring-gray-500"
                             />
@@ -642,7 +621,7 @@ export default function InvoicesPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleExpand(invoice.transaction_id);
+                                toggleExpand(invoiceId);
                               }}
                               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                             >
@@ -678,7 +657,13 @@ export default function InvoicesPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`font-medium ${getPaymentStatusColor(invoice.payment_status)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          invoice.payment_status === 'COMPLETED'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                            : invoice.payment_status === 'PARTIAL'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                        }`}>
                           {getPaymentStatusLabel(invoice.payment_status)}
                         </span>
                       </td>

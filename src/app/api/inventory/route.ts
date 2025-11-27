@@ -81,7 +81,7 @@ export const GET = createValidatedRoute(
     }
 
     // Get related data separately to avoid RLS issues
-    const itemIds = [...new Set(transactions?.map(t => t.item_id).filter((id): id is number => id !== null) || [])];
+    const itemIds = [...new Set(transactions?.map(t => t.item_id).filter((id): id is number => id !== null && id !== undefined) || [])];
     const companyIds = [...new Set(transactions?.map(t => t.company_id).filter((id): id is number => id !== null && id !== undefined) || [])];
 
     type ItemLookup = { item_id: number; item_code: string; item_name: string; unit: string };
@@ -138,28 +138,28 @@ export const GET = createValidatedRoute(
         transaction_date: t.transaction_date,
         transaction_type: t.transaction_type,
         item_id: t.item_id,
-        item_code: item?.item_code,
-        item_name: item?.item_name,
-        quantity: t.quantity,
-        unit: item?.unit,
-        unit_price: t.unit_price,
-        total_amount: t.total_amount,
-        tax_amount: t.tax_amount,
-        grand_total: t.grand_total,
-        document_number: t.document_number,
-        reference_number: t.reference_number,
+        item_code: item?.item_code ?? '',
+        item_name: item?.item_name ?? '',
+        quantity: t.quantity ?? 0,
+        unit: item?.unit ?? '',
+        unit_price: t.unit_price ?? 0,
+        total_amount: t.total_amount ?? 0,
+        tax_amount: t.tax_amount ?? 0,
+        grand_total: t.grand_total ?? 0,
+        document_number: t.document_number ?? '',
+        reference_number: t.reference_number ?? '',
         warehouse_id: t.warehouse_id,
-        location: t.location,
-        lot_number: t.lot_number,
+        location: t.location ?? '',
+        lot_number: t.lot_number ?? '',
         expiry_date: t.expiry_date,
-        status: t.status,
-        notes: t.notes,
+        status: t.status ?? '',
+        notes: t.notes ?? '',
         created_at: t.created_at,
         updated_at: t.updated_at,
         created_by: t.created_by,
         updated_by: t.updated_by,
-        description: t.description,
-        company_name: company?.company_name
+        description: t.description ?? '',
+        company_name: company?.company_name ?? ''
       };
     }) || [];
 

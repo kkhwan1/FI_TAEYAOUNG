@@ -108,9 +108,9 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
       const params = this.parseQueryParams(request);
       const { page = 1, limit = 20, search, orderBy, orderDirection, filters } = params;
 
-      // Build query
-      let query = this.supabase
-        .from(this.options.tableName)
+      // Build query - Use 'any' type to avoid excessive type depth
+      let query: any = this.supabase
+        .from(this.options.tableName as any)
         .select(this.options.selectFields + (this.options.relationFields ? `, ${this.options.relationFields}` : ''), { count: 'exact' });
 
       // Apply active filter (soft delete)
@@ -124,7 +124,7 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
       }
 
       // Apply custom filters
-      for (const [key, value] of Object.entries(filters)) {
+      for (const [key, value] of Object.entries(filters || {})) {
         query = query.eq(key, value);
       }
 
@@ -166,7 +166,7 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
   async getById(id: number | string, context: RequestContext): Promise<APIResponse<T>> {
     try {
       let query = this.supabase
-        .from(this.options.tableName)
+        .from(this.options.tableName as any)
         .select(this.options.selectFields + (this.options.relationFields ? `, ${this.options.relationFields}` : ''))
         .eq(this.options.idField!, id);
 
@@ -211,7 +211,7 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
       }
 
       const { data: createdRecord, error } = await this.supabase
-        .from(this.options.tableName)
+        .from(this.options.tableName as any)
         .insert(insertData)
         .select()
         .single();
@@ -255,7 +255,7 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
       delete updateData[this.options.idField!];
 
       let query = this.supabase
-        .from(this.options.tableName)
+        .from(this.options.tableName as any)
         .update(updateData)
         .eq(this.options.idField!, id);
 
@@ -298,7 +298,7 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
       if (this.options.activeField) {
         // Soft delete
         const { error } = await this.supabase
-          .from(this.options.tableName)
+          .from(this.options.tableName as any)
           .update({
             [this.options.activeField]: false,
             updated_at: new Date().toISOString()
@@ -312,7 +312,7 @@ export abstract class CRUDHandler<T = any> implements ICRUDHandler<T> {
       } else {
         // Hard delete (not recommended)
         const { error } = await this.supabase
-          .from(this.options.tableName)
+          .from(this.options.tableName as any)
           .delete()
           .eq(this.options.idField!, id);
 

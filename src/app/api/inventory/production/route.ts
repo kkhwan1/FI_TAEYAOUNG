@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // 중복 제거 및 배열 추출
     const uniqueItemIds = [...new Set(priceKeys.map(k => k.item_id))];
-    const uniqueMonths = [...new Set(priceKeys.map(k => k.price_month))];
+    const uniqueMonths = [...new Set(priceKeys.map(k => k.price_month))].filter((m): m is string => m !== null);
 
     // 배치로 월별 단가 조회
     const { data: monthlyPrices } = await supabase
@@ -84,9 +85,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // 실제 필요 수량 = quantity_required × parent_quantity (또는 tx.quantity)
         // 부족 수량 = 실제 필요 수량 - deducted_quantity
         const totalShortage = (bomLogs || []).reduce((sum, log) => {
-          const bomUnitQty = parseFloat(log.quantity_required || 0); // BOM 단위 수량
-          const deducted = parseFloat(log.deducted_quantity || 0); // 실제 차감 수량
-          const productionQty = parseFloat(log.parent_quantity || tx.quantity || 0); // 생산 수량
+          const bomUnitQty = parseFloat(String(log.quantity_required || 0)); // BOM 단위 수량
+          const deducted = parseFloat(String(log.deducted_quantity || 0)); // 실제 차감 수량
+          const productionQty = parseFloat(String(log.parent_quantity || tx.quantity || 0)); // 생산 수량
           
           // 실제 필요 수량 계산
           const actualRequired = bomUnitQty * productionQty;

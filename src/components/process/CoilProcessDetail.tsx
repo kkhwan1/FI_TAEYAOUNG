@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
-import type { CoilProcessHistory } from '@/types/coil';
+import type { CoilProcessWithDetails } from '@/types/coil';
 import { useToast } from '@/contexts/ToastContext';
 
 interface CoilProcessDetailProps {
@@ -14,7 +14,7 @@ export default function CoilProcessDetail({ processId }: CoilProcessDetailProps)
   const router = useRouter();
   const { success: showSuccess, error: showError } = useToast();
 
-  const [process, setProcess] = useState<CoilProcessHistory | null>(null);
+  const [process, setProcess] = useState<CoilProcessWithDetails | null>(null);
   const [stockHistory, setStockHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -210,8 +210,8 @@ export default function CoilProcessDetail({ processId }: CoilProcessDetailProps)
           {/* 수율 */}
           <div>
             <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">수율</div>
-            <div className={`text-lg ${getYieldRateColor(process.yield_rate)}`}>
-              {process.yield_rate.toFixed(2)}%
+            <div className={`text-lg ${getYieldRateColor(process.yield_rate ?? 0)}`}>
+              {(process.yield_rate ?? 0).toFixed(2)}%
             </div>
           </div>
         </div>

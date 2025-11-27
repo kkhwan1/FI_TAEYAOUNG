@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check stock availability for input item
-    const currentStock = parseFloat(inputItem.current_stock || '0');
+    const currentStock = parseFloat(String(inputItem.current_stock || '0'));
     if (currentStock < input_quantity) {
       return NextResponse.json(
         {

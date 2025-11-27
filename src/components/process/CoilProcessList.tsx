@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Calendar, AlertTriangle } from 'lucide-react';
-import VirtualTable from '@/components/ui/VirtualTable';
+import VirtualTable, { VirtualTableColumn } from '@/components/ui/VirtualTable';
 import ProcessStatusBadge from '@/components/process/ProcessStatusBadge';
-import type { CoilProcessHistory } from '@/types/coil';
+import type { CoilProcessWithDetails } from '@/types/coil';
 
 export default function CoilProcessList() {
   const router = useRouter();
 
-  const [processes, setProcesses] = useState<CoilProcessHistory[]>([]);
+  const [processes, setProcesses] = useState<CoilProcessWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
@@ -68,7 +68,7 @@ export default function CoilProcessList() {
           ALL: result.data?.length || 0
         };
         
-        (result.data || []).forEach((p: CoilProcessHistory) => {
+        (result.data || []).forEach((p: CoilProcessWithDetails) => {
           if (p.status in counts) {
             counts[p.status as keyof typeof counts]++;
           }
@@ -83,7 +83,7 @@ export default function CoilProcessList() {
     }
   };
 
-  const handleRowClick = (process: CoilProcessHistory) => {
+  const handleRowClick = (process: CoilProcessWithDetails) => {
     router.push(`/process/coil-tracking/${process.process_id}`);
   };
 
@@ -93,12 +93,12 @@ export default function CoilProcessList() {
     return 'text-red-600 dark:text-red-400 font-semibold';
   };
 
-  const columns = [
+  const columns: VirtualTableColumn<CoilProcessWithDetails>[] = [
     {
       key: 'process_id',
       label: '#',
       width: '8%',
-      render: (value: number) => `#${value}`
+      render: (value: unknown) => `#${value}`
     },
     {
       key: 'process_type',
@@ -109,7 +109,7 @@ export default function CoilProcessList() {
       key: 'source_item',
       label: '투입 코일',
       width: '18%',
-      render: (_: any, row: CoilProcessHistory) => (
+      render: (_: unknown, row: CoilProcessWithDetails) => (
         <div className="truncate" title={`${row.source_item?.item_code || ''} ${row.source_item?.item_name || ''}`}>
           <div className="font-medium text-gray-900 dark:text-white truncate">{row.source_item?.item_code || '-'}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{row.source_item?.item_name || ''}</div>
@@ -120,7 +120,7 @@ export default function CoilProcessList() {
       key: 'target_item',
       label: '산출 품목',
       width: '18%',
-      render: (_: any, row: CoilProcessHistory) => (
+      render: (_: unknown, row: CoilProcessWithDetails) => (
         <div className="truncate" title={`${row.target_item?.item_code || ''} ${row.target_item?.item_name || ''}`}>
           <div className="font-medium text-gray-900 dark:text-white truncate">{row.target_item?.item_code || '-'}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{row.target_item?.item_name || ''}</div>
@@ -132,23 +132,23 @@ export default function CoilProcessList() {
       label: '투입량',
       width: '9%',
       align: 'right' as const,
-      render: (value: number) => <span className="whitespace-nowrap">{value.toLocaleString()}</span>
+      render: (value: unknown) => <span className="whitespace-nowrap">{(value as number).toLocaleString()}</span>
     },
     {
       key: 'output_quantity',
       label: '산출량',
       width: '9%',
       align: 'right' as const,
-      render: (value: number) => <span className="whitespace-nowrap">{value.toLocaleString()}</span>
+      render: (value: unknown) => <span className="whitespace-nowrap">{(value as number).toLocaleString()}</span>
     },
     {
       key: 'yield_rate',
       label: '수율(%)',
       width: '9%',
       align: 'right' as const,
-      render: (value: number) => (
-        <span className={`whitespace-nowrap ${getYieldRateColor(value)}`}>
-          {value.toFixed(2)}%
+      render: (value: unknown) => (
+        <span className={`whitespace-nowrap ${getYieldRateColor(value as number)}`}>
+          {(value as number).toFixed(2)}%
         </span>
       )
     },
@@ -156,13 +156,13 @@ export default function CoilProcessList() {
       key: 'process_date',
       label: '공정일자',
       width: '11%',
-      render: (value: string) => <span className="whitespace-nowrap">{new Date(value).toLocaleDateString('ko-KR')}</span>
+      render: (value: unknown) => <span className="whitespace-nowrap">{new Date(value as string).toLocaleDateString('ko-KR')}</span>
     },
     {
       key: 'status',
       label: '상태',
       width: '8%',
-      render: (value: string) => <ProcessStatusBadge status={value as any} />
+      render: (value: unknown) => <ProcessStatusBadge status={value as any} />
     }
   ];
 
@@ -356,7 +356,7 @@ export default function CoilProcessList() {
           <div className="text-sm text-gray-600 dark:text-gray-400">평균 수율</div>
           <div className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">
             {processes.length > 0
-              ? (processes.reduce((sum, p) => sum + p.yield_rate, 0) / processes.length).toFixed(2)
+              ? (processes.reduce((sum, p) => sum + (p.yield_rate ?? 0), 0) / processes.length).toFixed(2)
               : 0}%
           </div>
         </div>

@@ -102,7 +102,7 @@ export default function ItemDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { error: showError } = useToast();
-  const itemId = params.id as string;
+  const itemId = params?.id as string;
   
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [bomUsage, setBomUsage] = useState<BOMUsage | null>(null);

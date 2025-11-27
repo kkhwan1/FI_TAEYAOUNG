@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     // Calculate statistics
     const efficiencies = operations
       .filter(op => op.efficiency != null && op.efficiency > 0)
-      .map(op => parseFloat(op.efficiency));
+      .map(op => parseFloat(String(op.efficiency)));
 
     if (efficiencies.length === 0) {
       return NextResponse.json({

@@ -64,7 +64,7 @@ export async function GET(
       );
     }
 
-    const weightPerPiece = parseFloat(coilSpecs.weight_per_piece || '0');
+    const weightPerPiece = Number(coilSpecs.weight_per_piece) || 0;
     
     if (weightPerPiece <= 0) {
       return NextResponse.json(
@@ -93,7 +93,7 @@ export async function GET(
       remainingWeight = (item.current_stock || 0) - requiredWeight;
     } else {
       // 현재 재고 기반 계산 (재고가 중량 단위라고 가정)
-      const currentStock = parseFloat(item.current_stock || '0');
+      const currentStock = item.current_stock || 0;
       maxQuantity = Math.floor(currentStock / weightPerPiece);
       suggestedInputQuantity = maxQuantity;
       remainingWeight = currentStock - (maxQuantity * weightPerPiece);
@@ -104,7 +104,7 @@ export async function GET(
       data: {
         item_id: parseInt(item_id),
         weight_per_piece: weightPerPiece,
-        current_stock: parseFloat(item.current_stock || '0'),
+        current_stock: item.current_stock || 0,
         unit: item.unit,
         max_quantity: maxQuantity,
         suggested_input_quantity: suggestedInputQuantity,

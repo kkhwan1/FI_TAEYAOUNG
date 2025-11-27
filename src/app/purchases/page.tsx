@@ -66,8 +66,8 @@ type PurchaseTransaction = {
 const PAYMENT_STATUS_OPTIONS = [
   { value: 'PENDING', label: '대기', color: 'text-gray-600 dark:text-gray-400' },
   { value: 'PARTIAL', label: '부분', color: 'text-gray-600 dark:text-gray-400' },
-  { value: 'COMPLETE', label: '완료', color: 'text-gray-600 dark:text-gray-400' }
-];
+  { value: 'COMPLETED', label: '완료', color: 'text-gray-600 dark:text-gray-400' }
+] as const;
 
 export default function PurchasesPage() {
   const [transactions, setTransactions] = useState<PurchaseTransaction[]>([]);
@@ -267,11 +267,7 @@ export default function PurchasesPage() {
     // 지급 상태 필터링
     if (filterStatus) {
       filtered = filtered.filter((transaction) => {
-        const status = transaction.payment_status;
-        if (filterStatus === 'COMPLETE') {
-          return status === 'COMPLETE' || status === 'COMPLETED';
-        }
-        return status === filterStatus;
+        return transaction.payment_status === filterStatus;
       });
     }
 
@@ -384,7 +380,6 @@ export default function PurchasesPage() {
               onChange={(value) => setSelectedCompany(value === '' ? 'ALL' : Number(value))}
               label=""
               placeholder="전체 공급사"
-              showAllOption={true}
               className="w-full"
             />
           </div>

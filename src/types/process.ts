@@ -10,8 +10,6 @@
  * @date 2025-02-04
  */
 
-import type { Database } from './supabase';
-
 // ============================================================================
 // Core Enums
 // ============================================================================
@@ -27,23 +25,102 @@ export type OperationType = 'BLANKING' | 'PRESS' | 'ASSEMBLY';
 export type OperationStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 // ============================================================================
-// Base Types from Database
+// Base Types (Local Definitions - process_operations table not yet in DB)
 // ============================================================================
 
 /**
  * process_operations 테이블 기본 타입
+ * Note: 아직 DB에 테이블이 생성되지 않아 로컬 정의 사용
  */
-export type ProcessOperation = Database['public']['Tables']['process_operations']['Row'];
+export interface ProcessOperation {
+  operation_id: number;
+  operation_type: OperationType;
+  input_item_id: number;
+  output_item_id: number;
+  input_quantity: number;
+  output_quantity: number;
+  efficiency: number | null;
+  operator_id: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  status: OperationStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  lot_number: string | null;
+  parent_lot_number: string | null;
+  child_lot_number: string | null;
+  chain_id: string | null;
+  chain_sequence: number | null;
+  parent_operation_id: number | null;
+  auto_next_operation: boolean | null;
+  next_operation_type: string | null;
+  quality_status: string | null;
+  scrap_quantity: number | null;
+  scheduled_date: string | null;
+}
 
 /**
  * process_operations INSERT 타입
  */
-export type ProcessOperationInsert = Database['public']['Tables']['process_operations']['Insert'];
+export interface ProcessOperationInsert {
+  operation_id?: number;
+  operation_type: OperationType;
+  input_item_id: number;
+  output_item_id: number;
+  input_quantity: number;
+  output_quantity: number;
+  efficiency?: number | null;
+  operator_id?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  status?: OperationStatus;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  lot_number?: string | null;
+  parent_lot_number?: string | null;
+  child_lot_number?: string | null;
+  chain_id?: string | null;
+  chain_sequence?: number | null;
+  parent_operation_id?: number | null;
+  auto_next_operation?: boolean | null;
+  next_operation_type?: string | null;
+  quality_status?: string | null;
+  scrap_quantity?: number | null;
+  scheduled_date?: string | null;
+}
 
 /**
  * process_operations UPDATE 타입
  */
-export type ProcessOperationUpdate = Database['public']['Tables']['process_operations']['Update'];
+export interface ProcessOperationUpdate {
+  operation_id?: number;
+  operation_type?: OperationType;
+  input_item_id?: number;
+  output_item_id?: number;
+  input_quantity?: number;
+  output_quantity?: number;
+  efficiency?: number | null;
+  operator_id?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  status?: OperationStatus;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  lot_number?: string | null;
+  parent_lot_number?: string | null;
+  child_lot_number?: string | null;
+  chain_id?: string | null;
+  chain_sequence?: number | null;
+  parent_operation_id?: number | null;
+  auto_next_operation?: boolean | null;
+  next_operation_type?: string | null;
+  quality_status?: string | null;
+  scrap_quantity?: number | null;
+  scheduled_date?: string | null;
+}
 
 // ============================================================================
 // Extended Types with Relations
@@ -96,6 +173,17 @@ export interface ProcessOperationWithItems {
   quality_status?: string;          // 품질 상태 (OK, NG, REWORK)
   scrap_quantity?: number;          // 불량 수량
   scheduled_date?: string;          // 예정일
+
+  // Coil process tracking (bidirectional sync)
+  coil_process_id?: number;
+  coil_process?: {
+    process_id: number;
+    process_type: string;
+    status: string;
+    process_date?: string;
+    yield_rate?: number;
+    notes?: string;
+  };
 
   // Relations
   input_item: ItemBasicInfo;

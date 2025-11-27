@@ -223,9 +223,9 @@ export const POST = async (request: NextRequest) => {
       .eq('is_active', true)) as any;
 
     const previouslyCollected = existingCollections?.reduce(
-      (sum: number, col: any) => sum + (col.collected_amount || 0),
+      (sum: number, col: any) => sum + (col.collected_amount ?? 0),
       0
-    ) || 0;
+    ) ?? 0;
 
     const totalCollected = previouslyCollected + validatedData.collected_amount;
     const remaining = salesTx.total_amount - totalCollected;
@@ -252,7 +252,7 @@ export const POST = async (request: NextRequest) => {
     }
 
     // Generate collection number if not provided
-    let collectionNo = validatedData.collection_no;
+    let collectionNo = validatedData.collection_no ?? '';
     if (!collectionNo) {
       const { data: generatedNo, error: genError } = await supabaseAdmin
         .rpc('generate_collection_no');
@@ -263,7 +263,7 @@ export const POST = async (request: NextRequest) => {
         const timestamp = new Date().getTime();
         collectionNo = `COL-${timestamp}`;
       } else {
-        collectionNo = generatedNo;
+        collectionNo = generatedNo ?? `COL-${new Date().getTime()}`;
       }
     }
 
@@ -301,14 +301,14 @@ export const POST = async (request: NextRequest) => {
       customer_id: salesTx.customer_id,
       collected_amount: validatedData.collected_amount,
       payment_method: validatedData.payment_method,
-      bank_name: validatedData.bank_name || null,
-      account_number: validatedData.account_number || null,
-      check_number: validatedData.check_number || null,
-      card_number: validatedData.card_number || null,
-      bill_number: validatedData.bill_number || null,
-      bill_date: validatedData.bill_date || null,
-      bill_drawer: validatedData.bill_drawer || null,
-      notes: validatedData.notes || null,
+      bank_name: validatedData.bank_name ?? null,
+      account_number: validatedData.account_number ?? null,
+      check_number: validatedData.check_number ?? null,
+      card_number: validatedData.card_number ?? null,
+      bill_number: validatedData.bill_number ?? null,
+      bill_date: validatedData.bill_date ?? null,
+      bill_drawer: validatedData.bill_drawer ?? null,
+      notes: validatedData.notes ?? null,
       is_active: true
     };
 
@@ -607,9 +607,9 @@ export const PUT = async (request: NextRequest) => {
         .neq('collection_id', collectionId)) as any;
 
       const otherCollectedAmount = otherCollections?.reduce(
-        (sum: number, col: any) => sum + (col.collected_amount || 0),
+        (sum: number, col: any) => sum + (col.collected_amount ?? 0),
         0
-      ) || 0;
+      ) ?? 0;
 
       const totalCollected = otherCollectedAmount + body.collected_amount;
       const remaining = salesTx.total_amount - totalCollected;
@@ -776,9 +776,9 @@ export const DELETE = async (request: NextRequest) => {
         .eq('is_active', true)) as any;
 
       const totalCollected = remainingCollections?.reduce(
-        (sum: number, col: any) => sum + (col.collected_amount || 0),
+        (sum: number, col: any) => sum + (col.collected_amount ?? 0),
         0
-      ) || 0;
+      ) ?? 0;
 
       const remaining = salesTx.total_amount - totalCollected;
 

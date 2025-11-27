@@ -137,9 +137,10 @@ export const TopItemsByValue: React.FC<TopItemsByValueProps> = ({
 
       // If already in complete TopItemData format, use as-is
       if (hasAllTopItemFields) {
+        const stockDatum = item as StockChartDatum;
         return {
           ...item,
-          item_id: String(item.item_id || item.code || item.item_code || ''),
+          item_id: String(item.item_id || stockDatum.code || item.item_code || ''),
           rank: item.rank || (index + 1)
         } as TopItemData;
       }
@@ -316,11 +317,11 @@ export const TopItemsByValue: React.FC<TopItemsByValueProps> = ({
     if (process.env.NODE_ENV === 'development') {
       // type 필드 값 및 중복 검사
       const typeValues = result.map(r => r.type);
-      const typeCounts = {};
+      const typeCounts: Record<string, number> = {};
       typeValues.forEach(type => {
         typeCounts[type] = (typeCounts[type] || 0) + 1;
       });
-      const duplicates = Object.entries(typeCounts).filter(([type, count]) => count > 1);
+      const duplicates = Object.entries(typeCounts).filter(([type, count]) => (count as number) > 1);
       
       console.log('[TopItemsByValue] Processed data:', {
         inputDataLength: data?.length || 0,
@@ -640,13 +641,12 @@ export const TopItemsByValue: React.FC<TopItemsByValueProps> = ({
               <CartesianGrid strokeDasharray="3 3" stroke={theme.cartesianGrid.stroke} />
               <XAxis
                 dataKey="type"
-                tick={{ 
-                  ...theme.xAxis.tick, 
-                  fontSize: 10, 
-                  angle: 0, 
+                tick={{
+                  ...theme.xAxis.tick,
+                  fontSize: 10,
                   textAnchor: 'middle',
                   fill: isDark ? '#e5e7eb' : '#374151'
-                }}
+                } as any}
                 axisLine={theme.xAxis.axisLine}
                 height={40}
                 interval={0}

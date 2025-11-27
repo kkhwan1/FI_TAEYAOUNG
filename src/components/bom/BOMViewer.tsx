@@ -187,7 +187,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
         // 부모 찾기: 현재 entry의 parent_item_id가 부모 entry의 child_item_id와 일치
         // 그리고 부모의 level은 현재보다 1 작음
         const parentEntry = entries.find(
-          e => e.child_item_id === entry.parent_item_id && e.level === entry.level - 1
+          e => e.child_item_id === entry.parent_item_id && e.level === (entry.level ?? 0) - 1
         );
         if (parentEntry) {
           const parentNode = nodeMap.get(parentEntry.bom_id);
@@ -199,7 +199,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
           const altParentEntry = entries.find(
             e => e.parent_item_id === entry.parent_item_id &&
                  e.child_item_id !== entry.child_item_id &&
-                 e.level === entry.level - 1
+                 e.level === (entry.level ?? 0) - 1
           );
           if (altParentEntry) {
             const altParentNode = nodeMap.get(altParentEntry.bom_id);
@@ -411,7 +411,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
 
           {/* Item Icon */}
           <div className="mr-2">
-            {getItemIcon(entry.item_type)}
+            {getItemIcon(entry.item_type || '')}
           </div>
 
           {/* Item Info */}

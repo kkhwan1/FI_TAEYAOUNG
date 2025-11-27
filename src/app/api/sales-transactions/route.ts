@@ -725,7 +725,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .eq('transaction_id', transaction.transaction_id);
 
       throw new ERPError(
-        ErrorType.DATABASE,
+        ErrorType.DATABASE_QUERY,
         `품목 저장 실패: ${itemsError.message}`
       );
     }
@@ -769,7 +769,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .eq('transaction_id', transaction.transaction_id);
 
       throw new ERPError(
-        ErrorType.DATABASE,
+        ErrorType.DATABASE_QUERY,
         `결제 정보 저장 실패: ${paymentError instanceof Error ? paymentError.message : String(paymentError)}`
       );
     }

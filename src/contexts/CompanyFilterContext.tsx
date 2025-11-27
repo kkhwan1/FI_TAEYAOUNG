@@ -98,7 +98,8 @@ export function CompanyFilterProvider({ children }: { children: React.ReactNode 
         const data = await response.json() as CompanyOptionsResponse;
 
         if (!data.success) {
-          throw new Error(data.error || '거래처 목록 조회 실패');
+          const errorMessage = (data as any).error || '거래처 목록 조회 실패';
+          throw new Error(errorMessage);
         }
 
         // Transform API response to CompanyOption format

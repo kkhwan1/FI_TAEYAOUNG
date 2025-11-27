@@ -977,6 +977,7 @@ export type Database = {
       }
       items: {
         Row: {
+          actual_quantity: number | null
           blank_size: number | null
           category: Database["public"]["Enums"]["item_category"]
           coating_status: string | null
@@ -986,20 +987,28 @@ export type Database = {
           daily_requirement: number | null
           description: string | null
           height: number | null
+          inventory_type: string
           is_active: boolean | null
           item_code: string
           item_id: number
           item_name: string
           item_type: string | null
+          kg_unit_price: number | null
           location: string | null
           material: string | null
           material_type: string | null
+          material_type_code: string | null
           mm_weight: number | null
           overhead_rate: number | null
           price: number | null
+          product_type: string | null
+          quality_status: string | null
           safety_stock: number | null
+          scrap_amount: number | null
           scrap_rate: number | null
           scrap_unit_price: number | null
+          scrap_weight: number | null
+          sep: number | null
           spec: string | null
           specific_gravity: number | null
           supplier_id: number | null
@@ -1008,10 +1017,12 @@ export type Database = {
           updated_at: string | null
           updated_by: number | null
           vehicle_model: string | null
+          warehouse_zone: string | null
           width: number | null
           yield_rate: number | null
         }
         Insert: {
+          actual_quantity?: number | null
           blank_size?: number | null
           category: Database["public"]["Enums"]["item_category"]
           coating_status?: string | null
@@ -1021,20 +1032,28 @@ export type Database = {
           daily_requirement?: number | null
           description?: string | null
           height?: number | null
+          inventory_type: string
           is_active?: boolean | null
           item_code: string
           item_id?: number
           item_name: string
           item_type?: string | null
+          kg_unit_price?: number | null
           location?: string | null
           material?: string | null
           material_type?: string | null
+          material_type_code?: string | null
           mm_weight?: number | null
           overhead_rate?: number | null
           price?: number | null
+          product_type?: string | null
+          quality_status?: string | null
           safety_stock?: number | null
+          scrap_amount?: number | null
           scrap_rate?: number | null
           scrap_unit_price?: number | null
+          scrap_weight?: number | null
+          sep?: number | null
           spec?: string | null
           specific_gravity?: number | null
           supplier_id?: number | null
@@ -1043,10 +1062,12 @@ export type Database = {
           updated_at?: string | null
           updated_by?: number | null
           vehicle_model?: string | null
+          warehouse_zone?: string | null
           width?: number | null
           yield_rate?: number | null
         }
         Update: {
+          actual_quantity?: number | null
           blank_size?: number | null
           category?: Database["public"]["Enums"]["item_category"]
           coating_status?: string | null
@@ -1056,20 +1077,28 @@ export type Database = {
           daily_requirement?: number | null
           description?: string | null
           height?: number | null
+          inventory_type?: string
           is_active?: boolean | null
           item_code?: string
           item_id?: number
           item_name?: string
           item_type?: string | null
+          kg_unit_price?: number | null
           location?: string | null
           material?: string | null
           material_type?: string | null
+          material_type_code?: string | null
           mm_weight?: number | null
           overhead_rate?: number | null
           price?: number | null
+          product_type?: string | null
+          quality_status?: string | null
           safety_stock?: number | null
+          scrap_amount?: number | null
           scrap_rate?: number | null
           scrap_unit_price?: number | null
+          scrap_weight?: number | null
+          sep?: number | null
           spec?: string | null
           specific_gravity?: number | null
           supplier_id?: number | null
@@ -1078,6 +1107,7 @@ export type Database = {
           updated_at?: string | null
           updated_by?: number | null
           vehicle_model?: string | null
+          warehouse_zone?: string | null
           width?: number | null
           yield_rate?: number | null
         }

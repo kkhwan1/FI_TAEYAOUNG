@@ -1267,6 +1267,48 @@ export type Database = {
           },
         ]
       }
+      item_specifications: {
+        Row: {
+          created_at: string | null
+          data_source: string | null
+          height: number | null
+          item_code: string
+          item_name: string
+          material: string | null
+          mm_weight: number | null
+          source_sheet: string | null
+          thickness: number | null
+          updated_at: string | null
+          width: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_source?: string | null
+          height?: number | null
+          item_code: string
+          item_name: string
+          material?: string | null
+          mm_weight?: number | null
+          source_sheet?: string | null
+          thickness?: number | null
+          updated_at?: string | null
+          width?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data_source?: string | null
+          height?: number | null
+          item_code?: string
+          item_name?: string
+          material?: string | null
+          mm_weight?: number | null
+          source_sheet?: string | null
+          thickness?: number | null
+          updated_at?: string | null
+          width?: number | null
+        }
+        Relationships: []
+      }
       items: {
         Row: {
           actual_quantity: number | null
@@ -1591,7 +1633,9 @@ export type Database = {
       }
       payment_splits: {
         Row: {
+          account_number: string | null
           amount: number
+          bank_name: string | null
           bill_date: string | null
           bill_drawer: string | null
           bill_number: string | null
@@ -1605,7 +1649,9 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          account_number?: string | null
           amount?: number
+          bank_name?: string | null
           bill_date?: string | null
           bill_drawer?: string | null
           bill_number?: string | null
@@ -1619,7 +1665,9 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          account_number?: string | null
           amount?: number
+          bank_name?: string | null
           bill_date?: string | null
           bill_drawer?: string | null
           bill_number?: string | null
@@ -2218,6 +2266,7 @@ export type Database = {
           chain_id: string | null
           chain_sequence: number | null
           child_lot_number: string | null
+          coil_process_id: number | null
           completed_at: string | null
           created_at: string
           efficiency: number | null
@@ -2245,6 +2294,7 @@ export type Database = {
           chain_id?: string | null
           chain_sequence?: number | null
           child_lot_number?: string | null
+          coil_process_id?: number | null
           completed_at?: string | null
           created_at?: string
           efficiency?: number | null
@@ -2272,6 +2322,7 @@ export type Database = {
           chain_id?: string | null
           chain_sequence?: number | null
           child_lot_number?: string | null
+          coil_process_id?: number | null
           completed_at?: string | null
           created_at?: string
           efficiency?: number | null
@@ -2295,6 +2346,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_process_operations_coil_process"
+            columns: ["coil_process_id"]
+            isOneToOne: false
+            referencedRelation: "coil_process_history"
+            referencedColumns: ["process_id"]
+          },
           {
             foreignKeyName: "process_operations_input_item_id_fkey"
             columns: ["input_item_id"]
@@ -2832,6 +2890,104 @@ export type Database = {
           year_month?: string
         }
         Relationships: []
+      }
+      sheet_process_history: {
+        Row: {
+          created_at: string
+          input_quantity: number
+          notes: string | null
+          operator_id: number | null
+          output_quantity: number
+          process_date: string
+          process_id: number
+          process_type: string
+          source_item_id: number
+          status: string
+          target_item_id: number
+          updated_at: string
+          yield_rate: number | null
+        }
+        Insert: {
+          created_at?: string
+          input_quantity: number
+          notes?: string | null
+          operator_id?: number | null
+          output_quantity: number
+          process_date?: string
+          process_id?: number
+          process_type: string
+          source_item_id: number
+          status?: string
+          target_item_id: number
+          updated_at?: string
+          yield_rate?: number | null
+        }
+        Update: {
+          created_at?: string
+          input_quantity?: number
+          notes?: string | null
+          operator_id?: number | null
+          output_quantity?: number
+          process_date?: string
+          process_id?: number
+          process_type?: string
+          source_item_id?: number
+          status?: string
+          target_item_id?: number
+          updated_at?: string
+          yield_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_process_history_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "sheet_process_history_source_item_id_fkey"
+            columns: ["source_item_id"]
+            isOneToOne: false
+            referencedRelation: "current_stock_view"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "sheet_process_history_source_item_id_fkey"
+            columns: ["source_item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "sheet_process_history_source_item_id_fkey"
+            columns: ["source_item_id"]
+            isOneToOne: false
+            referencedRelation: "mv_daily_stock_calendar"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "sheet_process_history_target_item_id_fkey"
+            columns: ["target_item_id"]
+            isOneToOne: false
+            referencedRelation: "current_stock_view"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "sheet_process_history_target_item_id_fkey"
+            columns: ["target_item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "sheet_process_history_target_item_id_fkey"
+            columns: ["target_item_id"]
+            isOneToOne: false
+            referencedRelation: "mv_daily_stock_calendar"
+            referencedColumns: ["item_id"]
+          },
+        ]
       }
       stock_adjustments: {
         Row: {

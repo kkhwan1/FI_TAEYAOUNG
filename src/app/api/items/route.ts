@@ -32,9 +32,9 @@ type NormalizedItemPayload = {
   location: string | null;
   description: string | null;
   coating_status: CoatingStatus | null;
-  inventory_type: ItemInsert['inventory_type'] | null;
+  inventory_type: string; // Required field in DB (defaults to '원재료')
   warehouse_zone: string | null;
-  quality_status: ItemInsert['quality_status'] | null;
+  quality_status: string | null; // Optional field in DB
 };
 
 const DEFAULT_LIMIT = 20;
@@ -166,9 +166,9 @@ function buildNormalizedPayload(body: Record<string, unknown>): NormalizedItemPa
     location: normalizeString(body.location),
     description: normalizeString(body.description),
     coating_status: normalizeCoatingStatus(body.coating_status),
-    inventory_type: normalizeString(body.inventory_type) as ItemInsert['inventory_type'] | null,
+    inventory_type: normalizeString(body.inventory_type) ?? '원재료', // 기본값: 원재료
     warehouse_zone: normalizeString(body.warehouse_zone),
-    quality_status: normalizeString(body.quality_status) as ItemInsert['quality_status'] | null,
+    quality_status: normalizeString(body.quality_status),
   };
 
   normalized.mm_weight = computeMmWeight({
@@ -483,7 +483,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       current_stock: normalized.current_stock,
       location: normalized.location,
       description: normalized.description,
-      inventory_type: (normalized.inventory_type as ItemInsert['inventory_type']) || '원재료', // 기본값: 원재료
+      inventory_type: normalized.inventory_type, // Already has default value
       warehouse_zone: normalized.warehouse_zone,
       quality_status: normalized.quality_status,
       is_active: true,

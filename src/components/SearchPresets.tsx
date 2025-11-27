@@ -119,11 +119,11 @@ export default function SearchPresets({
     const filters = preset.filters;
     const descriptions: string[] = [];
 
-    if (filters.search) descriptions.push(`검색: "${filters.search}"`);
-    if (filters.itemType) descriptions.push(`타입: ${filters.itemType}`);
-    if (filters.companyType) descriptions.push(`거래처타입: ${filters.companyType}`);
-    if (filters.isLowStock) descriptions.push('재고부족품목');
-    if (filters.priceRange?.min || filters.priceRange?.max) {
+    if ('search' in filters && filters.search) descriptions.push(`검색: "${filters.search}"`);
+    if ('itemType' in filters && filters.itemType) descriptions.push(`타입: ${filters.itemType}`);
+    if ('companyType' in filters && filters.companyType) descriptions.push(`거래처타입: ${filters.companyType}`);
+    if ('isLowStock' in filters && filters.isLowStock) descriptions.push('재고부족품목');
+    if ('priceRange' in filters && filters.priceRange && (filters.priceRange.min || filters.priceRange.max)) {
       const min = filters.priceRange.min ? `₩${filters.priceRange.min.toLocaleString()}` : '';
       const max = filters.priceRange.max ? `₩${filters.priceRange.max.toLocaleString()}` : '';
       if (min && max) descriptions.push(`가격: ${min} ~ ${max}`);

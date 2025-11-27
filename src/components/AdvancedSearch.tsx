@@ -154,9 +154,9 @@ export default function AdvancedSearch<T extends BaseSearchFilters>({
 
   // Generate search suggestions based on search history and current input
   useEffect(() => {
-    if (filters.search.trim()) {
+    if (filters.search?.trim()) {
       const suggestions = searchHistory
-        .filter(term => term.toLowerCase().includes(filters.search.toLowerCase()) && term !== filters.search)
+        .filter(term => term.toLowerCase().includes(filters.search!.toLowerCase()) && term !== filters.search)
         .slice(0, 5);
       setSearchSuggestions(suggestions);
     } else {
@@ -558,7 +558,7 @@ function renderItemFilters(filters: ItemSearchFilters, updateFilter: (key: strin
           재고 수준
         </label>
         <NumberRangeInput
-          value={filters.stockLevel}
+          value={filters.stockLevel || { min: null, max: null }}
           onChange={(value) => updateFilter('stockLevel', value)}
           placeholder={{ min: '최소 재고', max: '최대 재고' }}
           min={0}
@@ -571,7 +571,7 @@ function renderItemFilters(filters: ItemSearchFilters, updateFilter: (key: strin
           단가 범위
         </label>
         <NumberRangeInput
-          value={filters.priceRange}
+          value={filters.priceRange || { min: null, max: null }}
           onChange={(value) => updateFilter('priceRange', value)}
           placeholder={{ min: '최소 단가', max: '최대 단가' }}
           unit="원"
@@ -677,7 +677,7 @@ function renderCompanyFilters(filters: CompanySearchFilters, updateFilter: (key:
           등록일 범위
         </label>
         <DateRangePicker
-          value={filters.dateRange}
+          value={filters.dateRange || { startDate: null, endDate: null }}
           onChange={(value) => updateFilter('dateRange', value)}
           placeholder="날짜 범위 선택"
         />
@@ -689,7 +689,7 @@ function renderCompanyFilters(filters: CompanySearchFilters, updateFilter: (key:
           활성 상태
         </label>
         <select
-          value={filters.isActive === null ? '' : filters.isActive.toString()}
+          value={filters.isActive === null || filters.isActive === undefined ? '' : filters.isActive.toString()}
           onChange={(e) => updateFilter('isActive', e.target.value === '' ? null : e.target.value === 'true')}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
@@ -754,7 +754,7 @@ function renderBOMFilters(filters: BOMSearchFilters, updateFilter: (key: string,
           수량 범위
         </label>
         <NumberRangeInput
-          value={filters.quantityRange}
+          value={filters.quantityRange || { min: null, max: null }}
           onChange={(value) => updateFilter('quantityRange', value)}
           placeholder={{ min: '최소 수량', max: '최대 수량' }}
           min={0}
@@ -768,7 +768,7 @@ function renderBOMFilters(filters: BOMSearchFilters, updateFilter: (key: string,
           등록일 범위
         </label>
         <DateRangePicker
-          value={filters.dateRange}
+          value={filters.dateRange || { startDate: null, endDate: null }}
           onChange={(value) => updateFilter('dateRange', value)}
           placeholder="날짜 범위 선택"
         />
@@ -831,7 +831,7 @@ function renderTransactionFilters(filters: TransactionSearchFilters, updateFilte
           수량 범위
         </label>
         <NumberRangeInput
-          value={filters.amountRange}
+          value={filters.amountRange || { min: null, max: null }}
           onChange={(value) => updateFilter('amountRange', value)}
           placeholder={{ min: '최소 수량', max: '최대 수량' }}
           min={0}
@@ -845,7 +845,7 @@ function renderTransactionFilters(filters: TransactionSearchFilters, updateFilte
           거래일 범위
         </label>
         <DateRangePicker
-          value={filters.dateRange}
+          value={filters.dateRange || { startDate: null, endDate: null }}
           onChange={(value) => updateFilter('dateRange', value)}
           placeholder="날짜 범위 선택"
         />

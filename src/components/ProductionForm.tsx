@@ -252,7 +252,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         if (result && (result.success !== false)) {
           // Show success message
           showSuccess(`${validBatchItems.length}개 제품이 성공적으로 등록되었습니다.`);
-          
+
           // Reset form
           setBatchItems([]);
           setFormData({
@@ -265,12 +265,13 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             scrap_quantity: 0,
             created_by: 1
           });
-          
+
           // Close modal - parent component will refresh stock info
           onCancel();
           return;
         } else {
-          throw new Error(result?.error || '생산 등록에 실패했습니다.');
+          const errorMessage = (result as any)?.error || '생산 등록에 실패했습니다.';
+          throw new Error(errorMessage);
         }
       }
 
@@ -327,7 +328,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         setSavedBomCheckData(bomCheckData); // Save BOM check data for result modal
         setShowResultModal(true);
       } else {
-        throw new Error(result?.error || '생산 등록에 실패했습니다.');
+        const errorMessage = (result as any)?.error || '생산 등록에 실패했습니다.';
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Production submission error:', error);

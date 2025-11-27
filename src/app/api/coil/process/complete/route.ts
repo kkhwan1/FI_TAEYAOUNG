@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createValidatedRoute } from '@/lib/validationMiddleware';
 import { getSupabaseClient } from '@/lib/db-unified';
 import type { CompleteCoilProcessRequest } from '@/types/coil';
-import { canCompleteProcess } from '@/types/coil';
+import { canCompleteProcess, isValidProcessStatus, type ProcessStatus } from '@/types/coil';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +56,8 @@ export const POST = createValidatedRoute(
       }
 
       // Check if process can be completed (must be PENDING or IN_PROGRESS)
-      if (!canCompleteProcess(existingProcess.status)) {
+      // Validate status type before calling canCompleteProcess
+      if (!existingProcess.status || !isValidProcessStatus(existingProcess.status) || !canCompleteProcess(existingProcess.status as ProcessStatus)) {
         return NextResponse.json(
           {
             success: false,

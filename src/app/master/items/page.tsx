@@ -442,7 +442,7 @@ export default function ItemsPage() {
         });
         
         if (data.success && data.data?.items) {
-          const uniqueVehicles = Array.from(
+          const uniqueVehicles: string[] = Array.from(
             new Set(
               data.data.items
                 .map((item: Item) => item.vehicle_model)
@@ -454,7 +454,13 @@ export default function ItemsPage() {
       } catch (err) {
         console.error('Failed to fetch vehicle options:', err);
         // Fallback to current items if API fails
-        const uniqueVehicles = Array.from(new Set(items.map(item => item.vehicle_model).filter(Boolean)));
+        const uniqueVehicles: string[] = Array.from(
+          new Set(
+            items
+              .map(item => item.vehicle_model)
+              .filter((v): v is string => Boolean(v && typeof v === 'string' && v.trim()))
+          )
+        );
         setVehicleOptions(uniqueVehicles.sort());
       }
     };

@@ -6,9 +6,9 @@ import CompanySelect from '@/components/CompanySelect';
 import InvoiceItemGrid, { type InvoiceItem } from '@/components/InvoiceItemGrid';
 import PaymentSplitForm, { type PaymentSplit } from '@/components/PaymentSplitForm';
 
-type PaymentStatus = 'PENDING' | 'PARTIAL' | 'COMPLETE';
+export type PaymentStatus = 'PENDING' | 'PARTIAL' | 'COMPLETED';
 
-interface Invoice {
+export interface Invoice {
   transaction_id?: number;
   transaction_date: string;
   transaction_no?: string;
@@ -18,7 +18,24 @@ interface Invoice {
   payment_status?: PaymentStatus;
   payment_due_date?: string;
   notes?: string;
-  items?: InvoiceItem[];
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  customer?: {
+    company_id: number;
+    company_name: string;
+    company_code: string;
+  };
+  items?: Array<InvoiceItem & {
+    invoice_item_id?: number;
+    item_id?: number;
+    item?: {
+      item_code: string;
+      item_name: string;
+      unit?: string;
+      spec?: string;
+    };
+  }>;
 }
 
 interface InvoiceFormProps {
@@ -231,7 +248,7 @@ export default function InvoiceForm({ invoice, onSave, onCancel }: InvoiceFormPr
           >
             <option value="PENDING">대기</option>
             <option value="PARTIAL">부분</option>
-            <option value="COMPLETE">완료</option>
+            <option value="COMPLETED">완료</option>
           </select>
         </div>
 

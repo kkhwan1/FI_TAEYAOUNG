@@ -15,6 +15,7 @@ import type {
   BOMUpdateRequest,
   BOMStatistics,
 } from '@/types/bom';
+import type { ApiResponse } from '@/types/inventory';
 
 // 중앙화된 유틸리티 함수 import
 import {

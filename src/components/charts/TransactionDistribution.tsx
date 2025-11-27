@@ -465,7 +465,7 @@ export const TransactionDistribution: React.FC<TransactionDistributionProps> = (
                 <Legend
                   verticalAlign="bottom"
                   height={36}
-                  formatter={(value, entry) => {
+                  formatter={(value, entry: any) => {
                     const typeName = entry.payload?.type || value;
                     const percentage = ((entry.payload?.percentage || 0) * 100).toFixed(1);
                     return `${typeName} (${percentage}%)`;
@@ -507,7 +507,7 @@ export const TransactionDistribution: React.FC<TransactionDistributionProps> = (
                 <Legend
                   verticalAlign="bottom"
                   height={36}
-                  formatter={(value, entry) => {
+                  formatter={(value, entry: any) => {
                     const typeName = entry.payload?.type || value;
                     const percentage = ((entry.payload?.percentage || 0) * 100).toFixed(1);
                     return `${typeName} (${percentage}%)`;

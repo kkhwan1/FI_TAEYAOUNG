@@ -57,6 +57,7 @@ interface ProcessOperation {
   completed_at?: string;
   created_at?: string;
   updated_at?: string;
+  coil_process_type?: string; // Optional property for coil tracking data source
   input_item?: {
     item_id: number;
     item_name: string;

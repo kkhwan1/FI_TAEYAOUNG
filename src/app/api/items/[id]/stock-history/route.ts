@@ -8,7 +8,7 @@ type InventoryTransactionRow = {
   transaction_date: string;
   quantity: number;
   transaction_type: string;
-  transaction_number: string;
+  transaction_number: string | null;
   company_id: number | null;
 };
 

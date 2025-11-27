@@ -127,7 +127,7 @@ export const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({
             <TransactionDistribution
               className="h-full"
               onRefresh={refresh}
-              data={data?.charts.transactionDistribution || data?.charts.transactions || null}
+              data={(data?.charts as any)?.transactionDistribution || data?.charts.transactions || null}
               loading={loading}
               error={error}
               isDark={isDark}

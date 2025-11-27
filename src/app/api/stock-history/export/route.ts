@@ -312,8 +312,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const supabase = getSupabaseClient();
 
     // Build query
+    // Type assertion needed because v_stock_history is a view not in the generated types
     let query = supabase
-      .from('v_stock_history')
+      .from('v_stock_history' as any)
       .select('*')
       .eq('item_id', parseInt(itemId))
       .order('created_at', { ascending: false });
@@ -361,8 +362,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // Generate Excel file
+    // Type assertion needed because data from view may have different shape than typed interface
     const excelBuffer = exportStockHistoryToExcel(
-      historyData as StockHistoryRow[],
+      historyData as unknown as StockHistoryRow[],
       {
         itemId: parseInt(itemId),
         movementType: movementType || undefined,
@@ -374,7 +376,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Generate filename with timestamp and item info
     const timestamp = new Date().toISOString().split('T')[0];
-    const itemCode = historyData[0]?.item_code || itemId;
+    // Use optional chaining and type guard for item_code
+    const itemCode = (historyData[0] as any)?.item_code || itemId;
     const filename = `재고_이력_${itemCode}_${timestamp}.xlsx`;
 
     // Return as downloadable file with proper headers

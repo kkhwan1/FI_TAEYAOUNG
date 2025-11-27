@@ -24,7 +24,7 @@ import { QuickDateSelector } from '@/components/ui/QuickDateSelector';
 const Modal = dynamicImport(() => import('@/components/Modal'), { ssr: false });
 const CollectionForm = dynamicImport(() => import('@/components/forms/CollectionForm'), { ssr: false });
 
-type PaymentMethod = 'CASH' | 'TRANSFER' | 'CHECK' | 'CARD';
+type PaymentMethod = 'CASH' | 'TRANSFER' | 'CHECK' | 'CARD' | 'BILL';
 
 type Collection = {
   collection_id: number;
@@ -401,7 +401,7 @@ export default function CollectionsContent({ className }: CollectionsContentProp
           ? aValue.localeCompare(bValue, 'ko')
           : bValue.localeCompare(aValue, 'ko');
       } else {
-        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        return sortOrder === 'asc' ? Number(aValue) - Number(bValue) : Number(bValue) - Number(aValue);
       }
     });
 

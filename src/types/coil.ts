@@ -100,6 +100,7 @@ export interface CoilProcessWithDetails extends CoilProcessRow {
     spec?: string;
     inventory_type: string;
     current_stock: number;
+    unit?: string;
   };
 
   // 타겟 품목 정보
@@ -110,6 +111,7 @@ export interface CoilProcessWithDetails extends CoilProcessRow {
     spec?: string;
     inventory_type: string;
     current_stock: number;
+    unit?: string;
   };
 
   // 작업자 정보

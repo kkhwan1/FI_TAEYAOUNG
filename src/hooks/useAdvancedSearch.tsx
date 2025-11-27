@@ -6,55 +6,55 @@ import { DateRange } from '@/components/DateRangePicker';
 
 // Search filter types for different entities
 export interface BaseSearchFilters {
-  search: string;
-  dateRange: DateRange;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
+  search?: string;
+  dateRange?: DateRange;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface ItemSearchFilters extends BaseSearchFilters {
-  itemType: string;
-  carModel: string;
-  stockLevel: {
+  itemType?: string;
+  carModel?: string;
+  stockLevel?: {
     min: number | null;
     max: number | null;
   };
-  priceRange: {
+  priceRange?: {
     min: number | null;
     max: number | null;
   };
-  location: string;
-  hasMinStock: boolean | null;
-  isLowStock: boolean | null;
+  location?: string;
+  hasMinStock?: boolean | null;
+  isLowStock?: boolean | null;
 }
 
 export interface CompanySearchFilters extends BaseSearchFilters {
-  companyType: string;
-  region: string;
-  paymentTerms: string;
-  contactPerson: string;
-  isActive: boolean | null;
+  companyType?: string;
+  region?: string;
+  paymentTerms?: string;
+  contactPerson?: string;
+  isActive?: boolean | null;
 }
 
 export interface BOMSearchFilters extends BaseSearchFilters {
-  parentItem: string;
-  childItem: string;
-  hierarchyLevel: number | null;
-  quantityRange: {
+  parentItem?: string;
+  childItem?: string;
+  hierarchyLevel?: number | null;
+  quantityRange?: {
     min: number | null;
     max: number | null;
   };
 }
 
 export interface TransactionSearchFilters extends BaseSearchFilters {
-  transactionType: string;
-  itemCode: string;
-  companyCode: string;
-  amountRange: {
+  transactionType?: string;
+  itemCode?: string;
+  companyCode?: string;
+  amountRange?: {
     min: number | null;
     max: number | null;
   };
-  status: string;
+  status?: string;
 }
 
 // Search preset interface
@@ -316,10 +316,10 @@ export function useAdvancedSearch<T extends BaseSearchFilters>(
       setResults(searchResults);
 
       // Add to search history if there's a search term
-      if (searchFilters.search.trim()) {
+      if (searchFilters.search?.trim()) {
         const newHistory = [
           searchFilters.search.trim(),
-          ...searchHistory.filter(term => term !== searchFilters.search.trim())
+          ...searchHistory.filter(term => term !== searchFilters.search?.trim())
         ].slice(0, 10); // Keep only 10 recent searches
 
         setSearchHistory(newHistory);

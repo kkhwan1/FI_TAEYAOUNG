@@ -389,7 +389,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       const { data: existingTransaction, error: existingError } = await supabase
         .from('inventory_transactions')
         .select('transaction_id')
-        .eq('transaction_id', id)
+        .eq('transaction_id', parseInt(id))
       .eq('transaction_type', '출고')
       .single();
 
@@ -404,7 +404,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const { error } = await supabase
       .from('inventory_transactions')
       .delete()
-      .eq('transaction_id', id);
+      .eq('transaction_id', parseInt(id));
 
     if (error) {
       console.error('Supabase delete error:', error);

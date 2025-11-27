@@ -69,7 +69,6 @@ export const itemsHeaderMapping: HeaderMapping = {
   'car_model': 'car_model',
   'spec': 'spec',
   'item_type': 'item_type',
-  // 'category': 'category', // Already defined above on line 58
   'unit': 'unit',
   'coating_status': 'coating_status',
   'unit_price': 'unit_price',
@@ -189,11 +188,7 @@ export const bomHeaderMapping: HeaderMapping = {
   'parent_item_code': 'parent_item_code',
   'child_item_code': 'child_item_code',
   'quantity_required': 'quantity_required',
-  // 'quantity': 'quantity_required', // Already defined above on line 94
-  'unit': 'unit',
   'level_no': 'level_no',
-  // 'notes': 'notes', // Already defined above on line 97
-  // 'remarks': 'notes' // Already defined above on line 98
 
   // 영문 헤더는 그대로 유지 (Phase 3 추가)
   'parent_item_name': 'parent_item_name',
@@ -220,28 +215,17 @@ export const bomHeaderMapping: HeaderMapping = {
   'child_supplier_email': 'child_supplier_email',
   'child_supplier_address': 'child_supplier_address',
   'child_supplier_type': 'child_supplier_type',
-  
+
   // 새로운 템플릿 구조 헤더 매핑 (태창금속 BOM.xlsx 구조)
-  // 주의: 업로드 API에서 컬럼 위치에 따라 '품번', '품명', '차종', '단가'를
-  // '모품목코드', '자품목코드' 등으로 변환하므로 여기서는 변환된 헤더명을 매핑
-  // 모품목 영역 (A-G)
+  // 모품목 영역
   '납품처': 'parent_supplier_name',
-  '모품목코드': 'parent_item_code', // 업로드 시 컬럼 위치로 변환됨
-  '모품목명': 'parent_item_name', // 업로드 시 컬럼 위치로 변환됨
-  '모품목차종': 'parent_vehicle_model', // 업로드 시 컬럼 위치로 변환됨
-  '모품목단가': 'parent_unit_price', // 업로드 시 컬럼 위치로 변환됨
   '마감수량': 'parent_quantity',
   '마감금액': 'parent_amount',
-  // 자품목 영역 (I부터 시작, H열은 빈 열)
+  // 자품목 영역
   '구매처': 'child_supplier_name',
   '업체구분': 'supplier_category',
-  '협력업체 철판': 'supplier_sector', // 협력업체 원자재 섹터 구분
-  '자품목코드': 'child_item_code', // 업로드 시 컬럼 위치로 변환됨
-  '자품목명': 'child_item_name', // 업로드 시 컬럼 위치로 변환됨
-  '자품목차종': 'child_vehicle_model', // 업로드 시 컬럼 위치로 변환됨
-  '자품목단가': 'child_unit_price', // 업로드 시 컬럼 위치로 변환됨
-  'U/S': 'quantity_required', // 소요량
-  '소요량': 'quantity_required', // U/S와 동일
+  '협력업체 철판': 'supplier_sector',
+  'U/S': 'quantity_required',
   '구매수량': 'child_quantity',
   '구매금액': 'child_amount',
   // 추가 정보 영역

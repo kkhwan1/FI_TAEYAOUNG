@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     // Execute raw SQL using admin client
-    const { data, error } = await supabase.rpc('exec_sql', { sql });
+    const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql });
 
     if (error) {
       console.error('Migration error:', error);

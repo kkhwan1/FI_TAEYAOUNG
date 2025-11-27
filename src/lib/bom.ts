@@ -390,7 +390,7 @@ export async function calculateBatchTotalCost(
     }
 
     // 2. 모든 child_item_id 추출 (하위 BOM 조회용)
-    const allChildIds = allBomData.map(bom => bom.child_item_id).filter(Boolean);
+    const allChildIds = allBomData.map((bom: any) => bom.child_item_id).filter(Boolean);
 
     // 3. 모든 월별 단가 한 번에 조회
     const { data: allPrices } = await conn
@@ -427,7 +427,7 @@ export async function calculateBatchTotalCost(
 
     // 6. 각 품목별 원가 계산 (메모리에서 처리)
     for (const itemId of itemIds) {
-      const bomItems = allBomData.filter(bom => bom.parent_item_id === itemId);
+      const bomItems = allBomData.filter((bom: any) => bom.parent_item_id === itemId);
 
       let materialCost = 0;
       let laborCost = 0;

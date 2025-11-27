@@ -812,8 +812,8 @@ export default function SalesContent({ className }: SalesContentProps) {
           size="lg"
         >
           <SalesTransactionForm
-            transaction={editingTransaction}
-            onSubmit={handleFormSubmit}
+            transaction={editingTransaction as any}
+            onSave={handleFormSubmit}
             onCancel={() => {
               setIsModalOpen(false);
               setEditingTransaction(null);

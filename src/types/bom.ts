@@ -77,6 +77,13 @@ export interface BOMEntry extends BOMBase {
   child_item_type?: string;
   child_current_stock?: number;
   child_unit_price?: number;
+
+  // 계산/파생 필드 (컴포넌트에서 사용)
+  level?: number; // level_no의 정규화된 형태
+  item_type?: string; // 품목 유형
+  material_cost?: number; // 자재비
+  scrap_revenue?: number; // 스크랩 수익
+  net_cost?: number; // 순원가
 }
 
 /**

@@ -61,7 +61,7 @@ type PurchaseTransaction = {
 const PAYMENT_STATUS_OPTIONS = [
   { value: 'PENDING', label: '대기', color: 'text-gray-600 dark:text-gray-400' },
   { value: 'PARTIAL', label: '부분', color: 'text-gray-600 dark:text-gray-400' },
-  { value: 'COMPLETE', label: '완료', color: 'text-gray-600 dark:text-gray-400' }
+  { value: 'COMPLETED', label: '완료', color: 'text-gray-600 dark:text-gray-400' }
 ];
 
 interface PurchasesContentProps {
@@ -335,8 +335,8 @@ export default function PurchasesContent({ className }: PurchasesContentProps) {
     if (filterStatus) {
       filtered = filtered.filter((transaction) => {
         const status = transaction.payment_status;
-        if (filterStatus === 'COMPLETE') {
-          return status === 'COMPLETE' || status === 'COMPLETED';
+        if (filterStatus === 'COMPLETED') {
+          return status === 'COMPLETED';
         }
         return status === filterStatus;
       });
@@ -389,7 +389,7 @@ export default function PurchasesContent({ className }: PurchasesContentProps) {
           ? aValue.localeCompare(bValue, 'ko')
           : bValue.localeCompare(aValue, 'ko');
       } else {
-        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        return sortOrder === 'asc' ? Number(aValue) - Number(bValue) : Number(bValue) - Number(aValue);
       }
     });
 

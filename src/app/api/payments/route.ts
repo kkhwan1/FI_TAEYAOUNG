@@ -201,9 +201,9 @@ export const POST = async (request: NextRequest) => {
       .eq('is_active', true);
 
     const previouslyPaid = existingPayments?.reduce(
-      (sum, payment) => sum + (payment.paid_amount || 0),
+      (sum, payment) => sum + (payment.paid_amount ?? 0),
       0
-    ) || 0;
+    ) ?? 0;
 
     const totalPaid = previouslyPaid + validatedData.paid_amount;
     const remaining = purchaseTx.total_amount - totalPaid;
@@ -230,7 +230,7 @@ export const POST = async (request: NextRequest) => {
     }
 
     // Generate payment number if not provided
-    let paymentNo = validatedData.payment_no;
+    let paymentNo = validatedData.payment_no ?? '';
     if (!paymentNo) {
       const { data: generatedNo, error: genError } = await supabaseAdmin
         .rpc('generate_payment_no');
@@ -241,7 +241,7 @@ export const POST = async (request: NextRequest) => {
         const timestamp = new Date().getTime();
         paymentNo = `PAY-${timestamp}`;
       } else {
-        paymentNo = generatedNo;
+        paymentNo = generatedNo ?? `PAY-${new Date().getTime()}`;
       }
     }
 
@@ -432,9 +432,9 @@ export const PUT = async (request: NextRequest) => {
         .neq('payment_id', parseInt(id, 10));
 
       const otherPaidAmount = otherPayments?.reduce(
-        (sum, payment) => sum + (payment.paid_amount || 0),
+        (sum, payment) => sum + (payment.paid_amount ?? 0),
         0
-      ) || 0;
+      ) ?? 0;
 
       const totalPaid = otherPaidAmount + body.paid_amount;
       const remaining = purchaseTx.total_amount - totalPaid;
@@ -452,7 +452,7 @@ export const PUT = async (request: NextRequest) => {
 
       // Determine new payment status
       if (remaining === 0) {
-        newPaymentStatus = 'COMPLETE';
+        newPaymentStatus = 'COMPLETED';
       } else if (remaining < purchaseTx.total_amount) {
         newPaymentStatus = 'PARTIAL';
       } else {
@@ -510,9 +510,9 @@ export const PUT = async (request: NextRequest) => {
         .eq('is_active', true);
 
       const newTotalPaid = allPayments?.reduce(
-        (sum, payment) => sum + (payment.paid_amount || 0),
+        (sum, payment) => sum + (payment.paid_amount ?? 0),
         0
-      ) || 0;
+      ) ?? 0;
 
       // Note: updated_at is auto-updated by trigger, don't set it manually
       const { error: statusError } = await supabaseAdmin
@@ -613,9 +613,9 @@ export const DELETE = async (request: NextRequest) => {
         .eq('is_active', true);
 
       const totalPaid = remainingPayments?.reduce(
-        (sum, payment) => sum + (payment.paid_amount || 0),
+        (sum, payment) => sum + (payment.paid_amount ?? 0),
         0
-      ) || 0;
+      ) ?? 0;
 
       const remaining = purchaseTx.total_amount - totalPaid;
 

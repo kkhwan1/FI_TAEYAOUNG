@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient, createSuccessResponse, handleSupabaseError } from '@/lib/db-unified';
 import type {
   ProcessOperationWithItems,
+  OperationType,
   OperationStatus,
 } from '@/types/process';
 import { validateStatusTransition, calculateEfficiency } from '@/types/process';
@@ -87,8 +88,8 @@ export async function POST(
     }
 
     // Calculate final quantities
-    const inputQty = body.input_quantity ?? parseFloat(currentOp.input_quantity);
-    const outputQty = body.output_quantity ?? parseFloat(currentOp.output_quantity);
+    const inputQty = body.input_quantity ?? Number(currentOp.input_quantity);
+    const outputQty = body.output_quantity ?? Number(currentOp.output_quantity);
     const scrapQty = body.scrap_quantity ?? 0;
 
     // Validate stock availability for input item
@@ -108,7 +109,7 @@ export async function POST(
       );
     }
 
-    const currentStock = parseFloat(inputItem.current_stock);
+    const currentStock = Number(inputItem.current_stock);
     if (currentStock < inputQty) {
       return NextResponse.json(
         {
@@ -171,48 +172,48 @@ export async function POST(
     // Transform response
     const operation: ProcessOperationWithItems = {
       operation_id: updatedOp.operation_id,
-      operation_type: updatedOp.operation_type,
+      operation_type: updatedOp.operation_type as OperationType,
       input_item_id: updatedOp.input_item_id,
       output_item_id: updatedOp.output_item_id,
-      input_quantity: parseFloat(updatedOp.input_quantity),
-      output_quantity: parseFloat(updatedOp.output_quantity),
-      efficiency: updatedOp.efficiency ? parseFloat(updatedOp.efficiency) : undefined,
-      operator_id: updatedOp.operator_id,
-      started_at: updatedOp.started_at,
-      completed_at: updatedOp.completed_at,
-      status: updatedOp.status,
-      notes: updatedOp.notes,
+      input_quantity: Number(updatedOp.input_quantity),
+      output_quantity: Number(updatedOp.output_quantity),
+      efficiency: updatedOp.efficiency ? Number(updatedOp.efficiency) : undefined,
+      operator_id: updatedOp.operator_id ?? undefined,
+      started_at: updatedOp.started_at ?? undefined,
+      completed_at: updatedOp.completed_at ?? undefined,
+      status: updatedOp.status as OperationStatus,
+      notes: updatedOp.notes ?? undefined,
       created_at: updatedOp.created_at,
       updated_at: updatedOp.updated_at,
       // LOT tracking fields
-      lot_number: updatedOp.lot_number,
-      parent_lot_number: updatedOp.parent_lot_number,
-      child_lot_number: updatedOp.child_lot_number,
+      lot_number: updatedOp.lot_number ?? undefined,
+      parent_lot_number: updatedOp.parent_lot_number ?? undefined,
+      child_lot_number: updatedOp.child_lot_number ?? undefined,
       // Chain management fields
-      chain_id: updatedOp.chain_id,
-      chain_sequence: updatedOp.chain_sequence,
-      parent_operation_id: updatedOp.parent_operation_id,
-      auto_next_operation: updatedOp.auto_next_operation,
-      next_operation_type: updatedOp.next_operation_type,
+      chain_id: updatedOp.chain_id ?? undefined,
+      chain_sequence: updatedOp.chain_sequence ?? undefined,
+      parent_operation_id: updatedOp.parent_operation_id ?? undefined,
+      auto_next_operation: updatedOp.auto_next_operation ?? undefined,
+      next_operation_type: updatedOp.next_operation_type ?? undefined,
       // Quality control fields
-      quality_status: updatedOp.quality_status,
-      scrap_quantity: updatedOp.scrap_quantity ? parseFloat(updatedOp.scrap_quantity) : undefined,
-      scheduled_date: updatedOp.scheduled_date,
+      quality_status: updatedOp.quality_status ?? undefined,
+      scrap_quantity: updatedOp.scrap_quantity ? Number(updatedOp.scrap_quantity) : undefined,
+      scheduled_date: updatedOp.scheduled_date ?? undefined,
       input_item: {
         item_id: updatedOp.input_item.item_id,
         item_name: updatedOp.input_item.item_name,
         item_code: updatedOp.input_item.item_code,
-        current_stock: parseFloat(updatedOp.input_item.current_stock),
-        unit: updatedOp.input_item.unit,
-        spec: updatedOp.input_item.spec,
+        current_stock: Number(updatedOp.input_item.current_stock),
+        unit: updatedOp.input_item.unit ?? undefined,
+        spec: updatedOp.input_item.spec ?? undefined,
       },
       output_item: {
         item_id: updatedOp.output_item.item_id,
         item_name: updatedOp.output_item.item_name,
         item_code: updatedOp.output_item.item_code,
-        current_stock: parseFloat(updatedOp.output_item.current_stock),
-        unit: updatedOp.output_item.unit,
-        spec: updatedOp.output_item.spec,
+        current_stock: Number(updatedOp.output_item.current_stock),
+        unit: updatedOp.output_item.unit ?? undefined,
+        spec: updatedOp.output_item.spec ?? undefined,
       },
     };
 

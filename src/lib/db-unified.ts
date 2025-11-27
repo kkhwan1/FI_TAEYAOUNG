@@ -524,7 +524,7 @@ export const db = {
     getClassificationStats: async () => {
       try {
         const { data, error } = await supabase
-          .rpc('get_inventory_classification_stats');
+          .rpc('get_inventory_classification_stats' as any);
 
         if (error) {
           // Fallback to manual query if RPC doesn't exist
@@ -575,7 +575,7 @@ export const db = {
           const nullStat = statsMap.get('_null_');
           if (nullStat && nullStat.count > 0) {
             statsArray.push({
-              type: null, // or '미분류'
+              type: '미분류' as any, // Use '미분류' for null values
               count: nullStat.count,
               total_stock: nullStat.total_stock
             });

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Calendar } from 'lucide-react';
-import type { CreateCoilProcessRequest } from '@/types/coil';
+import type { CreateCoilProcessRequest, ProcessType } from '@/types/coil';
 import Modal from '@/components/Modal';
 import ItemSelect from '@/components/ItemSelect';
 import { useToast } from '@/contexts/ToastContext';
@@ -55,7 +55,7 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
       return;
     }
 
-    if (sourceItem.inventory_type !== '코일') {
+    if (sourceItem.item_type !== '코일') {
       setError('소스 품목은 반드시 코일 타입이어야 합니다.');
       return;
     }
@@ -165,7 +165,7 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
         </label>
         <select
           value={formData.process_type}
-          onChange={(e) => setFormData({ ...formData, process_type: e.target.value })}
+          onChange={(e) => setFormData({ ...formData, process_type: e.target.value as ProcessType })}
           className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           required
         >
@@ -183,14 +183,14 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
         </label>
         <div className="space-y-2">
           <ItemSelect
-            value={formData.source_item_id || null}
+            value={formData.source_item_id || undefined}
             onChange={(item) => {
               if (!item) {
                 setSourceItem(null);
                 setFormData({ ...formData, source_item_id: 0 });
                 return;
               }
-              if (item.inventory_type !== '코일') {
+              if (item.item_type !== '코일') {
                 showError('선택 오류', '코일 타입 품목만 선택 가능합니다.');
                 return;
               }
@@ -215,7 +215,7 @@ export default function CoilProcessForm({ onSuccess, onCancel }: CoilProcessForm
           산출 품목 <span className="text-red-500 dark:text-red-400">*</span>
         </label>
         <ItemSelect
-          value={formData.target_item_id || null}
+          value={formData.target_item_id || undefined}
           onChange={(item) => {
             if (!item) {
               setTargetItem(null);

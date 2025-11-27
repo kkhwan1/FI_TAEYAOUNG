@@ -22,12 +22,12 @@ const LoadingSpinner = () => (
 
 // Dashboard Components (467 + 384 + 315 = 1,166 lines)
 export const LazyTransactionChart = dynamic(
-  () => import('./dashboard/TransactionChart').then(m => ({ default: m.default })),
+  () => import('./dashboard/TransactionChart').then(m => ({ default: m.TransactionChart })),
   { loading: LoadingSpinner, ssr: false }
 );
 
 export const LazyStockChart = dynamic(
-  () => import('./dashboard/StockChart').then(m => ({ default: m.default })),
+  () => import('./dashboard/StockChart').then(m => ({ default: m.StockChart })),
   { loading: LoadingSpinner, ssr: false }
 );
 
@@ -62,7 +62,7 @@ export const LazyQuickActionsWidget = dynamic(
 );
 
 export const LazyAlertPanel = dynamic(
-  () => import('./dashboard/AlertPanel').then(m => ({ default: m.default })),
+  () => import('./dashboard/AlertPanel').then(m => ({ default: m.AlertPanel })),
   { loading: LoadingSpinner, ssr: false }
 );
 
@@ -94,7 +94,7 @@ export const LazyModal = dynamic(
 );
 
 export const LazyItemDetailModal = dynamic(
-  () => import('./ItemDetailModal'),
+  () => import('./ItemDetailModal').then(m => ({ default: m.ItemDetailModal })),
   { loading: () => null, ssr: false }
 );
 

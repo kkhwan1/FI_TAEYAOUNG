@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Validation failed',
-          details: parseResult.error.errors
+          details: parseResult.error.issues
         },
         { status: 400 }
       );
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const result = await builder.update('items', item_id, updateData, 'item_id');
 
-    if (!result.success) {
+    if ('error' in result) {
       return NextResponse.json(result, { status: 500 });
     }
 

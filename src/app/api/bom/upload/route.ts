@@ -764,9 +764,9 @@ interface ItemPayload {
   item_name: string;
   is_active: boolean;
   spec?: string;
-  unit?: string;
-  category?: string;
-  inventory_type?: string;
+  unit: string; // Required field in DB
+  category: "원자재" | "부자재" | "반제품" | "제품" | "상품";
+  inventory_type: string; // Required field in DB
   vehicle_model?: string; // DB 컬럼명: vehicle_model
   location?: string;
   supplier_id?: number;
@@ -810,19 +810,25 @@ async function upsertItem(
   actualQuantity?: number,
   price?: number
 ): Promise<{ item_id: number; item_code: string }> {
-  // Prepare item payload
+  // category는 필수 필드이므로 기본값 설정 (enum: 원자재, 부자재, 반제품, 제품, 상품)
+  const validCategories = ['원자재', '부자재', '반제품', '제품', '상품'] as const;
+  const trimmedCategory = category ? category.trim() : '부자재';
+  const validatedCategory = validCategories.includes(trimmedCategory as typeof validCategories[number])
+    ? trimmedCategory as typeof validCategories[number]
+    : '부자재';
+
+  // Prepare item payload - category와 inventory_type은 필수
   const itemPayload: ItemPayload = {
     item_code: itemCode.trim(),
     item_name: itemName.trim(),
-    is_active: true
+    is_active: true,
+    unit: unit || 'EA', // 기본값: EA
+    category: validatedCategory,
+    inventory_type: inventoryType || '원재료'
   };
 
   if (spec) itemPayload.spec = spec.trim();
-  if (unit) itemPayload.unit = unit.trim();
-  // category는 필수 필드이므로 기본값 설정 (enum: 원자재, 부자재, 반제품, 제품, 상품)
-  itemPayload.category = category ? category.trim() : '부자재';
-  // inventory_type도 필수 필드이므로 기본값 설정 (가능한 값: 완제품, 반제품, 고객재고, 원재료, 코일)
-  itemPayload.inventory_type = inventoryType ? inventoryType : '원재료';
+  if (unit && unit.trim()) itemPayload.unit = unit.trim(); // Override default if provided
   if (carModel) itemPayload.vehicle_model = carModel.trim(); // DB 컬럼명: vehicle_model
   if (location) itemPayload.location = location.trim();
   if (supplierId) itemPayload.supplier_id = supplierId;
@@ -1172,19 +1178,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       actualQuantity?: number,
       price?: number
     ): Promise<{ item_id: number; item_code: string }> => {
-      // Prepare item payload
+      // category는 필수 필드이므로 기본값 설정 (enum: 원자재, 부자재, 반제품, 제품, 상품)
+      const validCategories = ['원자재', '부자재', '반제품', '제품', '상품'] as const;
+      const trimmedCategory = category ? category.trim() : '부자재';
+      const validatedCategory = validCategories.includes(trimmedCategory as typeof validCategories[number])
+        ? trimmedCategory as typeof validCategories[number]
+        : '부자재';
+
+      // Prepare item payload - category와 inventory_type은 필수
       const itemPayload: ItemPayload = {
         item_code: itemCode.trim(),
         item_name: itemName.trim(),
-        is_active: true
+        is_active: true,
+        unit: unit || 'EA', // 기본값: EA
+        category: validatedCategory,
+        inventory_type: inventoryType || '원재료'
       };
 
       if (spec) itemPayload.spec = spec.trim();
-      if (unit) itemPayload.unit = unit.trim();
-      // category는 필수 필드이므로 기본값 설정 (enum: 원자재, 부자재, 반제품, 제품, 상품)
-      itemPayload.category = category ? category.trim() : '부자재';
-      // inventory_type도 필수 필드이므로 기본값 설정 (가능한 값: 완제품, 반제품, 고객재고, 원재료, 코일)
-      itemPayload.inventory_type = inventoryType ? inventoryType : '원재료';
+      if (unit && unit.trim()) itemPayload.unit = unit.trim(); // Override default if provided
       if (carModel) itemPayload.vehicle_model = carModel.trim(); // DB 컬럼명: vehicle_model
       if (location) itemPayload.location = location.trim();
       if (supplierId) itemPayload.supplier_id = supplierId;
