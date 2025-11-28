@@ -780,11 +780,70 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // Extract parent_item_data and child_item_data from updateData
+    const { parent_item_data, child_item_data, ...bomUpdateData } = updateData;
+
+    // Update parent item if parent_item_data is provided
+    if (parent_item_data && Object.keys(parent_item_data).length > 0) {
+      const parentItemId = existingBom.parent_item_id;
+      const parentUpdate: any = {};
+      
+      if (parent_item_data.price !== undefined) parentUpdate.price = parent_item_data.price;
+      if (parent_item_data.vehicle_model !== undefined) parentUpdate.vehicle_model = parent_item_data.vehicle_model;
+      if (parent_item_data.thickness !== undefined) parentUpdate.thickness = parent_item_data.thickness;
+      if (parent_item_data.width !== undefined) parentUpdate.width = parent_item_data.width;
+      if (parent_item_data.height !== undefined) parentUpdate.height = parent_item_data.height;
+      if (parent_item_data.material !== undefined) parentUpdate.material = parent_item_data.material;
+
+      if (Object.keys(parentUpdate).length > 0) {
+        const { error: parentUpdateError } = await supabase
+          .from('items')
+          .update(parentUpdate)
+          .eq('item_id', parentItemId);
+
+        if (parentUpdateError) {
+          console.error('Parent item update failed:', parentUpdateError);
+          return NextResponse.json({
+            success: false,
+            error: `모품목 업데이트에 실패했습니다: ${parentUpdateError.message}`
+          }, { status: 500 });
+        }
+      }
+    }
+
+    // Update child item if child_item_data is provided
+    if (child_item_data && Object.keys(child_item_data).length > 0) {
+      const childItemId = existingBom.child_item_id;
+      const childUpdate: any = {};
+      
+      if (child_item_data.price !== undefined) childUpdate.price = child_item_data.price;
+      if (child_item_data.vehicle_model !== undefined) childUpdate.vehicle_model = child_item_data.vehicle_model;
+      if (child_item_data.thickness !== undefined) childUpdate.thickness = child_item_data.thickness;
+      if (child_item_data.width !== undefined) childUpdate.width = child_item_data.width;
+      if (child_item_data.height !== undefined) childUpdate.height = child_item_data.height;
+      if (child_item_data.material !== undefined) childUpdate.material = child_item_data.material;
+
+      if (Object.keys(childUpdate).length > 0) {
+        const { error: childUpdateError } = await supabase
+          .from('items')
+          .update(childUpdate)
+          .eq('item_id', childItemId);
+
+        if (childUpdateError) {
+          console.error('Child item update failed:', childUpdateError);
+          return NextResponse.json({
+            success: false,
+            error: `자품목 업데이트에 실패했습니다: ${childUpdateError.message}`
+          }, { status: 500 });
+        }
+      }
+    }
+
     // Update BOM entry
     type BOMRow = Database['public']['Tables']['bom']['Row'];
     const { data: bomEntry, error } = await supabase
       .from('bom')
-      .update(updateData as Database['public']['Tables']['bom']['Update'])
+      .update(bomUpdateData as Database['public']['Tables']['bom']['Update'])
       .eq('bom_id', bom_id)
       .select(`
         *,

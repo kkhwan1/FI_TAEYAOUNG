@@ -866,11 +866,19 @@ export default function BOMPage() {
     try {
       const method = editingBOM ? 'PUT' : 'POST';
       // API는 quantity_required를 기대하므로 변환
-      const apiBody = {
+      const apiBody: any = {
         ...bomData,
         quantity_required: bomData.quantity,
       };
-      delete (apiBody as any).quantity; // quantity 제거
+      delete apiBody.quantity; // quantity 제거
+      
+      // parent_item_data와 child_item_data는 그대로 전달
+      if ((bomData as any).parent_item_data) {
+        apiBody.parent_item_data = (bomData as any).parent_item_data;
+      }
+      if ((bomData as any).child_item_data) {
+        apiBody.child_item_data = (bomData as any).child_item_data;
+      }
       
       const body = editingBOM
         ? { ...apiBody, bom_id: editingBOM.bom_id }
@@ -1275,9 +1283,47 @@ export default function BOMPage() {
         groupedByParent.get(key)!.push(bom);
       });
 
-      // 모든 BOM을 순서대로 표시하되, 납품처 셀만 병합
+      // 모든 BOM을 순서대로 표시하되, 모품목 관련 열들도 병합
       const rows: React.ReactElement[] = [];
       const processedKeys = new Set<string>();
+      
+      // 각 그룹의 병합 가능 여부를 미리 계산
+      const mergeInfoMap = new Map<string, {
+        customer: { canMerge: boolean; value: string; rowSpan: number };
+        parentVehicle: { canMerge: boolean; value: string; rowSpan: number };
+        parentCode: { canMerge: boolean; value: string; rowSpan: number };
+        parentName: { canMerge: boolean; value: string; rowSpan: number };
+        parentPrice: { canMerge: boolean; value: string; rowSpan: number };
+      }>();
+      
+      groupedByParent.forEach((boms, key) => {
+        if (boms.length === 0) return;
+        
+        const firstBom = boms[0];
+        const customerName = firstBom.customer?.company_name || '-';
+        const parentVehicle = firstBom.parent_vehicle || firstBom.parent?.vehicle_model || '-';
+        const parentCode = firstBom.parent_item_code || firstBom.parent?.item_code || '';
+        const parentName = firstBom.parent_item_name || firstBom.parent?.item_name || '-';
+        const parentPrice = (firstBom.parent?.price && firstBom.parent.price > 0) ? firstBom.parent.price.toLocaleString() : '-';
+        
+        // 그룹 내 모든 BOM의 값이 동일한지 확인
+        const allSameVehicle = boms.every(b => (b.parent_vehicle || b.parent?.vehicle_model || '-') === parentVehicle);
+        const allSameCode = boms.every(b => (b.parent_item_code || b.parent?.item_code || '') === parentCode);
+        const allSameName = boms.every(b => (b.parent_item_name || b.parent?.item_name || '-') === parentName);
+        const allSamePrice = boms.every(b => {
+          const price = (b.parent?.price && b.parent.price > 0) ? b.parent.price.toLocaleString() : '-';
+          return price === parentPrice;
+        });
+        
+        const rowSpan = boms.length;
+        mergeInfoMap.set(key, {
+          customer: { canMerge: true, value: customerName, rowSpan },
+          parentVehicle: { canMerge: allSameVehicle, value: parentVehicle, rowSpan },
+          parentCode: { canMerge: allSameCode, value: parentCode, rowSpan },
+          parentName: { canMerge: allSameName, value: parentName, rowSpan },
+          parentPrice: { canMerge: allSamePrice, value: parentPrice, rowSpan }
+        });
+      });
       
       bomList.forEach((bom: any) => {
         const parentCode = bom.parent_item_code || bom.parent?.item_code || '';
@@ -1286,55 +1332,109 @@ export default function BOMPage() {
         const key = `${parentCode}_${parentVehicle}_${customerId}`;
         const boms = groupedByParent.get(key) || [];
         const isFirstRow = !processedKeys.has(key);
+        const mergeInfo = mergeInfoMap.get(key);
         
         if (isFirstRow) {
           processedKeys.add(key);
         }
         
-        const rowSpan = boms.length;
-        const customerName = bom.customer?.company_name || '-';
+        if (!mergeInfo) return;
         
         rows.push(
           <tr key={bom.bom_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
             {/* 납품처 - 첫 번째 행에만 표시하고 rowspan 적용 */}
             {isFirstRow ? (
               <td 
-                rowSpan={rowSpan}
+                rowSpan={mergeInfo.customer.rowSpan}
                 className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600 align-top"
               >
                 <span className="text-sm text-gray-900 dark:text-white font-medium">
-                  {customerName}
+                  {mergeInfo.customer.value}
                 </span>
               </td>
             ) : null}
-            {/* 차종 */}
-            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
-              <span className="text-sm text-gray-900 dark:text-white">
-                {bom.parent_vehicle || bom.parent?.vehicle_model || '-'}
-              </span>
-            </td>
-            {/* 품번 */}
-            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                {bom.parent_item_code || bom.parent?.item_code || '-'}
-              </span>
-            </td>
-            {/* 품명 - 더블클릭 시 상세정보 표시 */}
-            <td
-              className="px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              onDoubleClick={() => handleParentDoubleClick(bom)}
-              title="더블클릭하여 상세정보 보기"
-            >
-              <span className="text-sm text-gray-900 dark:text-white block underline decoration-dashed decoration-gray-400 dark:decoration-gray-500">
-                {bom.parent_item_name || bom.parent?.item_name || '-'}
-              </span>
-            </td>
-            {/* 단가 */}
-            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600">
-              <span className="text-gray-900 dark:text-white">
-                {(bom.parent?.price && bom.parent.price > 0) ? bom.parent.price.toLocaleString() : '-'}
-              </span>
-            </td>
+            {/* 차종 - 병합 가능한 경우 첫 번째 행에만 표시 */}
+            {mergeInfo.parentVehicle.canMerge ? (
+              isFirstRow ? (
+                <td 
+                  rowSpan={mergeInfo.parentVehicle.rowSpan}
+                  className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap align-top"
+                >
+                  <span className="text-sm text-gray-900 dark:text-white">
+                    {mergeInfo.parentVehicle.value}
+                  </span>
+                </td>
+              ) : null
+            ) : (
+              <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
+                <span className="text-sm text-gray-900 dark:text-white">
+                  {bom.parent_vehicle || bom.parent?.vehicle_model || '-'}
+                </span>
+              </td>
+            )}
+            {/* 품번 - 병합 가능한 경우 첫 번째 행에만 표시 */}
+            {mergeInfo.parentCode.canMerge ? (
+              isFirstRow ? (
+                <td 
+                  rowSpan={mergeInfo.parentCode.rowSpan}
+                  className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600 align-top"
+                >
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {mergeInfo.parentCode.value}
+                  </span>
+                </td>
+              ) : null
+            ) : (
+              <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {bom.parent_item_code || bom.parent?.item_code || '-'}
+                </span>
+              </td>
+            )}
+            {/* 품명 - 병합 가능한 경우 첫 번째 행에만 표시 */}
+            {mergeInfo.parentName.canMerge ? (
+              isFirstRow ? (
+                <td
+                  rowSpan={mergeInfo.parentName.rowSpan}
+                  className="px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 align-top"
+                  onDoubleClick={() => handleParentDoubleClick(bom)}
+                  title="더블클릭하여 상세정보 보기"
+                >
+                  <span className="text-sm text-gray-900 dark:text-white block underline decoration-dashed decoration-gray-400 dark:decoration-gray-500">
+                    {mergeInfo.parentName.value}
+                  </span>
+                </td>
+              ) : null
+            ) : (
+              <td
+                className="px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                onDoubleClick={() => handleParentDoubleClick(bom)}
+                title="더블클릭하여 상세정보 보기"
+              >
+                <span className="text-sm text-gray-900 dark:text-white block underline decoration-dashed decoration-gray-400 dark:decoration-gray-500">
+                  {bom.parent_item_name || bom.parent?.item_name || '-'}
+                </span>
+              </td>
+            )}
+            {/* 단가 - 병합 가능한 경우 첫 번째 행에만 표시 */}
+            {mergeInfo.parentPrice.canMerge ? (
+              isFirstRow ? (
+                <td 
+                  rowSpan={mergeInfo.parentPrice.rowSpan}
+                  className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600 align-top"
+                >
+                  <span className="text-gray-900 dark:text-white">
+                    {mergeInfo.parentPrice.value}
+                  </span>
+                </td>
+              ) : null
+            ) : (
+              <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600">
+                <span className="text-gray-900 dark:text-white">
+                  {(bom.parent?.price && bom.parent.price > 0) ? bom.parent.price.toLocaleString() : '-'}
+                </span>
+              </td>
+            )}
             {/* 공급처 (child item의 supplier) */}
             <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
               <span className="text-sm text-gray-900 dark:text-white">

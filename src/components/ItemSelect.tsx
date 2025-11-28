@@ -20,6 +20,7 @@ export interface ItemSelectProps {
   className?: string;
   showPrice?: boolean;
   itemType?: 'ALL' | ItemTypeCode;
+  supplierId?: number | null;
 }
 
 interface ApiSuccessResponse {
@@ -53,7 +54,8 @@ export default function ItemSelect({
   disabled = false,
   className = "",
   showPrice = true,
-  itemType = 'ALL'
+  itemType = 'ALL',
+  supplierId
 }: ItemSelectProps) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +71,7 @@ export default function ItemSelect({
   // Fetch items from API
   useEffect(() => {
     fetchItems();
-  }, [itemType]);
+  }, [itemType, supplierId]);
 
   // Handle search filtering
   useEffect(() => {
@@ -165,6 +167,11 @@ export default function ItemSelect({
         };
         const category = categoryMap[itemType as string] || (itemType as string);
         url += `&category=${encodeURIComponent(category)}`;
+      }
+
+      // Filter by supplier if provided
+      if (supplierId) {
+        url += `&company_id=${supplierId}`;
       }
 
       const response = await fetch(url);
@@ -336,11 +343,18 @@ export default function ItemSelect({
             <div className="mb-1">검색 결과가 없습니다.</div>
             {items.length === 0 ? (
               <div className="text-xs text-gray-400 mt-1">
-                품목 목록을 불러오지 못했습니다. 새로고침 버튼을 클릭하세요.
+                {supplierId
+                  ? '선택한 공급업체의 품목 목록을 불러오지 못했습니다. 새로고침 버튼을 클릭하세요.'
+                  : '품목 목록을 불러오지 못했습니다. 새로고침 버튼을 클릭하세요.'
+                }
               </div>
             ) : (
               <div className="text-xs text-gray-400 mt-1">
-                품목코드 또는 품목명의 일부를 입력하세요. (현재 {items.length}개 품목 로드됨)
+                품목코드 또는 품목명의 일부를 입력하세요.
+                {supplierId
+                  ? ` (선택한 공급업체 품목 ${items.length}개 로드됨)`
+                  : ` (현재 ${items.length}개 품목 로드됨)`
+                }
               </div>
             )}
           </div>

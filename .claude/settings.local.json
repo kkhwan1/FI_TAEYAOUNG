@@ -5,7 +5,8 @@
       "Bash(echo:*)",
       "Bash(codex exec:*)",
       "Bash(npm install:*)",
-      "Bash(npm run dev:safe:*)"
+      "Bash(npm run dev:safe:*)",
+      "Bash(codex status:*)"
     ],
     "deny": [],
     "ask": []

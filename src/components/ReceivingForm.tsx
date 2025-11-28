@@ -339,6 +339,7 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
             showPrice={true}
             itemType="ALL"
             className=""
+            supplierId={formData.company_id}
           />
           {errors.items && (
             <p className="mt-1 text-sm text-red-500">{errors.items}</p>

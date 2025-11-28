@@ -15,6 +15,22 @@ interface BOM {
   notes?: string;
   customer_id?: number | null;
   child_supplier_id?: number | null;
+  parent_item_data?: {
+    price?: number | null;
+    vehicle_model?: string | null;
+    thickness?: number | null;
+    width?: number | null;
+    height?: number | null;
+    material?: string | null;
+  };
+  child_item_data?: {
+    price?: number | null;
+    vehicle_model?: string | null;
+    thickness?: number | null;
+    width?: number | null;
+    height?: number | null;
+    material?: string | null;
+  };
 }
 
 interface Item {
@@ -24,6 +40,12 @@ interface Item {
   category: string;
   unit: string;
   inventory_type?: string;
+  price?: number | null;
+  vehicle_model?: string | null;
+  thickness?: number | null;
+  width?: number | null;
+  height?: number | null;
+  material?: string | null;
 }
 
 interface BOMFormProps {
@@ -52,6 +74,22 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
   const [selectedParentItem, setSelectedParentItem] = useState<Item | null>(null);
   const [selectedChildItem, setSelectedChildItem] = useState<Item | null>(null);
   const [showCoilOnly, setShowCoilOnly] = useState(false);
+  const [parentItemData, setParentItemData] = useState<{
+    price?: number | null;
+    vehicle_model?: string | null;
+    thickness?: number | null;
+    width?: number | null;
+    height?: number | null;
+    material?: string | null;
+  }>({});
+  const [childItemData, setChildItemData] = useState<{
+    price?: number | null;
+    vehicle_model?: string | null;
+    thickness?: number | null;
+    width?: number | null;
+    height?: number | null;
+    material?: string | null;
+  }>({});
 
 
   useEffect(() => {
@@ -73,11 +111,29 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
       if (parentItem) {
         setSelectedParentItem(parentItem);
         setParentSearchTerm(`${parentItem.item_code} - ${parentItem.item_name}`);
+        // Set parent item data from bom or item
+        setParentItemData({
+          price: bom.parent_item_data?.price ?? parentItem.price ?? null,
+          vehicle_model: bom.parent_item_data?.vehicle_model ?? parentItem.vehicle_model ?? null,
+          thickness: bom.parent_item_data?.thickness ?? parentItem.thickness ?? null,
+          width: bom.parent_item_data?.width ?? parentItem.width ?? null,
+          height: bom.parent_item_data?.height ?? parentItem.height ?? null,
+          material: bom.parent_item_data?.material ?? parentItem.material ?? null,
+        });
       }
 
       if (childItem) {
         setSelectedChildItem(childItem);
         setChildSearchTerm(`${childItem.item_code} - ${childItem.item_name}`);
+        // Set child item data from bom or item
+        setChildItemData({
+          price: bom.child_item_data?.price ?? childItem.price ?? null,
+          vehicle_model: bom.child_item_data?.vehicle_model ?? childItem.vehicle_model ?? null,
+          thickness: bom.child_item_data?.thickness ?? childItem.thickness ?? null,
+          width: bom.child_item_data?.width ?? childItem.width ?? null,
+          height: bom.child_item_data?.height ?? childItem.height ?? null,
+          material: bom.child_item_data?.material ?? childItem.material ?? null,
+        });
       }
     }
   }, [bom, items]);
@@ -117,6 +173,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
     setParentSearchTerm(`${item.item_code} - ${item.item_name}`);
     setFormData(prev => ({ ...prev, parent_item_id: item.item_id }));
     setShowParentDropdown(false);
+    // Set parent item data from selected item
+    setParentItemData({
+      price: item.price ?? null,
+      vehicle_model: item.vehicle_model ?? null,
+      thickness: item.thickness ?? null,
+      width: item.width ?? null,
+      height: item.height ?? null,
+      material: item.material ?? null,
+    });
     // Clear error
     if (errors.parent_item_id) {
       setErrors(prev => ({ ...prev, parent_item_id: '' }));
@@ -131,6 +196,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
       child_item_id: item.item_id
     }));
     setShowChildDropdown(false);
+    // Set child item data from selected item
+    setChildItemData({
+      price: item.price ?? null,
+      vehicle_model: item.vehicle_model ?? null,
+      thickness: item.thickness ?? null,
+      width: item.width ?? null,
+      height: item.height ?? null,
+      material: item.material ?? null,
+    });
     // Clear error
     if (errors.child_item_id) {
       setErrors(prev => ({ ...prev, child_item_id: '' }));
@@ -180,6 +254,24 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleItemDataChange = (
+    type: 'parent' | 'child',
+    field: string,
+    value: string | number | null
+  ) => {
+    if (type === 'parent') {
+      setParentItemData(prev => ({
+        ...prev,
+        [field]: value === '' ? null : (typeof value === 'string' && !isNaN(Number(value)) ? Number(value) : value)
+      }));
+    } else {
+      setChildItemData(prev => ({
+        ...prev,
+        [field]: value === '' ? null : (typeof value === 'string' && !isNaN(Number(value)) ? Number(value) : value)
+      }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -193,8 +285,16 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
       console.log('[BOM FORM] level_no:', formData.level_no);
       console.log('[BOM FORM] customer_id:', formData.customer_id);
       console.log('[BOM FORM] child_supplier_id:', formData.child_supplier_id);
+      console.log('[BOM FORM] parent_item_data:', parentItemData);
+      console.log('[BOM FORM] child_item_data:', childItemData);
 
-      await onSubmit(formData);
+      const submitData = {
+        ...formData,
+        parent_item_data: Object.keys(parentItemData).length > 0 ? parentItemData : undefined,
+        child_item_data: Object.keys(childItemData).length > 0 ? childItemData : undefined,
+      };
+
+      await onSubmit(submitData);
       // 성공 시 자동으로 모달 닫기
       onCancel();
     } catch (error) {
@@ -465,6 +565,199 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="추가 정보나 특이사항을 입력하세요..."
           />
+        </div>
+      </div>
+
+      {/* 품목 상세 정보 섹션 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 모품목 상세 정보 */}
+        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2 mb-4">
+            모품목 상세 정보
+          </h3>
+          {selectedParentItem ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  차종
+                </label>
+                <input
+                  type="text"
+                  value={parentItemData.vehicle_model || ''}
+                  onChange={(e) => handleItemDataChange('parent', 'vehicle_model', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="차종을 입력하세요..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  단가 (₩)
+                </label>
+                <input
+                  type="number"
+                  value={parentItemData.price || ''}
+                  onChange={(e) => handleItemDataChange('parent', 'price', e.target.value ? parseFloat(e.target.value) : null)}
+                  min="0"
+                  step="0.01"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="단가를 입력하세요..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  재질
+                </label>
+                <input
+                  type="text"
+                  value={parentItemData.material || ''}
+                  onChange={(e) => handleItemDataChange('parent', 'material', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="재질을 입력하세요..."
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    두께 (mm)
+                  </label>
+                  <input
+                    type="number"
+                    value={parentItemData.thickness || ''}
+                    onChange={(e) => handleItemDataChange('parent', 'thickness', e.target.value ? parseFloat(e.target.value) : null)}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="두께"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    폭 (mm)
+                  </label>
+                  <input
+                    type="number"
+                    value={parentItemData.width || ''}
+                    onChange={(e) => handleItemDataChange('parent', 'width', e.target.value ? parseFloat(e.target.value) : null)}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="폭"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    길이 (mm)
+                  </label>
+                  <input
+                    type="number"
+                    value={parentItemData.height || ''}
+                    onChange={(e) => handleItemDataChange('parent', 'height', e.target.value ? parseFloat(e.target.value) : null)}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="길이"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">모품목을 선택하면 상세 정보를 수정할 수 있습니다.</p>
+          )}
+        </div>
+
+        {/* 자품목 상세 정보 */}
+        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2 mb-4">
+            자품목 상세 정보
+          </h3>
+          {selectedChildItem ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  차종
+                </label>
+                <input
+                  type="text"
+                  value={childItemData.vehicle_model || ''}
+                  onChange={(e) => handleItemDataChange('child', 'vehicle_model', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="차종을 입력하세요..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  단가 (₩)
+                </label>
+                <input
+                  type="number"
+                  value={childItemData.price || ''}
+                  onChange={(e) => handleItemDataChange('child', 'price', e.target.value ? parseFloat(e.target.value) : null)}
+                  min="0"
+                  step="0.01"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="단가를 입력하세요..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  재질
+                </label>
+                <input
+                  type="text"
+                  value={childItemData.material || ''}
+                  onChange={(e) => handleItemDataChange('child', 'material', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="재질을 입력하세요..."
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    두께 (mm)
+                  </label>
+                  <input
+                    type="number"
+                    value={childItemData.thickness || ''}
+                    onChange={(e) => handleItemDataChange('child', 'thickness', e.target.value ? parseFloat(e.target.value) : null)}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="두께"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    폭 (mm)
+                  </label>
+                  <input
+                    type="number"
+                    value={childItemData.width || ''}
+                    onChange={(e) => handleItemDataChange('child', 'width', e.target.value ? parseFloat(e.target.value) : null)}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="폭"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    길이 (mm)
+                  </label>
+                  <input
+                    type="number"
+                    value={childItemData.height || ''}
+                    onChange={(e) => handleItemDataChange('child', 'height', e.target.value ? parseFloat(e.target.value) : null)}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="길이"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">자품목을 선택하면 상세 정보를 수정할 수 있습니다.</p>
+          )}
         </div>
       </div>
 
