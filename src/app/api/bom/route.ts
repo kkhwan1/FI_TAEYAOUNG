@@ -50,7 +50,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           item_name,
           spec,
           price,
-          vehicle_model
+          vehicle_model,
+          thickness,
+          width,
+          height,
+          material
         ),
         child:items!bom_child_item_id_fkey (
           item_code,
@@ -60,7 +64,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           price,
           category,
           inventory_type,
-          vehicle_model
+          vehicle_model,
+          thickness,
+          width,
+          height,
+          material
         ),
         customer:companies!bom_customer_id_fkey (
           company_id,

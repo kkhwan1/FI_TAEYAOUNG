@@ -403,7 +403,24 @@ export default function BOMPage() {
           child_supplier: item.child_supplier || null,
           // parent와 child 객체 명시적으로 유지 (단가 정보 포함)
           parent: item.parent || null,
-          child: item.child || null
+          child: item.child || null,
+          // BOMForm에서 사용할 parent_item_data와 child_item_data 추가
+          parent_item_data: {
+            price: item.parent?.price ?? null,
+            vehicle_model: item.parent?.vehicle_model ?? null,
+            thickness: item.parent?.thickness ?? null,
+            width: item.parent?.width ?? null,
+            height: item.parent?.height ?? null,
+            material: item.parent?.material ?? null,
+          },
+          child_item_data: {
+            price: item.child?.price ?? null,
+            vehicle_model: item.child?.vehicle_model ?? null,
+            thickness: item.child?.thickness ?? null,
+            width: item.child?.width ?? null,
+            height: item.child?.height ?? null,
+            material: item.child?.material ?? null,
+          }
         }));
 
         let bomList = showActiveOnly
