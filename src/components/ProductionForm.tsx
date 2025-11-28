@@ -455,7 +455,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                   } else {
                     setProcessTypes(processTypes.filter(p => p !== '프레스'));
                     setPressCapacity(undefined);
-                    setCustomerId(null);
+                    // 고객사는 유지 (프레스 해제 시에도 고객사 품목 필터링 유지)
+                    // setCustomerId(null);
                   }
                 }}
               />
@@ -522,23 +523,21 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           </div>
         )}
 
-        {/* 고객사 선택 (프레스 선택 시에만 표시) */}
-        {processTypes.includes('프레스') && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              고객사 (주문처)
-            </label>
-            <CompanySelect
-              value={customerId}
-              onChange={(value) => {
-                const numValue = value ? Number(value) : null;
-                setCustomerId(numValue);
-              }}
-              companyType="CUSTOMER"
-              placeholder="고객사를 선택하세요"
-            />
-          </div>
-        )}
+        {/* 고객사 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            고객사 (주문처)
+          </label>
+          <CompanySelect
+            value={customerId}
+            onChange={(value) => {
+              const numValue = value ? Number(value) : null;
+              setCustomerId(numValue);
+            }}
+            companyType="CUSTOMER"
+            placeholder="고객사를 선택하세요"
+          />
+        </div>
 
         {/* 배치 모드 토글 */}
         <div className="md:col-span-2">
@@ -580,12 +579,12 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             value={formData.product_item_id > 0 ? formData.product_item_id : undefined}
             onChange={handleProductSelect}
             label="생산 제품"
-            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : "제품 품번 또는 품명으로 검색..."}
+            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : customerId ? "고객사 품목 검색..." : "제품 품번 또는 품명으로 검색..."}
             required={true}
             error={errors.product_item_id}
             showPrice={true}
             itemType="PRODUCT"
-            customerId={processTypes.includes('프레스') ? customerId : null}
+            customerId={customerId}
           />
         </div>
         )}
@@ -730,11 +729,11 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                               };
                               setBatchItems(updatedItems);
                             }}
-                            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : "제품 검색..."}
+                            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : customerId ? "고객사 품목 검색..." : "제품 검색..."}
                             required={true}
                             showPrice={true}
                             itemType="PRODUCT"
-                            customerId={processTypes.includes('프레스') ? customerId : null}
+                            customerId={customerId}
                             error={errors[`batchItem_${index}_product`]}
                           />
                         </td>
