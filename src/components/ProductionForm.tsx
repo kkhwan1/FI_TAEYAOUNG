@@ -343,6 +343,21 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         setProductionResult(result);
         setSavedBomCheckData(bomCheckData); // Save BOM check data for result modal
         setShowResultModal(true);
+        
+        // Reset form after successful submission
+        setFormData({
+          transaction_date: new Date().toISOString().split('T')[0],
+          product_item_id: 0,
+          quantity: 0,
+          reference_no: '',
+          use_bom: true,
+          scrap_quantity: 0,
+          created_by: 1
+        });
+        setSelectedProduct(null);
+        setProcessTypes(['프레스', '용접']); // 기본값으로 리셋
+        setPressCapacity(undefined);
+        setCustomerId(null);
       } else {
         const errorMessage = (result as any)?.error || '생산 등록에 실패했습니다.';
         throw new Error(errorMessage);
