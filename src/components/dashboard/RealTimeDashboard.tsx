@@ -31,12 +31,6 @@ export const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({
   autoStart = false
 }) => {
   const { isDark } = useTheme();
-  const [supplierId, setSupplierId] = useState<string>('');
-  const [customerId, setCustomerId] = useState<string>('');
-  const [category, setCategory] = useState<string>('');
-  const [suppliers, setSuppliers] = useState<Array<{company_id: number; company_name: string}>>([]);
-  const [customers, setCustomers] = useState<Array<{company_id: number; company_name: string}>>([]);
-  const [categories, setCategories] = useState<string[]>([]);
 
   const {
     data,
@@ -49,55 +43,7 @@ export const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({
     setRefreshInterval,
     setIsAutoRefreshEnabled,
     refresh
-  } = useDashboardData(initialRefreshInterval, autoStart, { supplierId, customerId, category });
-
-  // 거래처 목록 로드
-  React.useEffect(() => {
-    const fetchCompanies = async () => {
-      try {
-        const [suppliersRes, customersRes] = await Promise.all([
-          fetch('/api/companies?type=공급사&limit=1000'),
-          fetch('/api/companies?type=고객사&limit=1000')
-        ]);
-        const suppliersData = await suppliersRes.json();
-        const customersData = await customersRes.json();
-        if (suppliersData.success) {
-          setSuppliers(suppliersData.data?.companies || []);
-        }
-        if (customersData.success) {
-          setCustomers(customersData.data?.companies || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch companies:', err);
-      }
-    };
-    fetchCompanies();
-  }, []);
-
-  // 필터 변경 시 데이터 새로고침
-  React.useEffect(() => {
-    // 초기 로드가 완료된 후에만 필터 변경 시 새로고침
-    if (data && (supplierId || customerId || category)) {
-      refresh();
-    }
-  }, [supplierId, customerId, category, data, refresh]);
-
-  // 카테고리 목록 로드
-  React.useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await fetch('/api/items?limit=10000');
-        const data = await res.json();
-        if (data.success && data.data?.items) {
-          const uniqueCategories = [...new Set(data.data.items.map((item: any) => item.category).filter(Boolean))];
-          setCategories(uniqueCategories.sort());
-        }
-      } catch (err) {
-        console.error('Failed to fetch categories:', err);
-      }
-    };
-    fetchCategories();
-  }, []);
+  } = useDashboardData(initialRefreshInterval, autoStart);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -112,48 +58,6 @@ export const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({
         lastUpdated={lastUpdated}
         retryCount={retryCount}
       />
-
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
-        <div className="hidden md:flex flex-nowrap gap-2 items-end overflow-x-auto pb-1">
-          <select
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            className="min-w-[150px] px-2 py-2 sm:py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
-          >
-            <option value="">납품처</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.company_id} value={supplier.company_id}>
-                {supplier.company_name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            className="min-w-[150px] px-2 py-2 sm:py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
-          >
-            <option value="">고객사</option>
-            {customers.map((customer) => (
-              <option key={customer.company_id} value={customer.company_id}>
-                {customer.company_name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="min-w-[150px] px-2 py-2 sm:py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
-          >
-            <option value="">카테고리</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
       {/* Global Error Message */}
       {error && !data && (
