@@ -239,6 +239,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             item_id: item.item_id,
             quantity: Math.floor(Number(item.quantity)),
             unit_price: item.unit_price || 0,
+            unit: item.unit || '',
             reference_no: item.reference_no || ''
           })),
           reference_no: formData.reference_no,
@@ -662,6 +663,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                     item_name: '',
                     quantity: 0,
                     unit_price: 0,
+                    unit: '',
                     reference_no: '',
                     notes: ''
                   };
@@ -680,8 +682,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                 <p className="text-sm">제품을 추가하여 배치 생산을 시작하세요</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <div className="overflow-x-auto" style={{ overflow: 'visible' }}>
+                <table className="w-full" style={{ position: 'relative' }}>
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
@@ -692,6 +694,9 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[120px] border-b border-gray-200 dark:border-gray-700">
                         생산수량 <span className="text-red-500 font-normal">*</span>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[80px] border-b border-gray-200 dark:border-gray-700">
+                        단위
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[150px] border-b border-gray-200 dark:border-gray-700">
                         참조번호
@@ -713,7 +718,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                           {index + 1}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" style={{ position: 'relative', overflow: 'visible' }}>
                           <ItemSelect
                             value={item.item_id > 0 ? item.item_id : undefined}
                             onChange={(selectedItem: Item | null) => {
@@ -725,6 +730,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                                 item_id: itemId,
                                 item_code: selectedItem?.item_code || '',
                                 item_name: selectedItem?.item_name || '',
+                                unit: selectedItem?.unit || '',
                                 unit_price: selectedItem?.unit_price || 0
                               };
                               setBatchItems(updatedItems);
@@ -761,6 +767,22 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                           {errors[`batchItem_${index}_quantity`] && (
                             <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors[`batchItem_${index}_quantity`]}</p>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={item.unit || ''}
+                            onChange={(e) => {
+                              const updatedItems = [...batchItems];
+                              updatedItems[index] = {
+                                ...updatedItems[index],
+                                unit: e.target.value
+                              };
+                              setBatchItems(updatedItems);
+                            }}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400"
+                            placeholder="단위"
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <input

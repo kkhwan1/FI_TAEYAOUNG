@@ -77,11 +77,26 @@ export async function mcp__supabase__execute_sql(
       };
     }
 
-    const rows = Array.isArray(data)
-      ? (data as Record<string, unknown>[])
-      : data
-        ? [data as Record<string, unknown>]
-        : [];
+    // data가 { rows: [], rowCount: 0 } 형태인 경우 처리
+    let rows: Record<string, unknown>[] = [];
+    if (data) {
+      if (Array.isArray(data)) {
+        // 배열인 경우
+        if (data.length > 0 && typeof data[0] === 'object' && data[0] !== null && 'rows' in data[0]) {
+          // 중첩된 구조: [{ rows: [], rowCount: 0 }]
+          rows = (data[0] as any).rows || [];
+        } else {
+          // 일반 배열: [{ item_id: 1, ... }]
+          rows = data as Record<string, unknown>[];
+        }
+      } else if (typeof data === 'object' && 'rows' in data) {
+        // 객체이고 rows 속성이 있는 경우: { rows: [], rowCount: 0 }
+        rows = (data as any).rows || [];
+      } else {
+        // 단일 객체인 경우
+        rows = [data as Record<string, unknown>];
+      }
+    }
 
     return {
       rows,

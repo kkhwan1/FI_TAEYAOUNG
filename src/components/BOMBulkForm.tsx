@@ -172,18 +172,7 @@ export default function BOMBulkForm({ items, onSubmit, onCancel }: BOMBulkFormPr
       return { ...entry, errors: errors.length > 0 ? errors : undefined };
     });
 
-    // 배치 내 중복 검사
-    const seen = new Set<string>();
-    newEntries.forEach(entry => {
-      if (entry.parent_item_id && entry.child_item_id) {
-        const key = `${entry.parent_item_id}-${entry.child_item_id}`;
-        if (seen.has(key)) {
-          entry.errors = [...(entry.errors || []), '중복된 BOM 항목입니다'];
-          isValid = false;
-        }
-        seen.add(key);
-      }
-    });
+    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
     setEntries(newEntries);
     return isValid;

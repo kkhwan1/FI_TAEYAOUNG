@@ -1451,11 +1451,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       notes?: string;
     }
 
-    // Create BOM entries and deduplicate by parent_item_id + child_item_id
-    // PostgreSQL ON CONFLICT cannot handle duplicate keys in a single batch
-    const bomInsertMap = new Map<string, BOMInsert>();
-
-    parseResult.data.forEach(row => {
+    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
+    const bomInserts: BOMInsert[] = parseResult.data.map(row => {
       const parentId = itemCodeMap.get(row.parent_item_code);
       const childId = itemCodeMap.get(row.child_item_code);
 
@@ -1465,29 +1462,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const key = `${parentId}_${childId}`;
-      // Keep the last occurrence (or first, if you prefer)
-      bomInsertMap.set(key, {
+      return {
         parent_item_id: parentId,
         child_item_id: childId,
         quantity_required: row.quantity_required,
         level_no: row.level_no ?? 1, // Use nullish coalescing to preserve 0
         is_active: true,
         notes: row.notes ? String(row.notes).trim() : undefined
-      });
+      };
     });
 
-    const bomInserts: BOMInsert[] = Array.from(bomInsertMap.values());
-
-    // 6. Insert BOM entries with upsert (update on conflict)
+    // 6. Insert BOM entries (중복 허용)
     const { data: insertedBOMs, error: insertError } = await supabase
       .from('bom')
-      .upsert(
-        bomInserts as any,
-        {
-          onConflict: 'parent_item_id,child_item_id',
-          ignoreDuplicates: false // Update existing entries
-        }
+      .insert(
+        bomInserts as any
       )
       .select(`
         bom_id,

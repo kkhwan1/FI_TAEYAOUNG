@@ -1522,7 +1522,8 @@ function InventoryContent() {
                activeTab === 'production' ? '생산 등록' :
                '출고 등록')
         }
-        size="xl"
+        size={activeTab === 'production' ? '2xl' : 'xl'}
+        maxHeight={activeTab === 'production' ? 'tall' : 'auto'}
       >
         {renderForm()}
       </Modal>

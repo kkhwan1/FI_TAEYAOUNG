@@ -9,7 +9,6 @@ import {
   Hash
 } from 'lucide-react';
 import CompanySelect from '@/components/CompanySelect';
-import ItemSelect from '@/components/ItemSelect';
 
 type PaymentStatus = 'PENDING' | 'PARTIAL' | 'COMPLETED';
 
@@ -129,29 +128,6 @@ export default function PurchaseForm({ transaction, onSave, onCancel }: Purchase
     }
   };
 
-  const handleItemChange = (item: any) => {
-    if (item) {
-      setFormData(prev => ({
-        ...prev,
-        item_id: item.item_id,
-        item_name: item.item_name,
-        spec: item.spec || '',
-        unit_price: item.unit_price || 0
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        item_id: undefined,
-        item_name: '',
-        spec: '',
-        unit_price: 0
-      }));
-    }
-
-    if (errors.item_id) {
-      setErrors(prev => ({ ...prev, item_id: '' }));
-    }
-  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -164,8 +140,8 @@ export default function PurchaseForm({ transaction, onSave, onCancel }: Purchase
       newErrors.supplier_id = '공급업체를 선택해주세요';
     }
 
-    if (!formData.item_id) {
-      newErrors.item_id = '품목을 선택해주세요';
+    if (!formData.item_name || formData.item_name.trim() === '') {
+      newErrors.item_name = '품목명을 입력해주세요';
     }
 
     if (!formData.quantity || formData.quantity <= 0) {
@@ -200,6 +176,11 @@ export default function PurchaseForm({ transaction, onSave, onCancel }: Purchase
           delete dataToSave[key];
         }
       });
+
+      // item_id is optional now, remove if not set
+      if (!dataToSave.item_id) {
+        delete dataToSave.item_id;
+      }
 
       await onSave(dataToSave);
     } finally {
@@ -240,43 +221,32 @@ export default function PurchaseForm({ transaction, onSave, onCancel }: Purchase
           <CompanySelect
             value={formData.supplier_id}
             onChange={handleSupplierChange}
-            companyType="SUPPLIER"
-            placeholder="공급업체를 선택하세요"
+            placeholder="업체를 선택하세요"
             required={true}
             error={errors.supplier_id}
           />
         </div>
 
-        {/* 품목 선택 */}
+        {/* 품목명 */}
         <div className="md:col-span-2">
-          <ItemSelect
-            value={formData.item_id}
-            onChange={handleItemChange}
-            label="품목"
-            placeholder="품목을 검색하여 선택하세요"
-            required={true}
-            showPrice={true}
-            itemType="ALL"
-            className=""
-            error={errors.item_id}
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            품목명 <span className="text-gray-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="item_name"
+            value={formData.item_name || ''}
+            onChange={handleChange}
+            placeholder="품목명을 입력하세요"
+            className={`w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+              errors.item_name ? 'border-gray-500' : 'border-gray-300 dark:border-gray-700'
+            }`}
+            required
           />
+          {errors.item_name && (
+            <p className="mt-1 text-sm text-gray-500">{errors.item_name}</p>
+          )}
         </div>
-
-        {/* 품목명 (읽기 전용) */}
-        {formData.item_name && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              
-              품목명
-            </label>
-            <input
-              type="text"
-              value={formData.item_name}
-              disabled
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300"
-            />
-          </div>
-        )}
 
         {/* 규격 (읽기 전용) */}
         {formData.spec && (

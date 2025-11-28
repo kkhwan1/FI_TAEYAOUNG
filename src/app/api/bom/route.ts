@@ -339,29 +339,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
-
-    // 중복 BOM 체크 (활성 + 비활성 모두 확인)
-    const { data: existing } = await supabase
-      .from('bom')
-      .select('bom_id, is_active')
-      .eq('parent_item_id', parent_item_id)
-      .eq('child_item_id', child_item_id)
-      .single();
-
-    if (existing) {
-      // 비활성화된 BOM이 있으면 삭제
-      if (!existing.is_active) {
-        await supabase
-          .from('bom')
-          .delete()
-          .eq('bom_id', existing.bom_id);
-      } else {
-        return NextResponse.json({
-          success: false,
-          error: "이미 등록된 BOM 구조입니다. 기존 항목을 수정해주세요."
-        }, { status: 400 });
-      }
-    }
+    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
     // 순환 참조 허용: 모든 순환 참조를 허용함
 
@@ -486,28 +464,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Check for duplicate BOM entry (활성 + 비활성 모두 확인)
-    const { data: existingBom } = await supabase
-      .from('bom')
-      .select('bom_id, is_active')
-      .eq('parent_item_id', parent_item_id)
-      .eq('child_item_id', child_item_id)
-      .maybeSingle();
-
-    if (existingBom) {
-      // 비활성화된 BOM이 있으면 삭제
-      if (!existingBom.is_active) {
-        await supabase
-          .from('bom')
-          .delete()
-          .eq('bom_id', existingBom.bom_id);
-      } else {
-        return NextResponse.json({
-          success: false,
-          error: '이미 존재하는 BOM 항목입니다.'
-        }, { status: 400 });
-      }
-    }
+    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
     // Create BOM entry
     const { data: bomEntry, error } = (await supabase
@@ -715,27 +672,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Check for duplicate BOM entry if parent or child is being changed
-    if (updateData.parent_item_id !== undefined || updateData.child_item_id !== undefined) {
-      const newParentId = updateData.parent_item_id ?? existingBom.parent_item_id;
-      const newChildId = updateData.child_item_id ?? existingBom.child_item_id;
-
-      const { data: duplicateBom } = await supabase
-        .from('bom')
-        .select('bom_id')
-        .eq('parent_item_id', newParentId)
-        .eq('child_item_id', newChildId)
-        .eq('is_active', true)
-        .neq('bom_id', bom_id)
-        .maybeSingle();
-
-      if (duplicateBom) {
-        return NextResponse.json({
-          success: false,
-          error: '동일한 모품목-자품목 조합의 BOM이 이미 존재합니다.'
-        }, { status: 400 });
-      }
-    }
+    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
     // Extract parent_item_data and child_item_data from updateData
     const { parent_item_data, child_item_data, ...bomUpdateData } = updateData;

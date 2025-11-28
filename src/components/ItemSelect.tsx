@@ -69,10 +69,12 @@ export default function ItemSelect({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Fetch items from API
   useEffect(() => {
     fetchItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemType, supplierId, customerId]);
 
   // Handle search filtering
@@ -95,8 +97,26 @@ export default function ItemSelect({
       setFilteredItems(filtered.slice(0, 10)); // Limit to 10 results for performance
       setIsOpen(true);
     } else {
+      // 검색어가 없을 때도 최대 10개 품목 표시 (입력 필드 포커스 시)
+      if (items.length > 0) {
+        const limitedItems = items.slice(0, 10);
+        // 선택된 항목이 있으면 맨 위에 추가
+        if (selectedItem && !limitedItems.find(i => i.item_id === selectedItem.item_id)) {
+          setFilteredItems([selectedItem, ...limitedItems]);
+        } else {
+          setFilteredItems(limitedItems);
+        }
+        // 입력 필드가 포커스되어 있으면 드롭다운 표시
+        if (inputRef.current && document.activeElement === inputRef.current) {
+          setIsOpen(true);
+          requestAnimationFrame(() => {
+            updateDropdownPosition();
+          });
+        }
+    } else {
       setFilteredItems([]);
       setIsOpen(false);
+      }
     }
   }, [search, items, selectedItem]);
 
@@ -162,24 +182,25 @@ export default function ItemSelect({
       
       // 고객사가 선택되어 있으면 모 품목만 조회
       if (customerId) {
+        console.log(`[ItemSelect] fetchItems 호출: customerId=${customerId}`);
         url = `/api/items/by-customer?customer_id=${customerId}&limit=1000`;
       } else {
         url = '/api/items?limit=1000'; // Get all items (no pagination for select dropdown)
-        if (itemType !== 'ALL') {
-          // Map itemType to category parameter
-          const categoryMap: Record<string, string> = {
-            'PRODUCT': '제품',
-            'SEMI_PRODUCT': '반제품',
-            'RAW_MATERIAL': '원자재',
-            'SUBSIDIARY': '부자재'
-          };
-          const category = categoryMap[itemType as string] || (itemType as string);
-          url += `&category=${encodeURIComponent(category)}`;
-        }
+      if (itemType !== 'ALL') {
+        // Map itemType to category parameter
+        const categoryMap: Record<string, string> = {
+          'PRODUCT': '제품',
+          'SEMI_PRODUCT': '반제품',
+          'RAW_MATERIAL': '원자재',
+          'SUBSIDIARY': '부자재'
+        };
+        const category = categoryMap[itemType as string] || (itemType as string);
+        url += `&category=${encodeURIComponent(category)}`;
+      }
 
-        // Filter by supplier if provided
-        if (supplierId) {
-          url += `&company_id=${supplierId}`;
+      // Filter by supplier if provided
+      if (supplierId) {
+        url += `&company_id=${supplierId}`;
         }
       }
 
@@ -188,16 +209,57 @@ export default function ItemSelect({
 
       if (data.success && data.data && data.data.items) {
         // Transform data to match ItemForComponent interface
-        const transformedItems: Item[] = data.data.items.map(item => ({
-          ...item,
-          item_id: item.item_id || item.id,
-          item_name: item.item_name || item.name,
-          unit_price: item.unit_price || item.price || 0
-        }));
+        const transformedItems: Item[] = data.data.items
+          .map((item: any) => {
+            const transformed = {
+              ...item,
+              item_id: item.item_id || item.id || 0,
+              item_name: item.item_name || item.name || '',
+              item_code: item.item_code || '',
+              unit: item.unit || 'EA',
+              unit_price: item.unit_price || item.price || 0
+            };
+            
+            // 필터링 전에 로그 출력 (문제 있는 항목 확인)
+            if (!transformed.item_id || (!transformed.item_code && !transformed.item_name)) {
+              console.warn('[ItemSelect] 유효하지 않은 품목 데이터 - 원본:', JSON.stringify(item, null, 2));
+              console.warn('[ItemSelect] 유효하지 않은 품목 데이터 - 변환 후:', JSON.stringify(transformed, null, 2));
+            }
+            
+            return transformed;
+          })
+          .filter(item => {
+            // item_id가 있고, item_code 또는 item_name 중 하나라도 있으면 유효한 품목으로 간주
+            const isValid = item.item_id > 0 && (item.item_code?.trim() || item.item_name?.trim());
+            if (!isValid) {
+              console.warn('[ItemSelect] 필터링된 품목:', item);
+            }
+            return isValid;
+          }); // 유효한 품목만 필터링
 
         setItems(transformedItems);
+        
+        // 디버깅: 품목 로드 확인
+        console.log(`[ItemSelect] API 응답: customerId=${customerId}, items=${data.data.items?.length || 0}, transformed=${transformedItems.length}`);
+        console.log(`[ItemSelect] transformedItems 샘플:`, transformedItems.slice(0, 3));
+        if (transformedItems.length === 0) {
+          if (data.data.items && data.data.items.length > 0) {
+            console.warn('[ItemSelect] 품목 변환 후 0개입니다. 원본 데이터:', data.data.items.slice(0, 3));
+            console.warn('[ItemSelect] 원본 데이터 전체:', JSON.stringify(data.data.items, null, 2));
+          } else {
+            console.warn(`[ItemSelect] 품목이 없습니다. API 응답:`, {
+              success: data.success,
+              items_count: data.data?.items?.length || 0,
+              full_response: data
+            });
+          }
+        } else {
+          console.log(`[ItemSelect] 성공적으로 ${transformedItems.length}개 품목 로드됨`);
+          console.log(`[ItemSelect] items state 업데이트됨, filteredItems는 useEffect에서 설정됨`);
+        }
       } else {
         const errorMsg = !data.success && 'error' in data ? data.error : '품목 목록을 불러오는데 실패했습니다.';
+        console.error('[ItemSelect] API 응답 오류:', data);
         throw new Error(errorMsg);
       }
     } catch (error) {
@@ -228,10 +290,49 @@ export default function ItemSelect({
   };
 
   const handleInputFocus = () => {
-    if (search && filteredItems.length > 0) {
+    // 포커스 시 품목이 있으면 드롭다운 표시 (검색어 없어도)
+    if (items.length > 0) {
       setIsOpen(true);
+      // 다음 프레임에서 위치 업데이트 (DOM이 완전히 렌더링된 후)
+      requestAnimationFrame(() => {
+        updateDropdownPosition();
+      });
+    } else if (filteredItems.length > 0) {
+      setIsOpen(true);
+      requestAnimationFrame(() => {
+        updateDropdownPosition();
+      });
     }
   };
+
+  // 드롭다운 위치 계산 (모달 내부에서도 정확히 표시되도록)
+  const updateDropdownPosition = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+  };
+
+  // 드롭다운이 열릴 때마다 위치 업데이트
+  useEffect(() => {
+    if (isOpen) {
+      updateDropdownPosition();
+      const handleScroll = () => updateDropdownPosition();
+      const handleResize = () => updateDropdownPosition();
+      
+      window.addEventListener('scroll', handleScroll, true);
+      window.addEventListener('resize', handleResize);
+      
+      return () => {
+        window.removeEventListener('scroll', handleScroll, true);
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }, [isOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -306,9 +407,19 @@ export default function ItemSelect({
         </div>
       )}
 
-      {/* Dropdown */}
-      {isOpen && filteredItems.length > 0 && !disabled && (
-        <div className="absolute z-[9999] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm max-h-60 overflow-y-auto">
+      {/* Dropdown - fixed positioning to escape modal overflow */}
+      {isOpen && filteredItems.length > 0 && !disabled && dropdownPosition && (
+        <div 
+          className="fixed z-[99999] mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto" 
+          style={{ 
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${Math.max(dropdownPosition.width, 400)}px`,
+            maxWidth: '90vw',
+            zIndex: 99999
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {filteredItems.map(item => (
             <button
               key={item.item_id}
@@ -342,6 +453,13 @@ export default function ItemSelect({
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-1 text-xs text-gray-400">
+          Debug: items={items.length}, filtered={filteredItems.length}, isOpen={isOpen ? 'true' : 'false'}
         </div>
       )}
 

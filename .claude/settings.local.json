@@ -6,7 +6,10 @@
       "Bash(codex exec:*)",
       "Bash(npm install:*)",
       "Bash(npm run dev:safe:*)",
-      "Bash(codex status:*)"
+      "Bash(codex status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []

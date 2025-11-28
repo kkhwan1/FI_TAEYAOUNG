@@ -532,26 +532,7 @@ async function performCrossValidation(rows: BOMExcelRow[]): Promise<ValidationEr
     return errors;
   }
 
-  // Check for duplicate BOM entries (same parent + child combination)
-  const seen = new Map<string, number>();
-
-  rows.forEach((row, idx) => {
-    const key = `${row.parent_item_code}|${row.child_item_code}`;
-
-    if (seen.has(key)) {
-      const firstRow = seen.get(key)! + 2; // Excel row number (1-indexed + header)
-      const currentRow = idx + 2;
-
-      errors.push({
-        row: currentRow,
-        field: 'child_item_code',
-        message: `중복된 BOM 항목입니다 (부모: ${row.parent_item_code}, 자식: ${row.child_item_code}). 첫 번째 발견: 행 ${firstRow}`,
-        severity: 'error'
-      });
-    } else {
-      seen.set(key, idx);
-    }
-  });
+  // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
   // Check for circular dependencies (basic check - detailed check in BOM utilities)
   const bomGraph = new Map<string, Set<string>>();

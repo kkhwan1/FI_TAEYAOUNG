@@ -8,7 +8,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
   maxHeight?: 'auto' | 'tall';
 }
 
@@ -51,7 +51,9 @@ export default function Modal({
     sm: 'max-w-md',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
-    xl: 'max-w-6xl'
+    xl: 'max-w-6xl',
+    '2xl': 'max-w-7xl',
+    full: 'max-w-[95vw]'
   };
 
   const heightClasses = {
@@ -77,7 +79,7 @@ export default function Modal({
       {/* Modal Container - z-index 10, pointer-events control */}
       <div
         className="flex min-h-full items-center justify-center p-4 pointer-events-none"
-        style={{ position: 'relative', zIndex: 10 }}
+        style={{ position: 'relative', zIndex: 10, overflow: 'visible' }}
       >
         {/* Modal Content - pointer-events restored, propagation stopped */}
         <div
@@ -86,6 +88,7 @@ export default function Modal({
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? "modal-title" : undefined}
+          style={{ overflow: 'visible' }}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -107,7 +110,7 @@ export default function Modal({
           </div>
 
           {/* Content */}
-          <div className={`p-6 ${contentHeightClasses[maxHeight]}`}>{children}</div>
+          <div className={`p-6 ${contentHeightClasses[maxHeight]}`} style={{ overflow: 'visible', position: 'relative' }}>{children}</div>
         </div>
       </div>
     </div>

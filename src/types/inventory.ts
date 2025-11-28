@@ -165,6 +165,7 @@ export interface ProductionItem {
   item_name: string;
   quantity: number;
   unit_price: number;
+  unit?: string;
   reference_no?: string;
   notes?: string;
 }

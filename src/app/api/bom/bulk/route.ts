@@ -77,21 +77,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       (itemsData || []).map(item => [item.item_id, item])
     );
 
-    // 기존 BOM 항목 일괄 조회 (중복 체크용)
-    const parentChildPairs = entries.map(e => ({
-      parent_item_id: e.parent_item_id,
-      child_item_id: e.child_item_id
-    }));
-
-    // 기존 활성 BOM 조회
-    const { data: existingBoms } = await supabase
-      .from('bom')
-      .select('parent_item_id, child_item_id, is_active')
-      .eq('is_active', true);
-
-    const existingBomSet = new Set(
-      (existingBoms || []).map(b => `${b.parent_item_id}-${b.child_item_id}`)
-    );
+    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
     // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
     async function hasCircularReference(
@@ -137,20 +123,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         errors.push('비활성화된 자품목입니다');
       }
 
-      // 중복 검사 (기존 DB + 현재 입력 내)
-      const pairKey = `${entry.parent_item_id}-${entry.child_item_id}`;
-      if (existingBomSet.has(pairKey)) {
-        errors.push('이미 등록된 BOM 구조입니다');
-      }
-
-      // 현재 배치 내 중복 검사
-      const duplicateInBatch = entries.slice(0, i).some(
-        e => e.parent_item_id === entry.parent_item_id &&
-             e.child_item_id === entry.child_item_id
-      );
-      if (duplicateInBatch) {
-        errors.push('현재 등록 목록 내 중복된 항목입니다');
-      }
+      // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
       // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
 

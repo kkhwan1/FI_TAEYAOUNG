@@ -581,7 +581,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
       // Remove empty optional fields (only customer_id can be optional)
       if (submissionData.customer_id === undefined) {
         delete submissionData.customer_id;
-      }
+        }
 
       await onSubmit(submissionData);
     } catch (error) {
@@ -913,8 +913,21 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
                     <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
                       {item.item_name}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {item.unit}
+                    <td className="px-3 py-2">
+                      <input
+                        type="text"
+                        value={item.unit || ''}
+                        onChange={(e) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            items: prev.items.map(i => 
+                              i.item_id === item.item_id ? { ...i, unit: e.target.value } : i
+                            )
+                          }));
+                        }}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="단위"
+                      />
                     </td>
                     <td className="px-3 py-2">
                       <input

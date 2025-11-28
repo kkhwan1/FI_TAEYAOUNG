@@ -1070,16 +1070,7 @@ export class ERPTransactions {
       }
 
       // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
-
-      // Check for duplicate BOM entry
-      const [duplicateCheck] = await connection.execute(
-        'SELECT id FROM boms WHERE parent_item_id = ? AND child_item_id = ? AND is_active = 1',
-        [data.parent_item_id, data.child_item_id]
-      ) as any[];
-
-      if (duplicateCheck && duplicateCheck.length > 0) {
-        throw new Error('BOM relationship already exists');
-      }
+      // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
 
       // Insert BOM record
       const [insertResult] = await connection.execute(

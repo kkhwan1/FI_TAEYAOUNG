@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 const PurchaseTransactionCreateSchema = z.object({
   transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식: YYYY-MM-DD'),
   supplier_id: z.number().positive('공급사 ID는 양수여야 합니다'),
-  item_id: z.number().positive('품목 ID는 양수여야 합니다'),
+  item_id: z.number().positive('품목 ID는 양수여야 합니다').optional(),
   item_name: z.string().min(1, '품목명은 필수입니다'),
   spec: z.string().optional(),
   unit: z.string().optional(),
@@ -166,7 +166,7 @@ export const POST = async (request: NextRequest) => {
 
     const supabase = getSupabaseClient();
 
-    // Verify supplier exists and is type SUPPLIER or BOTH
+    // Verify supplier exists (all company types allowed)
     const { data: supplier, error: supplierError } = await supabase
       .from('companies')
       .select('company_id, company_type')
@@ -176,35 +176,28 @@ export const POST = async (request: NextRequest) => {
 
     if (supplierError || !supplier) {
       return NextResponse.json(
-        { success: false, error: '유효하지 않은 공급사 ID입니다' },
+        { success: false, error: '유효하지 않은 업체 ID입니다' },
         { status: 400 }
       );
     }
 
-    // Check if supplier type is SUPPLIER (공급사)
-    // Note: '양방향' type removed from schema - only '고객사', '공급사', '협력사', '기타' allowed
-    const normalizedType = supplier.company_type === '공급사' ? 'SUPPLIER' : supplier.company_type;
+    // Verify item exists only if item_id is provided
+    let item = null;
+    if (result.data.item_id) {
+      const { data: itemData, error: itemError } = await supabase
+        .from('items')
+        .select('item_id, current_stock')
+        .eq('item_id', result.data.item_id)
+        .eq('is_active', true)
+        .single();
 
-    if (normalizedType !== 'SUPPLIER') {
-      return NextResponse.json(
-        { success: false, error: '선택한 거래처는 공급사가 아닙니다' },
-        { status: 400 }
-      );
-    }
-
-    // Verify item exists
-    const { data: item, error: itemError } = await supabase
-      .from('items')
-      .select('item_id, current_stock')
-      .eq('item_id', result.data.item_id)
-      .eq('is_active', true)
-      .single();
-
-    if (itemError || !item) {
-      return NextResponse.json(
-        { success: false, error: '유효하지 않은 품목 ID입니다' },
-        { status: 400 }
-      );
+      if (itemError || !itemData) {
+        return NextResponse.json(
+          { success: false, error: '유효하지 않은 품목 ID입니다' },
+          { status: 400 }
+        );
+      }
+      item = itemData;
     }
 
     // Generate transaction number
@@ -244,28 +237,30 @@ export const POST = async (request: NextRequest) => {
       );
     }
 
-    // Update item stock (increase) - FIXED: Use proper stock update
-    const newStock = (item.current_stock || 0) + result.data.quantity;
-    const { error: stockError } = await supabase
-      .from('items')
-      .update({
-        current_stock: newStock,
-        updated_at: new Date().toISOString()
-      })
-      .eq('item_id', result.data.item_id);
+    // Update item stock (increase) only if item_id is provided
+    if (result.data.item_id && item) {
+      const newStock = (item.current_stock || 0) + result.data.quantity;
+      const { error: stockError } = await supabase
+        .from('items')
+        .update({
+          current_stock: newStock,
+          updated_at: new Date().toISOString()
+        })
+        .eq('item_id', result.data.item_id);
 
-    if (stockError) {
-      console.error('Stock update error:', stockError);
-      // Rollback transaction by deleting
-      await supabase
-        .from('purchase_transactions')
-        .delete()
-        .eq('transaction_id', data.transaction_id);
+      if (stockError) {
+        console.error('Stock update error:', stockError);
+        // Rollback transaction by deleting
+        await supabase
+          .from('purchase_transactions')
+          .delete()
+          .eq('transaction_id', data.transaction_id);
 
-      return NextResponse.json(
-        { success: false, error: '재고 업데이트 실패로 거래가 취소되었습니다' },
-        { status: 500 }
-      );
+        return NextResponse.json(
+          { success: false, error: '재고 업데이트 실패로 거래가 취소되었습니다' },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({
