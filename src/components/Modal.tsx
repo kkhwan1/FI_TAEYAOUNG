@@ -110,7 +110,7 @@ export default function Modal({
           </div>
 
           {/* Content */}
-          <div className={`p-6 ${contentHeightClasses[maxHeight]}`} style={{ overflow: 'visible', position: 'relative' }}>{children}</div>
+          <div className={`p-6 ${contentHeightClasses[maxHeight]}`} style={{ overflowY: 'auto', overflowX: 'visible', position: 'relative', maxHeight: maxHeight === 'tall' ? 'calc(95vh - 120px)' : 'none' }}>{children}</div>
         </div>
       </div>
     </div>

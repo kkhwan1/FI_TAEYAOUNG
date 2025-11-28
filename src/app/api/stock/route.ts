@@ -35,9 +35,10 @@ export const GET = createValidatedRoute(
     const supabase = getSupabaseClient();
 
     // Build query - get stock data from items table (Phase 3: includes classification fields)
+    // 규격 및 모든 숫자 필드 포함
     let query = supabase
       .from('items')
-      .select('item_id, item_code, item_name, spec, category, unit, current_stock, safety_stock, price, is_active, inventory_type, warehouse_zone, quality_status, supplier_id')
+      .select('item_id, item_code, item_name, spec, category, unit, current_stock, safety_stock, price, thickness, width, height, specific_gravity, mm_weight, daily_requirement, blank_size, material, vehicle_model, item_type, material_type, is_active, inventory_type, warehouse_zone, quality_status, supplier_id')
       .eq('is_active', true);
 
     // Apply filters
@@ -136,12 +137,24 @@ export const GET = createValidatedRoute(
 
     // 6. Transform data and calculate stock status with monthly price
     const stocks = ((items || []) as any[]).map((item: any) => {
-      const currentStock = item.current_stock || 0;
-      const safetyStock = item.safety_stock || 0;
+      // current_stock이 null이거나 undefined인 경우 0으로 처리
+      // 하지만 숫자 0은 유효한 값이므로 그대로 사용
+      const currentStock = (item.current_stock !== null && item.current_stock !== undefined) 
+        ? Number(item.current_stock) 
+        : 0;
+      const safetyStock = (item.safety_stock !== null && item.safety_stock !== undefined) 
+        ? Number(item.safety_stock) 
+        : 0;
       
-      // 월별 단가 우선 적용 (월별 단가 > 기본 단가)
-      const unitPrice = priceMap.get(item.item_id) || item.price || 0;
-      const stockValue = unitPrice * currentStock;
+      // 월별 단가 우선 적용 (월별 단가 > price)
+      const monthlyPrice = priceMap.get(item.item_id);
+      const priceFromItem = item.price !== null && item.price !== undefined 
+        ? Number(item.price) 
+        : null;
+      
+      // 우선순위: 월별 단가 > price > 0
+      const unitPrice = monthlyPrice || priceFromItem || 0;
+      const stockValue = Number(unitPrice) * Number(currentStock);
       const isLowStock = currentStock <= safetyStock;
       
       // 마지막 거래 정보
@@ -151,7 +164,7 @@ export const GET = createValidatedRoute(
         item_id: item.item_id,
         item_code: item.item_code,
         item_name: item.item_name,
-        spec: item.spec,
+        spec: item.spec || null,
         category: item.category,
         unit: item.unit,
         current_stock: currentStock,
@@ -161,6 +174,18 @@ export const GET = createValidatedRoute(
         is_low_stock: isLowStock,
         last_transaction_date: lastTx?.date || null,
         last_transaction_type: lastTx?.type || null,
+        // 규격 및 숫자 필드
+        thickness: item.thickness !== null && item.thickness !== undefined ? Number(item.thickness) : null,
+        width: item.width !== null && item.width !== undefined ? Number(item.width) : null,
+        height: item.height !== null && item.height !== undefined ? Number(item.height) : null,
+        specific_gravity: item.specific_gravity !== null && item.specific_gravity !== undefined ? Number(item.specific_gravity) : null,
+        mm_weight: item.mm_weight !== null && item.mm_weight !== undefined ? Number(item.mm_weight) : null,
+        daily_requirement: item.daily_requirement !== null && item.daily_requirement !== undefined ? Number(item.daily_requirement) : null,
+        blank_size: item.blank_size !== null && item.blank_size !== undefined ? Number(item.blank_size) : null,
+        material: item.material || null,
+        vehicle_model: item.vehicle_model || null,
+        item_type: item.item_type || null,
+        material_type: item.material_type || null,
         // Phase 3 - Classification fields
         inventory_type: item.inventory_type || null,
         warehouse_zone: item.warehouse_zone || null,

@@ -199,53 +199,82 @@ export default function ItemSelect({
     fetchItems();
   }, [fetchItems, customerId, itemType, supplierId]);
 
-  // Handle search filtering
+  // items가 업데이트되면 자동으로 filteredItems 설정 및 드롭다운 열기
   useEffect(() => {
-    if (search.trim()) {
+    if (items.length > 0) {
+      console.log(`[ItemSelect] items 업데이트됨: ${items.length}개, customerId=${customerId}, search="${search}"`);
+      
+      if (search.trim()) {
+        // 검색어가 있으면 필터링
+        const searchLower = search.toLowerCase().trim();
+        let filtered = items.filter(item => {
+          const codeMatch = item.item_code?.toLowerCase().includes(searchLower) || false;
+          const nameMatch = item.item_name?.toLowerCase().includes(searchLower) || false;
+          const codeOriginalMatch = item.item_code?.includes(search) || false;
+          const nameOriginalMatch = item.item_name?.includes(search) || false;
+          return codeMatch || nameMatch || codeOriginalMatch || nameOriginalMatch;
+        });
+        
+        if (selectedItem && !filtered.find(i => i.item_id === selectedItem.item_id)) {
+          filtered = [selectedItem, ...filtered];
+        }
+        setFilteredItems(filtered.slice(0, 10));
+        if (filtered.length > 0) {
+          setIsOpen(true);
+        }
+      } else {
+        // 검색어가 없으면 최대 10개 품목 표시
+        const limitedItems = items.slice(0, 10);
+        if (selectedItem && !limitedItems.find(i => i.item_id === selectedItem.item_id)) {
+          setFilteredItems([selectedItem, ...limitedItems]);
+        } else {
+          setFilteredItems(limitedItems);
+        }
+        
+        // customerId가 있고 items가 있으면 자동으로 드롭다운 열기
+        if (customerId && items.length > 0) {
+          console.log(`[ItemSelect] customerId=${customerId}, items=${items.length}개, 드롭다운 자동 열기`);
+          // 입력 필드에 포커스 주기
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+          // 위치 계산 및 드롭다운 열기
+          updateDropdownPosition();
+          setIsOpen(true);
+          requestAnimationFrame(() => {
+            updateDropdownPosition();
+          });
+        }
+      }
+    } else {
+      setFilteredItems([]);
+      if (!search.trim()) {
+        setIsOpen(false);
+      }
+    }
+  }, [items, customerId, search, selectedItem]);
+
+  // Handle search filtering (검색어 변경 시에만)
+  useEffect(() => {
+    if (search.trim() && items.length > 0) {
       const searchLower = search.toLowerCase().trim();
       let filtered = items.filter(item => {
         const codeMatch = item.item_code?.toLowerCase().includes(searchLower) || false;
         const nameMatch = item.item_name?.toLowerCase().includes(searchLower) || false;
-        // 한글 검색을 위해 원본 텍스트도 확인
         const codeOriginalMatch = item.item_code?.includes(search) || false;
         const nameOriginalMatch = item.item_name?.includes(search) || false;
         return codeMatch || nameMatch || codeOriginalMatch || nameOriginalMatch;
       });
       
-      // 선택된 항목이 검색 결과에 없으면 맨 위에 추가
       if (selectedItem && !filtered.find(i => i.item_id === selectedItem.item_id)) {
         filtered = [selectedItem, ...filtered];
       }
-      setFilteredItems(filtered.slice(0, 10)); // Limit to 10 results for performance
+      setFilteredItems(filtered.slice(0, 10));
       if (filtered.length > 0) {
         setIsOpen(true);
       }
-      } else {
-        // 검색어가 없을 때도 최대 10개 품목 표시 (입력 필드 포커스 시)
-        if (items.length > 0) {
-          const limitedItems = items.slice(0, 10);
-          // 선택된 항목이 있으면 맨 위에 추가
-          if (selectedItem && !limitedItems.find(i => i.item_id === selectedItem.item_id)) {
-            setFilteredItems([selectedItem, ...limitedItems]);
-          } else {
-            setFilteredItems(limitedItems);
-          }
-          // 입력 필드가 포커스되어 있으면 드롭다운 표시
-          if (inputRef.current && document.activeElement === inputRef.current) {
-            // 먼저 위치 계산
-            updateDropdownPosition();
-            setIsOpen(true);
-            // 위치 재계산 (DOM 업데이트 후)
-            requestAnimationFrame(() => {
-              updateDropdownPosition();
-            });
-          }
-        } else {
-          setFilteredItems([]);
-          setIsOpen(false);
-        }
-      }
-  }, [search, items, selectedItem]);
+    }
+  }, [search]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -499,19 +528,6 @@ export default function ItemSelect({
         </div>
       )}
 
-        {/* Debug Info */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-1 text-xs text-gray-400 space-y-1">
-            <div>Debug: items={items.length}, filtered={filteredItems.length}, isOpen={isOpen ? 'true' : 'false'}</div>
-            {customerId && <div>customerId: {customerId}</div>}
-            {items.length === 0 && customerId && (
-              <div className="text-orange-500">⚠️ 고객사 선택됨 ({customerId})이지만 품목이 없습니다. API를 확인하세요.</div>
-            )}
-            {items.length > 0 && filteredItems.length === 0 && (
-              <div className="text-yellow-500">⚠️ 품목은 있지만 필터링 결과가 없습니다. 검색어를 확인하세요.</div>
-            )}
-          </div>
-        )}
 
       {/* No Results */}
       {isOpen && search && filteredItems.length === 0 && !loading && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Save,
   Loader2,
@@ -9,7 +9,10 @@ import {
   Factory,
   Wrench,
   List,
-  Package
+  Package,
+  CheckSquare,
+  Square,
+  Plus
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,6 +65,14 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  
+  // 고객별 품목 목록 관련 상태
+  const [customerItems, setCustomerItems] = useState<Item[]>([]);
+  const [selectedCustomerItemIds, setSelectedCustomerItemIds] = useState<Set<number>>(new Set());
+  const [loadingCustomerItems, setLoadingCustomerItems] = useState(false);
+  const [customerItemsSearch, setCustomerItemsSearch] = useState('');
+  // 고객별 품목 목록에서 수정된 단위 저장 (itemId -> unit)
+  const [customerItemUnits, setCustomerItemUnits] = useState<Map<number, string>>(new Map());
 
   // New hooks for BOM checking with debounce
   const { data: bomCheckData, loading: bomLoading, error: bomError, checkBom } = useBomCheck();
@@ -158,6 +169,151 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
       setFormData(prev => ({ ...prev, product_item_id: 0 }));
     }
   };
+
+  // 고객별 품목 조회 함수 (공정구분 필터링 포함)
+  const fetchItemsByCustomer = async (customerId: number, processTypes?: ('프레스' | '용접' | '도장')[]) => {
+    setLoadingCustomerItems(true);
+    try {
+      const { safeFetchJson } = await import('@/lib/fetch-utils');
+      let url = `/api/items/by-customer?customer_id=${customerId}&limit=1000`;
+      
+      // 공정구분 파라미터 추가
+      if (processTypes && processTypes.length > 0) {
+        url += `&process_types=${processTypes.join(',')}`;
+      }
+      
+      const result = await safeFetchJson(url, {}, {
+        timeout: 15000,
+        maxRetries: 2,
+        retryDelay: 1000
+      });
+
+      if (result.success && result.data && result.data.items) {
+        // 이미 배치 모드에 추가된 품목은 제외
+        const existingItemIds = new Set(batchItems.map(item => item.item_id));
+        const filteredItems = result.data.items.filter((item: Item) => 
+          !existingItemIds.has(item.item_id || item.id)
+        );
+        setCustomerItems(filteredItems);
+      } else {
+        setCustomerItems([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch customer items:', error);
+      setCustomerItems([]);
+    } finally {
+      setLoadingCustomerItems(false);
+    }
+  };
+
+  // 고객사 변경 핸들러
+  const handleCustomerChange = async (value: number | null) => {
+    const numValue = value ? Number(value) : null;
+    setCustomerId(numValue);
+    setSelectedCustomerItemIds(new Set()); // 선택 초기화
+
+    // 고객 선택 시 관련 품목 목록 조회 (공정구분 필터링 포함)
+    if (numValue) {
+      await fetchItemsByCustomer(numValue, processTypes);
+    } else {
+      setCustomerItems([]);
+    }
+  };
+
+  // 공정구분 변경 시 품목 목록 갱신 (의존성 배열 수정)
+  useEffect(() => {
+    if (customerId) {
+      fetchItemsByCustomer(customerId, processTypes);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processTypes]);
+
+  // 품목 선택/해제 핸들러
+  const handleCustomerItemToggle = (itemId: number) => {
+    setSelectedCustomerItemIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  // 전체 선택/해제 핸들러
+  const handleSelectAllCustomerItems = () => {
+    if (selectedCustomerItemIds.size === filteredCustomerItems.length) {
+      // 모두 선택되어 있으면 모두 해제
+      setSelectedCustomerItemIds(new Set());
+    } else {
+      // 모두 선택
+      setSelectedCustomerItemIds(new Set(filteredCustomerItems.map(item => item.item_id || item.id)));
+    }
+  };
+
+  // 선택된 품목들을 배치 모드에 추가
+  const handleBulkAddCustomerItems = async () => {
+    if (selectedCustomerItemIds.size === 0) {
+      showError('추가할 품목을 선택해주세요.');
+      return;
+    }
+
+    const itemsToAdd = filteredCustomerItems.filter(item => 
+      selectedCustomerItemIds.has(item.item_id || item.id)
+    );
+
+    // 이미 추가된 품목 체크
+    const existingItemIds = new Set(batchItems.map(item => item.item_id));
+    const newItems = itemsToAdd.filter(item => !existingItemIds.has(item.item_id || item.id));
+
+    if (newItems.length === 0) {
+      showError('이미 추가된 품목들입니다.');
+      setSelectedCustomerItemIds(new Set());
+      return;
+    }
+
+    // 배치 모드로 전환
+    if (!isBatchMode) {
+      setIsBatchMode(true);
+      // 단일 모드 데이터 초기화
+      setSelectedProduct(null);
+      setFormData(prev => ({ ...prev, product_item_id: 0, quantity: 0 }));
+    }
+
+    // 선택된 품목들을 배치 모드에 추가
+    const newBatchItems: ProductionItem[] = newItems.map(item => {
+      const itemId = item.item_id || item.id;
+      // 수정된 단위가 있으면 사용, 없으면 원본 단위 사용
+      const unit = customerItemUnits.get(itemId) || item.unit || 'EA';
+      return {
+        product_item_id: itemId,
+        item_id: itemId,
+        item_code: item.item_code || '',
+        item_name: item.item_name || '',
+        quantity: 1, // 기본 수량 1
+        unit_price: item.unit_price || item.price || 0,
+        unit: unit,
+        reference_no: '',
+        notes: ''
+      };
+    });
+
+    setBatchItems(prev => [...prev, ...newBatchItems]);
+
+    // 선택 초기화 및 목록 갱신
+    setSelectedCustomerItemIds(new Set());
+    if (customerId) {
+      await fetchItemsByCustomer(customerId);
+    }
+
+    showSuccess(`${newItems.length}개 품목이 배치 모드에 추가되었습니다.`);
+  };
+
+  // 필터링된 고객 품목 목록 (검색 기능 제거로 전체 품목 반환)
+  const filteredCustomerItems = useMemo(() => {
+    return customerItems;
+  }, [customerItems]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -531,15 +687,171 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           </label>
           <CompanySelect
             value={customerId}
-            onChange={(value) => {
-              const numValue = value ? Number(value) : null;
-              setCustomerId(numValue);
-            }}
+            onChange={handleCustomerChange}
             companyType="CUSTOMER"
             placeholder="고객사를 선택하세요"
           />
         </div>
 
+      </div>
+
+      {/* 고객별 품목 목록 */}
+      {customerId && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              고객별 품목 목록
+            </label>
+            {filteredCustomerItems.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllCustomerItems}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  {selectedCustomerItemIds.size === filteredCustomerItems.length ? (
+                    <>
+                      <CheckSquare className="w-3 h-3 inline mr-1" />
+                      전체 해제
+                    </>
+                  ) : (
+                    <>
+                      <Square className="w-3 h-3 inline mr-1" />
+                      전체 선택
+                    </>
+                  )}
+                </button>
+                {selectedCustomerItemIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleBulkAddCustomerItems}
+                    className="px-3 py-1.5 text-xs font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    <Plus className="w-3 h-3 inline mr-1" />
+                    선택된 품목 추가 ({selectedCustomerItemIds.size}개)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 로딩 상태 */}
+          {loadingCustomerItems && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              <span className="ml-2 text-sm text-gray-500">품목 목록을 불러오는 중...</span>
+            </div>
+          )}
+
+          {/* 품목 목록 */}
+          {!loadingCustomerItems && filteredCustomerItems.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomerItemIds.size === filteredCustomerItems.length && filteredCustomerItems.length > 0}
+                        onChange={handleSelectAllCustomerItems}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                      />
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[120px]">
+                      품번
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[200px]">
+                      품명
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-20">
+                      단위
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-32">
+                      단가 (₩)
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-24">
+                      카테고리
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredCustomerItems.map((item) => {
+                    const itemId = item.item_id || item.id;
+                    const isSelected = selectedCustomerItemIds.has(itemId);
+                    const isAlreadyAdded = batchItems.some(i => i.item_id === itemId);
+                    
+                    return (
+                      <tr
+                        key={itemId}
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
+                          isAlreadyAdded ? 'opacity-50 bg-gray-100 dark:bg-gray-800' : ''
+                        }`}
+                        onClick={() => {
+                          // 단일 모드에서 품목 클릭 시 자동 선택
+                          if (!isBatchMode && !isAlreadyAdded) {
+                            handleProductSelect(item);
+                          }
+                        }}
+                      >
+                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleCustomerItemToggle(itemId)}
+                            disabled={isAlreadyAdded}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white">
+                          {item.item_code}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
+                          {item.item_name}
+                          {isAlreadyAdded && (
+                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(이미 추가됨)</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            value={customerItemUnits.get(itemId) || item.unit || ''}
+                            onChange={(e) => {
+                              const newUnits = new Map(customerItemUnits);
+                              newUnits.set(itemId, e.target.value);
+                              setCustomerItemUnits(newUnits);
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="단위"
+                            disabled={isAlreadyAdded}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-sm text-right text-gray-900 dark:text-white">
+                          {(item.price || item.unit_price) ? `₩${(item.price || item.unit_price || 0).toLocaleString()}` : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          {item.category || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 품목이 없을 때 */}
+          {!loadingCustomerItems && customerItems.length === 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                선택한 고객과 관련된 품목이 없습니다.
+              </p>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 배치 모드 토글 */}
         <div className="md:col-span-2">
           <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -573,22 +885,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           </div>
         </div>
 
-        {/* 제품 검색 */}
-        {!isBatchMode && (
-        <div className="md:col-span-2">
-          <ItemSelect
-            value={formData.product_item_id > 0 ? formData.product_item_id : undefined}
-            onChange={handleProductSelect}
-            label="생산 제품"
-            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : customerId ? "고객사 품목 검색..." : "제품 품번 또는 품명으로 검색..."}
-            required={true}
-            error={errors.product_item_id}
-            showPrice={true}
-            itemType="PRODUCT"
-            customerId={customerId}
-          />
-        </div>
-        )}
+        {/* 단일 모드에서는 고객별 품목 목록 테이블에서만 선택 */}
 
         {/* 생산수량 */}
         {!isBatchMode && (
@@ -819,9 +1116,14 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                         <td className="px-4 py-3 text-center">
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               const updatedItems = batchItems.filter((_, i) => i !== index);
                               setBatchItems(updatedItems);
+                              
+                              // 품목 제거 시 고객별 품목 목록 갱신 (제거된 품목을 다시 목록에 표시)
+                              if (customerId) {
+                                await fetchItemsByCustomer(customerId);
+                              }
                             }}
                             className="px-2 py-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-sm font-medium"
                             title="제품 제거"
@@ -952,8 +1254,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         </div>
       )}
 
-      {/* Buttons */}
-      <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+      {/* Buttons - sticky footer */}
+      <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 -mx-6 px-6 py-4 mt-6 flex justify-end gap-4 z-10">
         <button
           type="button"
           onClick={onCancel}

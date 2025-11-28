@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mcp__supabase__execute_sql } from '@/lib/supabase-mcp';
+import { getSupabaseClient } from '@/lib/db-unified';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,121 +38,104 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const validLimit = Math.max(1, Math.min(limit, 10000)); // 1~10000 사이로 제한
     const validOffset = Math.max(0, offset);
 
-    // Supabase 프로젝트 ID 가져오기
-    const projectId = process.env.SUPABASE_PROJECT_ID || 'pybjnkbmtlyaftuiieyq';
+    console.log(`[Items by Customer API] customer_id: ${customerId}, Supabase 쿼리 실행`);
     
-    // 직접 SQL 쿼리로 BOM과 items를 JOIN하여 조회
-    const sqlQuery = `
-      SELECT DISTINCT
-        i.item_id,
-        i.item_code,
-        i.item_name,
-        i.spec,
-        i.unit,
-        i.price,
-        i.category,
-        i.inventory_type,
-        i.vehicle_model,
-        i.is_active
-      FROM bom b
-      INNER JOIN items i ON b.parent_item_id = i.item_id
-      WHERE b.customer_id = ${customerIdNum}
-        AND b.is_active = true
-        AND i.is_active = true
-      ORDER BY i.item_code
-      LIMIT ${validLimit}
-      OFFSET ${validOffset}
-    `;
-
-    console.log(`[Items by Customer API] customer_id: ${customerId}, SQL 쿼리 실행`);
+    const supabase = getSupabaseClient();
     
-    let items: any[] = [];
-    try {
-      const result = await mcp__supabase__execute_sql({
-        project_id: projectId,
-        query: sqlQuery
-      });
+    // 1단계: BOM 테이블에서 parent_item_id 목록 조회
+    const { data: bomData, error: bomError } = await supabase
+      .from('bom')
+      .select('parent_item_id')
+      .eq('customer_id', customerIdNum)
+      .eq('is_active', true);
 
-      console.log(`[Items by Customer API] mcp__supabase__execute_sql 결과:`, JSON.stringify(result, null, 2));
-      console.log(`[Items by Customer API] result.rows 타입:`, typeof result.rows);
-      console.log(`[Items by Customer API] result.rows가 배열인가?:`, Array.isArray(result.rows));
-      console.log(`[Items by Customer API] result.rows 길이:`, result.rows?.length || 0);
-
-      if (result.error) {
-        console.error('[Items by Customer API] SQL query error:', result.error);
-        return NextResponse.json({
-          success: false,
-          error: `BOM 조회 오류: ${result.error}`
-        }, { status: 500 });
-      }
-
-      const rows = result.rows || [];
-      console.log(`[Items by Customer API] SQL 쿼리 결과: ${rows.length}개 품목 조회됨`);
-      
-      // 디버깅: 첫 번째 행의 원본 데이터 확인
-      if (rows.length > 0) {
-        console.log('[Items by Customer API] 첫 번째 행 원본 데이터:', JSON.stringify(rows[0], null, 2));
-        console.log('[Items by Customer API] 첫 번째 행의 필드명들:', Object.keys(rows[0]));
-      } else {
-        console.log('[Items by Customer API] rows가 비어있습니다. result:', JSON.stringify(result, null, 2));
-      }
-
-      // SQL 결과를 기존 변환 로직과 동일하게 처리
-      items = rows.map((row: any) => {
-        // price가 문자열일 수 있으므로 숫자로 변환
-        const priceValue = typeof row.price === 'string' 
-          ? parseFloat(row.price) || 0 
-          : (row.price || 0);
-
-        // 디버깅: 원본 데이터 확인
-        if (!row.item_id) {
-          console.error('[Items by Customer API] item_id가 없는 데이터:', JSON.stringify(row, null, 2));
-        }
-        if (!row.item_code && !row.item_name) {
-          console.warn('[Items by Customer API] item_code와 item_name이 모두 비어있는 데이터:', JSON.stringify(row, null, 2));
-        }
-
-        // item_id가 없으면 건너뛰기
-        if (!row.item_id) {
-          return null;
-        }
-
-        return {
-          item_id: row.item_id,
-          item_code: row.item_code || '',
-          item_name: row.item_name || '',
-          spec: row.spec || null,
-          unit: row.unit || 'EA',
-          price: priceValue,
-          unit_price: priceValue, // ItemSelect에서 사용하는 필드
-          category: row.category || null,
-          inventory_type: row.inventory_type || null,
-          vehicle_model: row.vehicle_model || null,
-          is_active: row.is_active !== false,
-          source: 'bom' // BOM에서 조회된 품목임을 표시
-        };
-      }).filter((item: any) => item !== null); // null 항목 제거
-
-      if (rows.length === 0) {
-        console.warn(`[Items by Customer API] customer_id=${customerId}에 대한 BOM 데이터가 없습니다.`);
-      }
-    } catch (error: any) {
-      console.error('[Items by Customer API] SQL 실행 오류:', error);
+    if (bomError) {
+      console.error('[Items by Customer API] BOM 조회 오류:', bomError);
       return NextResponse.json({
         success: false,
-        error: `BOM 조회 중 오류가 발생했습니다: ${error.message || 'Unknown error'}`
+        error: `BOM 조회 오류: ${bomError.message}`
       }, { status: 500 });
     }
 
-    // SQL 쿼리에서 이미 정렬되어 있지만, 안전을 위해 다시 정렬
+    console.log(`[Items by Customer API] BOM 조회 결과: ${bomData?.length || 0}개 BOM 항목`);
+
+    if (!bomData || bomData.length === 0) {
+      console.warn(`[Items by Customer API] customer_id=${customerId}에 대한 BOM 데이터가 없습니다.`);
+      return NextResponse.json({
+        success: true,
+        data: {
+          items: [],
+          total: 0,
+          customer_id: customerIdNum
+        }
+      });
+    }
+
+    // 중복 제거를 위한 Set 사용
+    const uniqueItemIds = new Set<number>();
+    for (const bom of bomData) {
+      if (bom.parent_item_id) {
+        uniqueItemIds.add(bom.parent_item_id);
+      }
+    }
+
+    const itemIds = Array.from(uniqueItemIds);
+    console.log(`[Items by Customer API] 고유한 parent_item_id 수: ${itemIds.length}`);
+
+    // 2단계: items 테이블에서 해당 item_id들 조회
+    const { data: itemsData, error: itemsError } = await supabase
+      .from('items')
+      .select('item_id, item_code, item_name, spec, unit, price, category, inventory_type, vehicle_model, is_active')
+      .in('item_id', itemIds)
+      .eq('is_active', true)
+      .order('item_code', { ascending: true })
+      .range(validOffset, validOffset + validLimit - 1);
+
+    if (itemsError) {
+      console.error('[Items by Customer API] Items 조회 오류:', itemsError);
+      return NextResponse.json({
+        success: false,
+        error: `Items 조회 오류: ${itemsError.message}`
+      }, { status: 500 });
+    }
+
+    console.log(`[Items by Customer API] Items 조회 결과: ${itemsData?.length || 0}개 품목`);
+
+    // 데이터 변환
+    const items = (itemsData || []).map((item: any) => {
+      // price가 문자열일 수 있으므로 숫자로 변환
+      const priceValue = typeof item.price === 'string' 
+        ? parseFloat(item.price) || 0 
+        : (item.price || 0);
+
+      return {
+        item_id: item.item_id,
+        item_code: item.item_code || '',
+        item_name: item.item_name || '',
+        spec: item.spec || null,
+        unit: item.unit || 'EA',
+        price: priceValue,
+        unit_price: priceValue, // ItemSelect에서 사용하는 필드
+        category: item.category || null,
+        inventory_type: item.inventory_type || null,
+        vehicle_model: item.vehicle_model || null,
+        is_active: item.is_active !== false,
+        source: 'bom' // BOM에서 조회된 품목임을 표시
+      };
+    });
+
+    // item_code로 정렬
     items.sort((a, b) => {
       const codeA = a.item_code || '';
       const codeB = b.item_code || '';
       return codeA.localeCompare(codeB, 'ko');
     });
 
-    // 디버깅: 로그 추가
-    console.log(`[Items by Customer API] customer_id: ${customerId}, Final items: ${items.length}`);
+    if (items.length === 0) {
+      console.warn(`[Items by Customer API] customer_id=${customerId}에 대한 BOM 데이터가 없습니다.`);
+    } else {
+      console.log(`[Items by Customer API] customer_id: ${customerId}, 최종 품목 수: ${items.length}`);
+    }
 
     return NextResponse.json({
       success: true,
