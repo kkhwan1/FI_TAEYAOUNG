@@ -25,6 +25,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 // 중앙화된 타입 및 유틸리티 import
 import type { BOMEntry } from '@/types/bom';
 import { entryHasCoilSpec } from '@/lib/bom-utils';
+import { ItemEditModal } from '../ItemEditModal';
 
 interface Company {
   company_id: number;
@@ -41,11 +42,10 @@ interface BOMViewerProps {
   initialSearchTerm?: string; // 메인 검색 필드와 동기화를 위한 prop
   // 필터 props - 메인 페이지 필터와 동기화
   customerId?: number | null;         // 납품처 ID
-  purchaseSupplierId?: number | null; // 구매처 ID (parent item의 supplier)
   supplierId?: number | null;         // 공급처 ID (child item의 supplier)
   vehicleType?: string;               // 차종
   // 회사 목록 (드롭다운용)
-  suppliers?: Company[];              // 공급사 목록 (구매처 선택용)
+  suppliers?: Company[];              // 공급사 목록
 }
 
 interface CostSummary {
@@ -99,7 +99,6 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   readOnly = false,
   initialSearchTerm = '',
   customerId,
-  purchaseSupplierId,
   supplierId,
   vehicleType,
   suppliers = []
@@ -118,15 +117,18 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   const [showFilters, setShowFilters] = useState(false);
   const [editingBomId, setEditingBomId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Partial<BOMEntry>>({});
-  // 인라인 편집 확장: 수량, 레벨, 비고, 차종, 단가, 구매처 동시 편집 가능
+  // 인라인 편집 확장: 수량, 레벨, 비고, 차종, 단가 동시 편집 가능
   const [editingFields, setEditingFields] = useState<{
     quantity_required?: number;
     level_no?: number;
     remarks?: string;
     vehicle_model?: string;
     unit_price?: number;
-    purchase_supplier_id?: number | null; // 구매처 (parent item의 supplier_id)
   }>({});
+
+  // 품목 수정 모달 상태
+  const [isItemEditModalOpen, setIsItemEditModalOpen] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
 
   // initialSearchTerm이 변경되면 searchTerm 동기화
   useEffect(() => {
@@ -146,12 +148,9 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
       if (parentItemId) {
         params.append('parent_item_id', parentItemId.toString());
       }
-      // 납품처/구매처/공급처/차종 필터 파라미터 추가
+      // 납품처/공급처/차종 필터 파라미터 추가
       if (customerId) {
         params.append('customer_id', customerId.toString());
-      }
-      if (purchaseSupplierId) {
-        params.append('purchase_supplier_id', purchaseSupplierId.toString());
       }
       if (supplierId) {
         params.append('supplier_id', supplierId.toString());
@@ -199,7 +198,7 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [parentItemId, customerId, purchaseSupplierId, supplierId, vehicleType, toast]);
+  }, [parentItemId, customerId, supplierId, vehicleType, toast]);
 
   useEffect(() => {
     fetchBOMData();
@@ -331,16 +330,13 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
   // EDIT HANDLERS
   // ============================================================================
 
-  // 인라인 편집 시작 (수량, 레벨, 비고, 차종, 단가, 구매처)
+  // 인라인 편집 시작 (수량, 레벨, 비고, 차종, 단가)
   const handleInlineEdit = useCallback((entry: BOMEntry) => {
     setEditingBomId(entry.bom_id);
     setEditingFields({
       quantity_required: entry.quantity_required,
       level_no: entry.level ?? entry.level_no ?? 1,
-      remarks: entry.remarks ?? '',
-      vehicle_model: entry.vehicle_model ?? '',
-      unit_price: entry.unit_price ?? 0,
-      purchase_supplier_id: entry.parent_supplier?.company_id ?? null
+      remarks: entry.remarks ?? ''
     });
     setEditValues({ quantity_required: entry.quantity_required });
   }, []);
@@ -356,6 +352,23 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
       onEditFull(entry);
     }
   }, [onEditFull]);
+
+  // 품목 더블클릭 핸들러 - 품목 마스터 데이터 수정
+  const handleItemDoubleClick = useCallback((itemId: number) => {
+    setEditingItemId(itemId);
+    setIsItemEditModalOpen(true);
+  }, []);
+
+  // 품목 수정 모달 닫기 핸들러
+  const handleItemEditModalClose = useCallback(() => {
+    setIsItemEditModalOpen(false);
+    setEditingItemId(null);
+  }, []);
+
+  // 품목 수정 완료 핸들러 - BOM 데이터 새로고침
+  const handleItemUpdated = useCallback(() => {
+    fetchBOMData();
+  }, [fetchBOMData]);
 
   const handleSave = async () => {
     if (editingBomId && onUpdate) {
@@ -379,51 +392,14 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
         if (editingFields.remarks !== undefined) {
           bomUpdates.remarks = editingFields.remarks;
         }
-        if (editingFields.vehicle_model !== undefined) {
-          bomUpdates.vehicle_model = editingFields.vehicle_model;
-        }
-        if (editingFields.unit_price !== undefined) {
-          bomUpdates.unit_price = editingFields.unit_price;
-        }
 
-        // 구매처(parent item의 supplier_id) 변경 여부 확인
-        const purchaseSupplierChanged =
-          editingFields.purchase_supplier_id !== undefined &&
-          editingFields.purchase_supplier_id !== (currentEntry.parent_supplier?.company_id ?? null);
-
-        if (Object.keys(bomUpdates).length === 0 && !purchaseSupplierChanged) {
+        if (Object.keys(bomUpdates).length === 0) {
           toast.warning('변경 없음', '수정된 내용이 없습니다');
           return;
         }
 
-        // 1. BOM 테이블 업데이트 (수량, 레벨, 비고, 차종, 단가 등)
-        if (Object.keys(bomUpdates).length > 0) {
-          await onUpdate(editingBomId, bomUpdates);
-        }
-
-        // 2. 구매처 변경 시 Items API 호출 (parent item의 supplier_id 업데이트)
-        if (purchaseSupplierChanged && currentEntry.parent_item_id) {
-          try {
-            const itemUpdateResponse = await fetch(`/api/items/${currentEntry.parent_item_id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json; charset=utf-8'
-              },
-              body: JSON.stringify({
-                supplier_id: editingFields.purchase_supplier_id
-              })
-            });
-
-            if (!itemUpdateResponse.ok) {
-              const errorData = await itemUpdateResponse.json();
-              throw new Error(errorData.message || '구매처 업데이트 실패');
-            }
-          } catch (itemError) {
-            console.error('구매처 업데이트 실패:', itemError);
-            toast.error('구매처 수정 실패', itemError instanceof Error ? itemError.message : '구매처 업데이트에 실패했습니다');
-            // BOM 업데이트는 성공했으므로 계속 진행
-          }
-        }
+        // BOM 테이블 업데이트 (수량, 레벨, 비고)
+        await onUpdate(editingBomId, bomUpdates);
 
         toast.success('수정 완료', 'BOM 정보가 성공적으로 업데이트되었습니다');
         setEditingBomId(null);
@@ -589,57 +565,8 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
                     className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
                   />
                 </div>
-                {/* 구매처 (parent item의 supplier) */}
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">구매처</label>
-                  <select
-                    value={editingFields.purchase_supplier_id ?? ''}
-                    onChange={(e) => setEditingFields(prev => ({
-                      ...prev,
-                      purchase_supplier_id: e.target.value ? parseInt(e.target.value) : null
-                    }))}
-                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
-                  >
-                    <option value="">선택 안함</option>
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.company_id} value={supplier.company_id}>
-                        {supplier.company_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {/* 차종 */}
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">차종</label>
-                  <input
-                    type="text"
-                    value={editingFields.vehicle_model ?? ''}
-                    onChange={(e) => setEditingFields(prev => ({
-                      ...prev,
-                      vehicle_model: e.target.value
-                    }))}
-                    placeholder="차종 입력..."
-                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
-                  />
-                </div>
-                {/* 단가 */}
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">단가</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editingFields.unit_price ?? ''}
-                    onChange={(e) => setEditingFields(prev => ({
-                      ...prev,
-                      unit_price: e.target.value ? parseFloat(e.target.value) : undefined
-                    }))}
-                    placeholder="0"
-                    className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-500"
-                  />
-                </div>
                 {/* 비고 */}
-                <div className="col-span-1">
+                <div className="col-span-3">
                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">비고</label>
                   <input
                     type="text"
@@ -694,7 +621,11 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                <div
+                  className="text-sm text-gray-600 dark:text-gray-400 truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                  onDoubleClick={() => handleItemDoubleClick(entry.child_item_id)}
+                  title="품목을 더블클릭하여 수정"
+                >
                   {entry.child_item_name}
                   {/* 코일 규격 표시 */}
                   {hasCoilSpec(entry) && (
@@ -721,42 +652,12 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
                 </div>
               </div>
 
-              {/* Vehicle Model */}
-              <div className="col-span-2">
-                <div className="text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">차종: </span>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {entry.vehicle_model || '-'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Purchase Company (구매처) */}
-              <div className="col-span-2">
-                <div className="text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">구매처: </span>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {entry.parent_supplier?.company_name || '-'}
-                  </span>
-                </div>
-              </div>
-
               {/* Supplier (공급처) */}
               <div className="col-span-2">
                 <div className="text-sm">
                   <span className="text-gray-500 dark:text-gray-400">공급처: </span>
                   <span className="font-medium text-gray-900 dark:text-white">
                     {entry.child_supplier?.company_name || '-'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Unit Price */}
-              <div className="col-span-2">
-                <div className="text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">단가: </span>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    ₩{formatCurrency(entry.unit_price)}
                   </span>
                 </div>
               </div>
@@ -1033,6 +934,16 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ItemEditModal for editing item master data */}
+      {isItemEditModalOpen && editingItemId && (
+        <ItemEditModal
+          isOpen={isItemEditModalOpen}
+          onClose={handleItemEditModalClose}
+          itemId={editingItemId}
+          onItemUpdated={handleItemUpdated}
+        />
       )}
     </div>
   );

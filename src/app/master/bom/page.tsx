@@ -36,6 +36,7 @@ import { BOMExportButton } from '@/components/ExcelExportButton';
 import PrintButton from '@/components/PrintButton';
 import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie } from 'recharts';
 import BOMViewer from '@/components/bom/BOMViewer';
+import { ItemEditModal } from '@/components/ItemEditModal';
 
 // 납품처 정보 인터페이스
 interface CustomerInfo {
@@ -227,6 +228,10 @@ export default function BOMPage() {
   const [selectedParentDetail, setSelectedParentDetail] = useState<BOM | null>(null);
   const [showParentDetailModal, setShowParentDetailModal] = useState(false);
 
+  // 품목 수정 모달 상태
+  const [isItemEditModalOpen, setIsItemEditModalOpen] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+
   // 모품목 더블클릭 핸들러 - 해당 모품목 관련 모든 BOM 조회
   const handleParentDoubleClick = useCallback((bom: BOM) => {
     setSelectedParentDetail(bom);
@@ -240,6 +245,24 @@ export default function BOMPage() {
       (item.parent_item_code === parentItemCode || item.parent?.item_code === parentItemCode)
     );
   }, [bomData]);
+
+  // 품목 더블클릭 핸들러 (상세정보 모달 내)
+  const handleItemDoubleClick = useCallback((itemId: number | undefined) => {
+    console.log('[handleItemDoubleClick] Received itemId:', itemId);
+    if (!itemId) {
+      console.warn('[handleItemDoubleClick] No itemId provided');
+      return;
+    }
+    setEditingItemId(itemId);
+    setIsItemEditModalOpen(true);
+    console.log('[handleItemDoubleClick] Modal opened for itemId:', itemId);
+  }, []);
+
+  // 품목 수정 모달 닫기 핸들러
+  const handleItemEditModalClose = useCallback(() => {
+    setIsItemEditModalOpen(false);
+    setEditingItemId(null);
+  }, []);
 
   // Print columns
   const printColumns = [
@@ -331,12 +354,17 @@ export default function BOMPage() {
       const additionalParams: Record<string, string> = {};
       if (selectedParentItem) additionalParams.parent_item_id = selectedParentItem;
       additionalParams.price_month = priceMonth + '-01'; // 기준 월 추가
+      additionalParams.limit = '10000'; // 모든 BOM 데이터를 가져오기 위해 limit을 충분히 크게 설정
       if (filters.category) additionalParams.category = filters.category;
       if (filters.materialType) additionalParams.material_type = filters.materialType;
+      // 납품처(고객사) 필터 추가
+      if (filters.customerId !== null) {
+        additionalParams.customer_id = filters.customerId.toString();
+      }
 
       const url = buildFilteredApiUrl(
         '/api/bom',
-        null, // 필터링 제거
+        filters.customerId, // customerId 필터 적용
         additionalParams
       );
 
@@ -372,12 +400,30 @@ export default function BOMPage() {
           // customer 정보 유지
           customer: item.customer || null,
           // child_supplier 정보 유지 (BOM 레벨의 구매처)
-          child_supplier: item.child_supplier || null
+          child_supplier: item.child_supplier || null,
+          // parent와 child 객체 명시적으로 유지 (단가 정보 포함)
+          parent: item.parent || null,
+          child: item.child || null
         }));
 
-        const bomList = showActiveOnly
+        let bomList = showActiveOnly
           ? transformedBOM.filter((item: BOM) => item.is_active)
           : transformedBOM;
+
+        // 전체보기 모드일 때 납품처 기준으로 정렬하여 동일한 납품처끼리 묶이도록 함
+        if (filters.customerId === null) {
+          bomList = bomList.sort((a: BOM, b: BOM) => {
+            const customerA = a.customer?.company_name || '';
+            const customerB = b.customer?.company_name || '';
+            if (customerA !== customerB) {
+              return customerA.localeCompare(customerB, 'ko');
+            }
+            // 납품처가 같으면 모품목 코드 기준으로 정렬
+            const parentCodeA = a.parent_item_code || a.parent?.item_code || '';
+            const parentCodeB = b.parent_item_code || b.parent?.item_code || '';
+            return parentCodeA.localeCompare(parentCodeB, 'ko');
+          });
+        }
 
         setBomData(bomList);
         setCostSummary(data.data.cost_summary);
@@ -391,7 +437,13 @@ export default function BOMPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedParentItem, showActiveOnly, priceMonth, filters.category, filters.materialType]);
+  }, [selectedParentItem, showActiveOnly, priceMonth, filters.category, filters.materialType, filters.customerId]);
+
+  // 품목 수정 완료 핸들러
+  const handleItemUpdated = useCallback(() => {
+    // 품목 업데이트 후 BOM 데이터 리프레시
+    fetchBOMData();
+  }, [fetchBOMData]);
 
   // Initial fetch
   useEffect(() => {
@@ -484,6 +536,7 @@ export default function BOMPage() {
     }
   };
 
+
   // Filter logic
   const applyFilters = (data: BOM[]): BOM[] => {
     return data.filter(entry => {
@@ -551,51 +604,81 @@ export default function BOMPage() {
     let filtered = applyFilters(bomData);
 
     // 정렬 적용
-    filtered.sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
+    if (sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
 
-      switch (sortColumn) {
-        case 'parent_item_code':
-          aValue = a.parent_item_code || '';
-          bValue = b.parent_item_code || '';
-          break;
-        case 'parent_item_name':
-          aValue = a.parent_item_name || '';
-          bValue = b.parent_item_name || '';
-          break;
-        case 'child_item_code':
-          aValue = a.child_item_code || '';
-          bValue = b.child_item_code || '';
-          break;
-        case 'child_item_name':
-          aValue = a.child_item_name || '';
-          bValue = b.child_item_name || '';
-          break;
-        case 'quantity':
-          aValue = a.quantity || 0;
-          bValue = b.quantity || 0;
-          break;
-        case 'unit_price':
-          aValue = a.unit_price || 0;
-          bValue = b.unit_price || 0;
-          break;
-        case 'material_cost':
-          aValue = a.material_cost || 0;
-          bValue = b.material_cost || 0;
-          break;
-        default:
-          return 0;
-      }
+        switch (sortColumn) {
+          case 'customer':
+            aValue = a.customer?.company_name || '';
+            bValue = b.customer?.company_name || '';
+            break;
+          case 'parent_vehicle':
+            aValue = a.parent_vehicle || a.parent?.vehicle_model || '';
+            bValue = b.parent_vehicle || b.parent?.vehicle_model || '';
+            break;
+          case 'parent_item_code':
+            aValue = a.parent_item_code || a.parent?.item_code || '';
+            bValue = b.parent_item_code || b.parent?.item_code || '';
+            break;
+          case 'parent_item_name':
+            aValue = a.parent_item_name || a.parent?.item_name || '';
+            bValue = b.parent_item_name || b.parent?.item_name || '';
+            break;
+          case 'parent_price':
+            aValue = a.parent?.price || 0;
+            bValue = b.parent?.price || 0;
+            break;
+          case 'parent_supplier':
+            aValue = (a as any).parent_supplier?.company_name || a.parent_supplier_name || '';
+            bValue = (b as any).parent_supplier?.company_name || b.parent_supplier_name || '';
+            break;
+          case 'child_supplier':
+            aValue = a.child_supplier?.company_name || a.child_supplier_name || '';
+            bValue = b.child_supplier?.company_name || b.child_supplier_name || '';
+            break;
+          case 'child_vehicle':
+            aValue = a.child_vehicle || a.child?.vehicle_model || '';
+            bValue = b.child_vehicle || b.child?.vehicle_model || '';
+            break;
+          case 'child_item_code':
+            aValue = a.child_item_code || a.child?.item_code || '';
+            bValue = b.child_item_code || b.child?.item_code || '';
+            break;
+          case 'child_item_name':
+            aValue = a.child_item_name || a.child?.item_name || '';
+            bValue = b.child_item_name || b.child?.item_name || '';
+            break;
+          case 'quantity':
+            aValue = a.quantity || a.quantity_required || 0;
+            bValue = b.quantity || b.quantity_required || 0;
+            break;
+          case 'child_price':
+            aValue = a.child?.price || a.unit_price || 0;
+            bValue = b.child?.price || b.unit_price || 0;
+            break;
+          case 'unit_price':
+            aValue = a.unit_price || 0;
+            bValue = b.unit_price || 0;
+            break;
+          case 'material_cost':
+            aValue = a.material_cost || 0;
+            bValue = b.material_cost || 0;
+            break;
+          default:
+            return 0;
+        }
 
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortOrder === 'asc' 
-          ? aValue.localeCompare(bValue, 'ko')
-          : bValue.localeCompare(aValue, 'ko');
-      } else {
-        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-      }
-    });
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return sortOrder === 'asc' 
+            ? aValue.localeCompare(bValue, 'ko')
+            : bValue.localeCompare(aValue, 'ko');
+        } else {
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+      });
+    }
 
     return filtered;
   }, [bomData, filters, sortColumn, sortOrder]);
@@ -1177,6 +1260,7 @@ export default function BOMPage() {
     const shouldMergeCustomer = filters.customerId === null;
     
     if (shouldMergeCustomer) {
+      // 납품처 기준으로 정렬된 데이터를 사용 (이미 fetchBOMData에서 정렬됨)
       // 모든 BOM을 표시하되, 동일한 모품목(품번 + 차종 + 납품처)에 대해서만 납품처 셀 병합
       // 먼저 모품목별로 그룹화하여 rowspan 계산
       const groupedByParent = new Map<string, BOM[]>();
@@ -1249,12 +1333,6 @@ export default function BOMPage() {
             <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600">
               <span className="text-gray-900 dark:text-white">
                 {(bom.parent?.price && bom.parent.price > 0) ? bom.parent.price.toLocaleString() : '-'}
-              </span>
-            </td>
-            {/* 구매처 (parent item의 supplier) */}
-            <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
-              <span className="text-sm text-gray-900 dark:text-white">
-                {bom.parent_supplier?.company_name || bom.parent?.supplier?.company_name || bom.parent_supplier_name || '-'}
               </span>
             </td>
             {/* 공급처 (child item의 supplier) */}
@@ -1359,12 +1437,6 @@ export default function BOMPage() {
         <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right border-r border-gray-300 dark:border-gray-600">
           <span className="text-gray-900 dark:text-white">
             {(bom.parent?.price && bom.parent.price > 0) ? bom.parent.price.toLocaleString() : '-'}
-          </span>
-        </td>
-        {/* 구매처 (parent item의 supplier) */}
-        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
-          <span className="text-sm text-gray-900 dark:text-white">
-            {bom.parent_supplier?.company_name || bom.parent?.supplier?.company_name || bom.parent_supplier_name || '-'}
           </span>
         </td>
         {/* 공급처 (child item의 supplier) */}
@@ -2244,7 +2316,6 @@ export default function BOMPage() {
                 }}
                 initialSearchTerm={filters.searchTerm}
                 customerId={filters.customerId}
-                purchaseSupplierId={filters.purchaseSupplierId}
                 supplierId={filters.supplierId}
                 vehicleType={filters.vehicleType}
                 suppliers={suppliers}
@@ -2267,40 +2338,114 @@ export default function BOMPage() {
                 <thead className="bg-gray-100 dark:bg-gray-800">
                   <tr>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
-                      납품처
+                      <button onClick={() => handleSort('customer')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        납품처
+                        {sortColumn === 'customer' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      차종
+                      <button onClick={() => handleSort('parent_vehicle')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        차종
+                        {sortColumn === 'parent_vehicle' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
-                      품번
+                      <button onClick={() => handleSort('parent_item_code')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        품번
+                        {sortColumn === 'parent_item_code' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                      품명
+                      <button onClick={() => handleSort('parent_item_name')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        품명
+                        {sortColumn === 'parent_item_name' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap border-r border-gray-300 dark:border-gray-600">
-                      단가
+                      <button onClick={() => handleSort('parent_price')} className="flex items-center gap-1 ml-auto hover:text-gray-900 dark:hover:text-gray-100">
+                        단가
+                        {sortColumn === 'parent_price' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      구매처
+                      <button onClick={() => handleSort('child_supplier')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        공급처
+                        {sortColumn === 'child_supplier' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      공급처
+                      <button onClick={() => handleSort('child_vehicle')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        차종
+                        {sortColumn === 'child_vehicle' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      차종
-                    </th>
-                    <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      품번
+                      <button onClick={() => handleSort('child_item_code')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        품번
+                        {sortColumn === 'child_item_code' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                      품명
+                      <button onClick={() => handleSort('child_item_name')} className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                        품명
+                        {sortColumn === 'child_item_name' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      U/S
+                      <button onClick={() => handleSort('quantity')} className="flex items-center gap-1 mx-auto hover:text-gray-900 dark:hover:text-gray-100">
+                        U/S
+                        {sortColumn === 'quantity' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
-                      단가
+                      <button onClick={() => handleSort('child_price')} className="flex items-center gap-1 ml-auto hover:text-gray-900 dark:hover:text-gray-100">
+                        단가
+                        {sortColumn === 'child_price' ? (
+                          sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-50" />
+                        )}
+                      </button>
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
                       작업
@@ -2615,23 +2760,6 @@ export default function BOMPage() {
               ))}
             </select>
 
-            {/* 구매처 필터 (모품목의 supplier) */}
-            <select
-              value={filters.purchaseSupplierId || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                purchaseSupplierId: e.target.value ? parseInt(e.target.value) : null
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
-            >
-              <option value="">구매처</option>
-              {suppliers.map(s => (
-                <option key={s.company_id} value={s.company_id}>
-                  {s.company_name}
-                </option>
-              ))}
-            </select>
-
             {/* 공급처 필터 (자품목의 supplier) */}
             <select
               value={filters.supplierId || ''}
@@ -2727,6 +2855,7 @@ export default function BOMPage() {
                   category: '',
                   materialType: '',
                   customerId: null,
+                  purchaseSupplierId: null,
                   supplierId: null,
                   vehicleType: ''
                 });
@@ -3018,32 +3147,49 @@ export default function BOMPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).map((child, index) => (
-                      <tr key={child.bom_id || index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
-                          {child.child_supplier?.company_name || child.child_supplier_name || '-'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
-                          {child.child_car_model || child.child_vehicle || child.child?.vehicle_model || '-'}
-                        </td>
-                        <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
-                          {child.child_item_code || child.child?.item_code || '-'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
-                          {child.child_item_name || child.child?.item_name || '-'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-white">
-                          {parseFloat((child.quantity || child.quantity_required || 0).toString()).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-white">
-                          {(child.child?.price && child.child.price > 0)
-                            ? `${child.child.price.toLocaleString()} 원`
-                            : (child.unit_price && child.unit_price > 0)
-                            ? `${child.unit_price.toLocaleString()} 원`
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
+                    {getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).map((child, index) => {
+                      // Debug logging - BOM type has flattened properties
+                      if (index === 0) {
+                        console.log('[Parent Detail Modal] Child item data structure:', {
+                          child_item_id: child.child_item_id,
+                          child_item_code: child.child_item_code,
+                          child_item_name: child.child_item_name,
+                          child_vehicle: child.child_vehicle,
+                          child_car_model: child.child_car_model
+                        });
+                      }
+
+                      return (
+                        <tr key={child.bom_id || index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                            {child.child_supplier?.company_name || child.child_supplier_name || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                            {child.child_car_model || child.child_vehicle || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {child.child_item_code || '-'}
+                          </td>
+                          <td
+                            className="px-4 py-2 text-sm text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                            onDoubleClick={() => handleItemDoubleClick(child.child_item_id)}
+                            title="품목을 더블클릭하여 수정"
+                          >
+                            {child.child_item_name || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-white">
+                            {parseFloat((child.quantity || child.quantity_required || 0).toString()).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-white">
+                            {(child.child?.price && child.child.price > 0)
+                              ? `${child.child.price.toLocaleString()} 원`
+                              : (child.unit_price && child.unit_price > 0)
+                              ? `${child.unit_price.toLocaleString()} 원`
+                              : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
@@ -3074,6 +3220,16 @@ export default function BOMPage() {
 
       {/* Confirmation Dialog */}
       <ConfirmDialog />
+
+      {/* 품목 수정 모달 */}
+      {isItemEditModalOpen && editingItemId && (
+        <ItemEditModal
+          isOpen={isItemEditModalOpen}
+          onClose={handleItemEditModalClose}
+          itemId={editingItemId}
+          onItemUpdated={handleItemUpdated}
+        />
+      )}
     </div>
   );
 }

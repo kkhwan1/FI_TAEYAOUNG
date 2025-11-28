@@ -28,12 +28,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const childItemId = searchParams.get('child_item_id');
     const levelNo = searchParams.get('level_no');
     const coilOnly = searchParams.get('coil_only') === 'true'; // Track 2C: Coil filter
-    const purchaseSupplierId = searchParams.get('purchase_supplier_id'); // 구매처 (parent item의 supplier) 필터
     const supplierId = searchParams.get('supplier_id'); // 공급처 (child item의 supplier) 필터
     const vehicleType = searchParams.get('vehicle_type'); // 차종 필터
     const priceMonth = searchParams.get('price_month') ||
       new Date().toISOString().slice(0, 7) + '-01';
-    const limit = parseInt(searchParams.get('limit') || '100');
+    // limit이 명시적으로 전달되지 않았거나 0이면 모든 데이터를 가져오기 위해 매우 큰 값 사용
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam) : 10000; // 기본값을 10000으로 증가
     const offset = parseInt(searchParams.get('offset') || '0');
 
     const supabase = getSupabaseClient();
@@ -49,12 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           item_name,
           spec,
           price,
-          vehicle_model,
-          parent_supplier:companies!items_supplier_id_fkey (
-            company_id,
-            company_name,
-            company_code
-          )
+          vehicle_model
         ),
         child:items!bom_child_item_id_fkey (
           item_code,
@@ -78,7 +74,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         )
       `)
       .eq('is_active', true)
-      .order('parent_item_id', { ascending: true });
+      .order('customer_id', { ascending: true }) // 납품처 기준으로 먼저 정렬
+      .order('parent_item_id', { ascending: true }); // 그 다음 모품목 기준으로 정렬
 
     // 프로젝트(고객사) 필터 적용
     query = applyCompanyFilter(query, 'bom', customerId, 'customer');
@@ -106,13 +103,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (coilOnly) {
       filteredEntries = filteredEntries.filter((entry: any) =>
         entry.child?.inventory_type === '코일'
-      );
-    }
-
-    // 구매처 필터 (parent item의 supplier)
-    if (purchaseSupplierId) {
-      filteredEntries = filteredEntries.filter((entry: any) =>
-        entry.parent?.parent_supplier?.company_id === parseInt(purchaseSupplierId)
       );
     }
 
@@ -204,10 +194,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           // T4: 코일 스펙 정보 추가
           material_grade: coilSpec?.material_grade,
           weight_per_piece: coilSpec?.weight_per_piece,
-          // customer와 child_supplier, parent_supplier 정보 명시적으로 포함
+          // customer와 child_supplier 정보 명시적으로 포함
           customer: item.customer || null,
           child_supplier: item.child_supplier || null,
-          parent_supplier: item.parent?.parent_supplier || null,
           is_active: true
         };
       })

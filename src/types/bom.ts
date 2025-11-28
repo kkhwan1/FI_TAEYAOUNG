@@ -81,7 +81,6 @@ export interface BOMEntry extends BOMBase {
   child_supplier_id?: number | null;
   customer?: BOMCompanyInfo | null;
   child_supplier?: BOMCompanyInfo | null;
-  parent_supplier?: BOMCompanyInfo | null; // parent item의 supplier
 
   // 편의 필드 (API 응답에서 flatten된 데이터)
   parent_item_code?: string;

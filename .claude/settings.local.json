@@ -3,7 +3,9 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(echo:*)",
-      "Bash(codex exec:*)"
+      "Bash(codex exec:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:safe:*)"
     ],
     "deny": [],
     "ask": []
