@@ -1,4 +1,9 @@
 # Server Management Script
+
+# Fix encoding for proper character display
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 param(
     [switch]$Stop,
     [switch]$Restart,
@@ -56,9 +61,34 @@ function Start-Server {
         Start-Sleep -Seconds 2
     }
     
+    # Windows file lock fix: Clean .next folder before server start
+    Write-Host "[INFO] Cleaning .next folder to prevent Windows file lock issues..."
+    $cleanScriptPath = Join-Path $PSScriptRoot "clean-next-safe.ps1"
+    if (Test-Path $cleanScriptPath) {
+        & powershell -ExecutionPolicy Bypass -File $cleanScriptPath
+        Start-Sleep -Seconds 1
+    } else {
+        Write-Host "[WARNING] clean-next-safe.ps1 script not found. Manual cleanup recommended."
+        # Try simple deletion if folder exists
+        if (Test-Path ".next") {
+            Write-Host "[INFO] Attempting to delete .next folder..."
+            Remove-Item -Path ".next" -Recurse -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
+        }
+    }
+    
     Write-Host "[INFO] Starting development server on port $PORT..."
+    Write-Host "[INFO] Windows file lock errors will be filtered automatically."
     Write-Host ""
-    npm run dev
+    
+    # Windows 파일 잠금 에러 필터링을 위한 래퍼 스크립트 사용
+    $wrapperScript = Join-Path $PSScriptRoot "dev-wrapper.js"
+    if (Test-Path $wrapperScript) {
+        node $wrapperScript
+    } else {
+        # 래퍼 스크립트가 없으면 기본 dev 실행
+        npm run dev
+    }
 }
 
 function Get-ServerStatus {
@@ -83,6 +113,15 @@ if ($Stop) {
     Write-Host "[ACTION] Restarting server..."
     Stop-Server
     Start-Sleep -Seconds 2
+    
+    # Clean .next folder before restart
+    $cleanScriptPath = Join-Path $PSScriptRoot "clean-next-safe.ps1"
+    if (Test-Path $cleanScriptPath) {
+        Write-Host "[INFO] Cleaning .next folder before restart..."
+        & powershell -ExecutionPolicy Bypass -File $cleanScriptPath
+        Start-Sleep -Seconds 1
+    }
+    
     Start-Server
 } elseif ($Status) {
     Get-ServerStatus

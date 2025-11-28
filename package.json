@@ -20,6 +20,7 @@
     "clean:all": "powershell -ExecutionPolicy Bypass -File ./scripts/clean-build.ps1 && npm run dev:safe",
     "clean:windows": "rmdir /s /q .next 2>nul & rmdir /s /q out 2>nul & rmdir /s /q dist 2>nul & rmdir /s /q .turbo 2>nul || exit 0",
     "clean:cache": "rmdir /s /q .next 2>nul || exit 0",
+    "clean:next": "powershell -ExecutionPolicy Bypass -File ./scripts/clean-next-safe.ps1",
     "port:check": "node scripts/check-port.js",
     "port:kill": "node scripts/kill-port.js 5000",
     "clean:nextjs": "node scripts/kill-nextjs-only.js",

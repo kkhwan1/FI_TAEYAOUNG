@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import dynamicImport from 'next/dynamic';
-import { Building2, Plus, Search, Edit2, Trash2, Filter, Phone, Mail, Upload, Download, ChevronDown, ChevronUp, Grid, List, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Building2, Plus, Search, Edit2, Trash2, Filter, Phone, Mail, Upload, ChevronDown, ChevronUp, Grid, List, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/contexts/ToastContext';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -61,7 +61,7 @@ const ExcelUploadModal = dynamicImport(() => import('@/components/upload/ExcelUp
 interface Company {
   company_id: number;
   company_name: string;
-  company_type: 'CUSTOMER' | 'SUPPLIER' | 'BOTH';
+  company_type: 'CUSTOMER' | 'SUPPLIER';
   business_registration_no?: string;
   contact_person?: string;
   phone?: string;
@@ -102,10 +102,10 @@ export default function CompaniesPage() {
   const { success, error } = useToast();
   const { deleteWithToast, ConfirmDialog } = useConfirm();
 
+  // 납품처(고객사)와 구매처(공급사)만 허용
   const companyTypes = [
     { value: 'CUSTOMER', label: '고객사' },
-    { value: 'SUPPLIER', label: '공급사' },
-    { value: 'BOTH', label: '고객사/공급사' }
+    { value: 'SUPPLIER', label: '공급사' }
   ];
 
   // 인쇄용 컬럼 정의
@@ -350,29 +350,6 @@ export default function CompaniesPage() {
     fetchCompanies(true); // Force cache refresh after upload
   };
 
-  const handleTemplateDownload = async () => {
-    try {
-      const { safeFetch } = await import('@/lib/fetch-utils');
-      const response = await safeFetch('/api/download/template/companies', {}, {
-        timeout: 30000,
-        maxRetries: 2,
-        retryDelay: 1000
-      });
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '거래처_템플릿.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      success('템플릿 다운로드 완료', '거래처 템플릿 파일이 다운로드되었습니다.');
-    } catch (err) {
-      console.error('Failed to download template:', err);
-      error('다운로드 실패', '템플릿 다운로드에 실패했습니다.');
-    }
-  };
 
   const getTypeLabel = (type: string) => {
     const found = companyTypes.find(t => t.value === type);
@@ -483,14 +460,6 @@ export default function CompaniesPage() {
               orientation="portrait"
               className="bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white whitespace-nowrap text-xs px-2 py-1 flex items-center gap-1 flex-shrink-0"
             />
-            <button
-              onClick={handleTemplateDownload}
-              className="flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-xs whitespace-nowrap flex-shrink-0"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">템플릿 다운로드</span>
-              <span className="xl:hidden">템플릿</span>
-            </button>
             <CompaniesExportButton
               companies={filteredCompanies}
               filtered={searchTerm !== '' || selectedType !== ''}

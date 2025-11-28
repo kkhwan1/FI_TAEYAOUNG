@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { getCustomerMappingFromDB } from './company-mappings';
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
@@ -19,16 +20,6 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// 고객사 매핑 (시트명 -> company_id)
-const CUSTOMER_MAPPING: Record<string, number> = {
-  '대우당진': 416,
-  '대우포승': 417,
-  '풍기서산': 418,
-  '호원오토': 419,
-  '인알파코리아': 420,
-  '인알파코리아 ': 420, // 시트명에 공백 포함
-};
 
 interface ExcelRow {
   납품처?: string;
@@ -51,7 +42,10 @@ interface VehicleModelUpdate {
 /**
  * 엑셀 파일에서 차종 정보 추출
  */
-function extractVehicleModelsFromExcel(filePath: string): Map<string, VehicleModelUpdate[]> {
+async function extractVehicleModelsFromExcel(
+  filePath: string,
+  customerMapping: Record<string, number>
+): Promise<Map<string, VehicleModelUpdate[]>> {
   const workbook = XLSX.readFile(filePath);
   const vehicleModels = new Map<string, VehicleModelUpdate[]>(); // item_code -> updates
 
@@ -60,7 +54,7 @@ function extractVehicleModelsFromExcel(filePath: string): Map<string, VehicleMod
     // 종합 시트는 제외
     if (sheetName === '종합') continue;
 
-    const customerId = CUSTOMER_MAPPING[sheetName];
+    const customerId = customerMapping[sheetName];
     if (!customerId) {
       console.warn(`Unknown customer sheet: ${sheetName}`);
       continue;
@@ -217,8 +211,12 @@ async function updateVehicleModelsInDB(vehicleModels: Map<string, VehicleModelUp
 async function main() {
   const excelFilePath = path.join(__dirname, '..', '.plan', '(추가)BOM 종합 - ERP (1) copy - 복사본.xlsx');
 
+  console.log('데이터베이스에서 거래처 매핑 정보 조회 중...');
+  const customerMapping = await getCustomerMappingFromDB(supabase);
+  console.log(`  - 고객사: ${Object.keys(customerMapping).length}개`);
+
   console.log('엑셀 파일에서 차종 정보 추출 중...');
-  const vehicleModels = extractVehicleModelsFromExcel(excelFilePath);
+  const vehicleModels = await extractVehicleModelsFromExcel(excelFilePath, customerMapping);
 
   console.log(`총 ${vehicleModels.size}개 품목의 차종 정보 추출됨`);
 

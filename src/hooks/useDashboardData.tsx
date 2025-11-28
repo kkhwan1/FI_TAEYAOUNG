@@ -145,7 +145,8 @@ export type RefreshInterval = keyof typeof REFRESH_INTERVALS;
 // Custom hook for dashboard data management
 export const useDashboardData = (
   initialInterval: RefreshInterval = '1분',
-  autoStart: boolean = true
+  autoStart: boolean = true,
+  filters: { supplierId?: string; customerId?: string; category?: string } = {}
 ) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,12 +166,20 @@ export const useDashboardData = (
       }
       setError(null);
 
+      // Build query parameters from filters
+      const queryParams = new URLSearchParams();
+      if (filters.supplierId) queryParams.set('supplier_id', filters.supplierId);
+      if (filters.customerId) queryParams.set('customer_id', filters.customerId);
+      if (filters.category) queryParams.set('category', filters.category);
+      const queryString = queryParams.toString();
+      const suffix = queryString ? `?${queryString}` : '';
+
       // Fetch data from multiple endpoints for complete dashboard (타임아웃 및 재시도 포함)
       const { safeFetchAllJson } = await import('@/lib/fetch-utils');
       
       const [statsResult, chartsResult, alertsResult] = await safeFetchAllJson([
         {
-          url: '/api/dashboard/stats',
+          url: `/api/dashboard/stats${suffix}`,
           options: {
             cache: 'no-store',
             headers: {
@@ -180,7 +189,7 @@ export const useDashboardData = (
           }
         },
         {
-          url: '/api/dashboard/charts',
+          url: `/api/dashboard/charts${suffix}`,
           options: {
             cache: 'no-store',
             headers: {
@@ -190,7 +199,7 @@ export const useDashboardData = (
           }
         },
         {
-          url: '/api/dashboard/alerts',
+          url: `/api/dashboard/alerts${suffix}`,
           options: {
             cache: 'no-store',
             headers: {
@@ -277,7 +286,7 @@ export const useDashboardData = (
         clearTimeout(intervalRef.current);
       }
     };
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData, filters]);
 
   // Pause auto-refresh when tab is not visible
   useEffect(() => {

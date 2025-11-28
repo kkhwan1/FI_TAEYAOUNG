@@ -72,6 +72,9 @@ interface BOMExcelRow {
   quantity_required: number;
   level_no?: number;
   notes?: string;
+  // Parent item closing information (마감수량, 마감금액)
+  parent_closing_quantity?: number;
+  parent_closing_amount?: number;
   // Purchase quantity and amount (구매수량, 구매금액)
   child_purchase_quantity?: number;
   child_purchase_amount?: number;
@@ -193,6 +196,8 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
               else if (header === '차종') mappedHeader = '모품목차종';
               else if (header === '단가') mappedHeader = '모품목단가';
               else if (header === '납품처') mappedHeader = '납품처'; // 납품처는 그대로 저장 (나중에 parent_supplier로 매핑)
+              else if (header === '마감수량') mappedHeader = '모품목마감수량';
+              else if (header === '마감금액') mappedHeader = '모품목마감금액';
               if (value !== '') {
                 currentParentRow[mappedHeader] = value;
               }
@@ -291,6 +296,12 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           if (currentParentRow['납품처']) {
             row['parent_supplier'] = currentParentRow['납품처'];
             row['parent_supplier_name'] = currentParentRow['납품처'];
+          }
+          if (currentParentRow['모품목마감수량']) {
+            row['parent_closing_quantity'] = currentParentRow['모품목마감수량'];
+          }
+          if (currentParentRow['모품목마감금액']) {
+            row['parent_closing_amount'] = currentParentRow['모품목마감금액'];
           }
           
           // 자품목 헤더 매핑 보정
@@ -456,6 +467,9 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           parent_supplier_type: row.parent_supplier_type ? String(row.parent_supplier_type).trim() : undefined,
           parent_supplier_business_number: row.parent_supplier_business_number ? String(row.parent_supplier_business_number).trim() : undefined,
           parent_supplier_representative: row.parent_supplier_representative ? String(row.parent_supplier_representative).trim() : undefined,
+          // Parent item closing information (마감수량, 마감금액)
+          parent_closing_quantity: row.parent_closing_quantity ? (typeof row.parent_closing_quantity === 'number' ? row.parent_closing_quantity : parseFloat(String(row.parent_closing_quantity))) : undefined,
+          parent_closing_amount: row.parent_closing_amount ? (typeof row.parent_closing_amount === 'number' ? row.parent_closing_amount : parseFloat(String(row.parent_closing_amount))) : undefined,
           // Child item details (TASK-030: Fix metadata loss bug)
           child_item_name: row.child_item_name ? String(row.child_item_name).trim() : undefined,
           child_spec: row.child_spec ? String(row.child_spec).trim() : undefined,
@@ -1489,6 +1503,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       notes?: string;
       customer_id?: number;
       child_supplier_id?: number;
+      // 모품목 마감 정보
+      parent_closing_quantity?: number | null;
+      parent_closing_amount?: number | null;
+      // 자품목 구매 정보
+      child_purchase_quantity?: number | null;
+      child_purchase_amount?: number | null;
     }
 
     // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
@@ -1520,7 +1540,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         is_active: true,
         notes: row.notes ? String(row.notes).trim() : undefined,
         customer_id: customerId,
-        child_supplier_id: childSupplierId
+        child_supplier_id: childSupplierId,
+        // 모품목 마감 정보
+        parent_closing_quantity: row.parent_closing_quantity ? Number(row.parent_closing_quantity) : null,
+        parent_closing_amount: row.parent_closing_amount ? Number(row.parent_closing_amount) : null,
+        // 자품목 구매 정보
+        child_purchase_quantity: row.child_purchase_quantity ? Number(row.child_purchase_quantity) : null,
+        child_purchase_amount: row.child_purchase_amount ? Number(row.child_purchase_amount) : null
       };
     });
 

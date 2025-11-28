@@ -11,7 +11,15 @@
       "Bash(git commit:*)",
       "Bash(git push)",
       "Bash(npx vercel --prod --yes)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill /F /PID 93756)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 93756\")",
+      "Bash(powershell -Command \"Stop-Process -Id 93756 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 148392 -Force\")",
+      "Bash(powershell -Command \"Get-Process -Id (Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")"
     ],
     "deny": [],
     "ask": []

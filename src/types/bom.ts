@@ -16,6 +16,12 @@ export interface BOMBase {
   remarks?: string | null;
   created_at?: string;
   updated_at?: string;
+  // 모품목 마감 정보 (Excel F, G열)
+  parent_closing_quantity?: number | null;
+  parent_closing_amount?: number | null;
+  // 자품목 구매 정보 (Excel O, P열)
+  child_purchase_quantity?: number | null;
+  child_purchase_amount?: number | null;
 }
 
 /**

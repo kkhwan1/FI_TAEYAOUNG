@@ -114,6 +114,12 @@ interface BOM {
   child_supplier?: SupplierInfo | null;
   // BOM 트리 뷰용 - API full-tree 응답에서 사용
   quantity_required?: number;
+  // 모품목 마감 정보 (Excel F, G열)
+  parent_closing_quantity?: number | null;
+  parent_closing_amount?: number | null;
+  // 자품목 구매 정보 (Excel O, P열)
+  child_purchase_quantity?: number | null;
+  child_purchase_amount?: number | null;
   // 조인된 부모/자품목 상세 정보 (optional)
   parent?: {
     item_code?: string;
@@ -152,11 +158,9 @@ interface FilterState {
   searchTerm: string;
   level: number | null;
   itemType: 'all' | 'internal_production' | 'external_purchase';
-  minCost: number | null;
-  maxCost: number | null;
   category: string;
   materialType: string;
-  // 납품처/구매처/공급처/차량 필터 추가
+  // 납품처/구매처/공급처/차종 필터 추가
   customerId: number | null;
   purchaseSupplierId: number | null; // 구매처 (parent item의 supplier)
   supplierId: number | null;
@@ -208,8 +212,6 @@ export default function BOMPage() {
     searchTerm: '',
     level: null,
     itemType: 'all',
-    minCost: null,
-    maxCost: null,
     category: '',
     materialType: '',
     customerId: null,
@@ -222,8 +224,18 @@ export default function BOMPage() {
   const [customers, setCustomers] = useState<CustomerInfo[]>([]);
   // 공급처 목록
   const [suppliers, setSuppliers] = useState<SupplierInfo[]>([]);
-  // 차량 목록 (BOM 데이터에서 추출)
+  // 차종 목록 (BOM 데이터에서 추출)
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
+  // 레벨 목록 (BOM 데이터에서 추출)
+  const [levels, setLevels] = useState<number[]>([]);
+  // 품목 타입 목록 (BOM 데이터에서 추출)
+  const [itemTypes, setItemTypes] = useState<string[]>([]);
+  // 카테고리 목록 (items에서 추출)
+  const [categories, setCategories] = useState<string[]>([]);
+  // 카테고리 고정 옵션 (완제품, 반제품, 원재료 등)
+  const fixedCategories: string[] = ['완제품', '반제품', '원재료', '부품', '소재'];
+  // 소재유형 목록 (items에서 추출)
+  const [materialTypes, setMaterialTypes] = useState<string[]>([]);
 
   // 모품목 상세정보 모달 상태
   const [selectedParentDetail, setSelectedParentDetail] = useState<BOM | null>(null);
@@ -243,12 +255,66 @@ export default function BOMPage() {
     setShowParentDetailModal(true);
   }, []);
 
-  // 모품목에 연결된 자품목 목록 계산
+  // 모품목에 연결된 자품목 목록 계산 (완전 중복 제거)
   const getChildItemsForParent = useCallback((parentItemCode: string | undefined) => {
     if (!parentItemCode) return [];
-    return bomData.filter(item =>
+    const filtered = bomData.filter(item =>
       (item.parent_item_code === parentItemCode || item.parent?.item_code === parentItemCode)
     );
+    
+    // child_item_id (또는 child_item_code) + 차종을 기준으로 완전 중복 제거
+    // 같은 자품목이 같은 차종으로 여러 번 나타나는 경우 완전히 제거 (차종이 다른 경우는 별도 항목으로 유지)
+    const seen = new Map<string, BOM>();
+    let fallbackIndex = 0; // 식별자가 없는 항목을 위한 인덱스
+    
+    filtered.forEach(item => {
+      // child_item_id를 우선 사용, 없으면 child_item_code 사용
+      const childId = item.child_item_id;
+      const childCode = (item.child_item_code || item.child?.item_code || '').trim();
+      const vehicleModel = (item.child_car_model || item.child_vehicle || item.child?.vehicle_model || '').trim();
+      
+      // 고유 키 생성: child_item_id가 있으면 ID 사용, 없으면 코드 사용, 둘 다 없으면 임시 키 사용
+      let identifier: string;
+      if (childId) {
+        identifier = `id_${childId}`;
+      } else if (childCode) {
+        identifier = `code_${childCode}`;
+      } else {
+        // 식별자가 전혀 없는 경우 임시 키 사용 (중복 가능하지만 최소화)
+        identifier = `fallback_${fallbackIndex++}`;
+      }
+      
+      const uniqueKey = `${identifier}_${vehicleModel}`;
+      
+      // 이미 존재하는 경우, 더 많은 정보를 가진 것을 유지
+      if (!seen.has(uniqueKey)) {
+        seen.set(uniqueKey, item);
+      } else {
+        const existing = seen.get(uniqueKey);
+        if (!existing) {
+          seen.set(uniqueKey, item);
+          return;
+        }
+        
+        // 우선순위: 1) 단가 정보가 있는 것, 2) bom_id가 더 큰 것(더 최신)
+        const existingHasPrice = (existing.unit_price && existing.unit_price > 0) || 
+                                 (existing.child?.price && existing.child.price > 0);
+        const currentHasPrice = (item.unit_price && item.unit_price > 0) || 
+                               (item.child?.price && item.child?.price > 0);
+        
+        // 단가 정보가 있는 항목을 우선 유지
+        if (!existingHasPrice && currentHasPrice) {
+          seen.set(uniqueKey, item);
+        } 
+        // 둘 다 단가가 없거나 둘 다 있는 경우, bom_id가 더 큰 것(더 최신)을 유지
+        else if (existing.bom_id && item.bom_id && item.bom_id > existing.bom_id) {
+          seen.set(uniqueKey, item);
+        }
+        // bom_id도 없는 경우, 기존 것을 유지 (중복 제거됨)
+      }
+    });
+    
+    return Array.from(seen.values());
   }, [bomData]);
 
   // 품목 더블클릭 핸들러 (상세정보 모달 내)
@@ -292,7 +358,24 @@ export default function BOMPage() {
       });
 
       if (data.success) {
-        setItems(data.data.items || []);
+        const itemsList = data.data.items || [];
+        setItems(itemsList);
+        
+        // 카테고리 목록 추출 (중복 제거)
+        const uniqueCategories = Array.from(new Set(
+          itemsList
+            .map((item: any) => item.category)
+            .filter((cat: string) => cat && cat.trim() !== '')
+        )).sort() as string[];
+        setCategories(uniqueCategories);
+        
+        // 소재유형 목록 추출 (중복 제거)
+        const uniqueMaterialTypes = Array.from(new Set(
+          itemsList
+            .map((item: any) => item.material_type || item.inventory_type)
+            .filter((type: string) => type && type.trim() !== '')
+        )).sort() as string[];
+        setMaterialTypes(uniqueMaterialTypes);
       }
     } catch (error) {
       console.error('Failed to fetch items:', error);
@@ -350,7 +433,7 @@ export default function BOMPage() {
   }, []);
 
   // Fetch BOM data with cost analysis
-  const fetchBOMData = useCallback(async () => {
+  const fetchBOMData = async () => {
     try {
       setLoading(true);
 
@@ -360,11 +443,19 @@ export default function BOMPage() {
       if (selectedParentItem) additionalParams.parent_item_id = selectedParentItem;
       additionalParams.price_month = priceMonth + '-01'; // 기준 월 추가
       additionalParams.limit = '10000'; // 모든 BOM 데이터를 가져오기 위해 limit을 충분히 크게 설정
-      if (filters.category) additionalParams.category = filters.category;
-      if (filters.materialType) additionalParams.material_type = filters.materialType;
+      if (filters.category && filters.category.trim() !== '') additionalParams.category = filters.category;
+      if (filters.materialType && filters.materialType.trim() !== '') additionalParams.material_type = filters.materialType;
       // 납품처(고객사) 필터 추가
       if (filters.customerId !== null) {
         additionalParams.customer_id = filters.customerId.toString();
+      }
+      // 공급처 필터 추가
+      if (filters.supplierId !== null) {
+        additionalParams.supplier_id = filters.supplierId.toString();
+      }
+      // 차종 필터 추가
+      if (filters.vehicleType && filters.vehicleType.trim() !== '') {
+        additionalParams.vehicle_type = filters.vehicleType;
       }
 
       const url = buildFilteredApiUrl(
@@ -391,10 +482,14 @@ export default function BOMPage() {
           parent_item_code: item.parent?.item_code || item.parent_code || '',
           parent_vehicle: item.parent_vehicle || item.parent?.vehicle_model || null,
           parent_car_model: item.parent_vehicle || item.parent?.vehicle_model || null, // 모달에서 사용
+          parent_category: (item.parent as any)?.category || item.parent_category || '',
+          parent_inventory_type: (item.parent as any)?.inventory_type || (item.parent as any)?.material_type || item.parent_inventory_type || '',
           child_item_name: item.child?.item_name || item.child_name || '',
           child_item_code: item.child?.item_code || item.child_code || '',
           child_vehicle: item.child_vehicle || item.child?.vehicle_model || null,
           child_car_model: item.child_vehicle || item.child?.vehicle_model || null, // 모달에서 사용
+          child_category: (item.child as any)?.category || item.child_category || '',
+          child_inventory_type: (item.child as any)?.inventory_type || (item.child as any)?.material_type || item.child_inventory_type || '',
           quantity: item.quantity_required || 0,
           level: item.level_no || 1,
           is_active: item.is_active !== undefined ? item.is_active : true,
@@ -454,36 +549,52 @@ export default function BOMPage() {
         const { extractErrorMessage } = await import('@/lib/fetch-utils');
         error('데이터 로딩 실패', extractErrorMessage(data.error) || 'BOM 데이터를 불러오는데 실패했습니다.');
       }
-    } catch (error) {
-      console.error('Failed to fetch BOM data:', error);
+    } catch (err) {
+      console.error('Failed to fetch BOM data:', err);
+      const { extractErrorMessage } = await import('@/lib/fetch-utils');
+      error('데이터 로딩 실패', extractErrorMessage(err) || 'BOM 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
-  }, [selectedParentItem, showActiveOnly, priceMonth, filters.category, filters.materialType, filters.customerId]);
+  };
 
   // 품목 수정 완료 핸들러
-  const handleItemUpdated = useCallback(() => {
+  const handleItemUpdated = () => {
     // 품목 업데이트 후 BOM 데이터 리프레시
     fetchBOMData();
-  }, [fetchBOMData]);
+  };
 
-  // Initial fetch
+  // Initial fetch - 마운트 시 한 번만 실행 (변경되지 않는 데이터)
   useEffect(() => {
-    fetchBOMData();
     fetchItems();
     fetchCustomers();
     fetchSuppliers();
-  }, [fetchBOMData, fetchItems, fetchCustomers, fetchSuppliers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 빈 배열: 마운트 시 한 번만 실행
 
-  // BOM 데이터에서 차량 목록 추출
+  // BOM 데이터 fetch - 의존성이 변경될 때마다 실행
+  // fetchBOMData의 의존성 변경 시 자동으로 재실행되므로 별도 useEffect 불필요
+  // 대신 fetchBOMData 내부에서 필요한 경우에만 호출하도록 변경
+  useEffect(() => {
+    fetchBOMData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedParentItem, showActiveOnly, priceMonth, filters.category, filters.materialType, filters.customerId, filters.supplierId, filters.vehicleType]);
+
+  // BOM 데이터에서 차종 목록, 레벨, 품목 타입 추출
   useEffect(() => {
     if (bomData.length > 0) {
       const vehicles = new Set<string>();
+      const levelSet = new Set<number>();
+      const itemTypeSet = new Set<string>();
       bomData.forEach(item => {
         if (item.parent_car_model) vehicles.add(item.parent_car_model);
         if (item.child_car_model) vehicles.add(item.child_car_model);
+        if (item.level) levelSet.add(item.level);
+        if (item.item_type) itemTypeSet.add(item.item_type);
       });
       setVehicleTypes(Array.from(vehicles).filter(v => v && v.trim() !== '').sort());
+      setLevels(Array.from(levelSet).sort((a, b) => a - b));
+      setItemTypes(Array.from(itemTypeSet).filter(t => t && t.trim() !== '').sort());
     }
   }, [bomData]);
 
@@ -496,7 +607,8 @@ export default function BOMPage() {
     }, refreshInterval);
 
     return () => clearInterval(intervalId);
-  }, [autoRefresh, refreshInterval, fetchBOMData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, refreshInterval]);
 
   // File upload handlers
   const handleFileUpload = async (file: File) => {
@@ -579,11 +691,20 @@ export default function BOMPage() {
         return false;
       }
 
-      if (filters.minCost !== null && (entry.net_cost || 0) < filters.minCost) {
-        return false;
+      // 카테고리 필터 (완제품, 반제품, 원재료 등)
+      if (filters.category && filters.category.trim() !== '') {
+        const parentCategory = (entry.parent as any)?.category || entry.parent_category || '';
+        const childCategory = (entry.child as any)?.category || entry.child_category || '';
+        const categoryMatch = parentCategory === filters.category || childCategory === filters.category;
+        if (!categoryMatch) return false;
       }
-      if (filters.maxCost !== null && (entry.net_cost || 0) > filters.maxCost) {
-        return false;
+
+      // 소재유형 필터
+      if (filters.materialType && filters.materialType.trim() !== '') {
+        const parentMaterial = (entry.parent as any)?.inventory_type || (entry.parent as any)?.material_type || entry.parent_inventory_type || '';
+        const childMaterial = (entry.child as any)?.inventory_type || (entry.child as any)?.material_type || entry.child_inventory_type || '';
+        const materialMatch = parentMaterial === filters.materialType || childMaterial === filters.materialType;
+        if (!materialMatch) return false;
       }
 
       // 납품처(고객사) 필터
@@ -598,7 +719,7 @@ export default function BOMPage() {
         if (!supplierMatch) return false;
       }
 
-      // 차량 필터
+      // 차종 필터
       if (filters.vehicleType && filters.vehicleType.trim() !== '') {
         const vehicleMatch =
           entry.parent_car_model === filters.vehicleType ||
@@ -1264,6 +1385,12 @@ export default function BOMPage() {
         '자품목단가': 0,
         '자품목KG단가': 0,
         '자품목단가비고': '',
+        // 모품목 마감 정보
+        '마감수량': bom.parent_closing_quantity || 0,
+        '마감금액': bom.parent_closing_amount || 0,
+        // 자품목 구매 정보
+        '구매수량': bom.child_purchase_quantity || 0,
+        '구매금액': bom.child_purchase_amount || 0,
         // 참고용 컬럼 (업로드 시 무시됨)
         '단위': 'EA',
         '단가 (₩)': bom.unit_price || 0,
@@ -1328,6 +1455,12 @@ export default function BOMPage() {
         { wch: 12 }, // 자품목단가
         { wch: 12 }, // 자품목KG단가
         { wch: 20 }, // 자품목단가비고
+        // 모품목 마감 정보
+        { wch: 12 }, // 마감수량
+        { wch: 15 }, // 마감금액
+        // 자품목 구매 정보
+        { wch: 12 }, // 구매수량
+        { wch: 15 }, // 구매금액
         // 참고용 컬럼 (업로드 시 무시됨)
         { wch: 8 },  // 단위 (참고용)
         { wch: 12 }, // 단가 (참고용)
@@ -1669,11 +1802,21 @@ export default function BOMPage() {
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={() => {
+                setEditingChildBOM(bom);
+                setShowChildItemEditModal(true);
+              }}
+              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+              title="자품목 상세 수정"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
                 setEditingBOM(bom);
                 setShowAddModal(true);
               }}
               className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
-              title="수정"
+              title="BOM 수정"
             >
               <Edit2 className="w-4 h-4" />
             </button>
@@ -1728,6 +1871,22 @@ export default function BOMPage() {
         <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
           {(bom.material_cost && bom.material_cost > 0) ? bom.material_cost.toLocaleString() : '-'}
         </td>
+        {/* 마감수량 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {bom.parent_closing_quantity ? parseFloat(bom.parent_closing_quantity.toString()).toLocaleString() : '-'}
+        </td>
+        {/* 마감금액 (₩) */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {bom.parent_closing_amount ? parseFloat(bom.parent_closing_amount.toString()).toLocaleString() : '-'}
+        </td>
+        {/* 구매수량 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {bom.child_purchase_quantity ? parseFloat(bom.child_purchase_quantity.toString()).toLocaleString() : '-'}
+        </td>
+        {/* 구매금액 (₩) */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {bom.child_purchase_amount ? parseFloat(bom.child_purchase_amount.toString()).toLocaleString() : '-'}
+        </td>
         {/* 구분 */}
         <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-center text-gray-900 dark:text-white">
           {bom.item_type === 'internal_production' ? '내부생산' : bom.item_type === 'external_purchase' ? '외부구매' : '-'}
@@ -1756,10 +1915,10 @@ export default function BOMPage() {
                 setEditingChildBOM(bom);
                 setShowChildItemEditModal(true);
               }}
-              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
               title="자품목 상세 수정"
             >
-              <Settings className="w-4 h-4" />
+              <Edit2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => {
@@ -1908,6 +2067,18 @@ export default function BOMPage() {
                         </th>
                         <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '11%', minWidth: '100px' }}>
                           재료비 (₩)
+                        </th>
+                        <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '10%', minWidth: '90px' }}>
+                          마감수량
+                        </th>
+                        <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '12%', minWidth: '110px' }}>
+                          마감금액 (₩)
+                        </th>
+                        <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '10%', minWidth: '90px' }}>
+                          구매수량
+                        </th>
+                        <th className="px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '12%', minWidth: '110px' }}>
+                          구매금액 (₩)
                         </th>
                         <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '9%', minWidth: '80px' }}>
                           구분
@@ -2976,11 +3147,11 @@ export default function BOMPage() {
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
               <option value="">모든 레벨</option>
-              <option value="1">Level 1</option>
-              <option value="2">Level 2</option>
-              <option value="3">Level 3</option>
-              <option value="4">Level 4</option>
-              <option value="5">Level 5</option>
+              {levels.map(level => (
+                <option key={level} value={level}>
+                  Level {level}
+                </option>
+              ))}
             </select>
 
             <select
@@ -2992,8 +3163,11 @@ export default function BOMPage() {
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
               <option value="all">모든 품목</option>
-              <option value="internal_production">내부생산</option>
-              <option value="external_purchase">외부구매</option>
+              {itemTypes.map(type => (
+                <option key={type} value={type}>
+                  {type === 'internal_production' ? '내부생산' : type === 'external_purchase' ? '외부구매' : type}
+                </option>
+              ))}
             </select>
 
             {/* 카테고리 필터 */}
@@ -3006,11 +3180,20 @@ export default function BOMPage() {
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
               <option value="">카테고리</option>
-              <option value="원자재">원자재</option>
-              <option value="부품">부품</option>
-              <option value="완제품">완제품</option>
-              <option value="반제품">반제품</option>
-              <option value="제품">제품</option>
+              {/* 고정 카테고리 옵션 */}
+              {fixedCategories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+              {/* 동적으로 가져온 카테고리 옵션 (고정 옵션에 없는 것만) */}
+              {categories
+                .filter(cat => !fixedCategories.includes(cat))
+                .map(cat => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
             </select>
 
             {/* 소재유형 필터 */}
@@ -3023,9 +3206,11 @@ export default function BOMPage() {
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
             >
               <option value="">소재유형</option>
-              <option value="COIL">COIL</option>
-              <option value="SHEET">SHEET</option>
-              <option value="OTHER">OTHER</option>
+              {materialTypes.map(type => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </select>
 
             {/* 납품처(고객사) 필터 */}
@@ -3071,7 +3256,7 @@ export default function BOMPage() {
               ))}
             </select>
 
-            {/* 차량 필터 */}
+            {/* 차종 필터 */}
             <select
               value={filters.vehicleType}
               onChange={(e) => setFilters(prev => ({
@@ -3080,37 +3265,13 @@ export default function BOMPage() {
               }))}
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
             >
-              <option value="">차량</option>
+              <option value="">차종</option>
               {vehicleTypes.map(v => (
                 <option key={v} value={v}>
                   {v}
                 </option>
               ))}
             </select>
-
-            <input
-              type="number"
-              placeholder="최소 원가"
-              value={filters.minCost || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                minCost: e.target.value ? parseFloat(e.target.value) : null
-              }))}
-              className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm flex-shrink-0 whitespace-nowrap"
-            />
-
-            <span className="flex items-center text-gray-500 flex-shrink-0 whitespace-nowrap">~</span>
-
-            <input
-              type="number"
-              placeholder="최대 원가"
-              value={filters.maxCost || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                maxCost: e.target.value ? parseFloat(e.target.value) : null
-              }))}
-              className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm flex-shrink-0 whitespace-nowrap"
-            />
 
             <select
               value={selectedParentItem}
@@ -3144,8 +3305,6 @@ export default function BOMPage() {
                   searchTerm: '',
                   level: null,
                   itemType: 'all',
-                  minCost: null,
-                  maxCost: null,
                   category: '',
                   materialType: '',
                   customerId: null,
@@ -3438,6 +3597,7 @@ export default function BOMPage() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">품명</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">소요량</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">단가</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">작업</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -3481,12 +3641,26 @@ export default function BOMPage() {
                               ? `${child.unit_price.toLocaleString()} 원`
                               : '-'}
                           </td>
+                          <td className="px-4 py-2 text-sm text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingChildBOM(child);
+                                  setShowChildItemEditModal(true);
+                                }}
+                                className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                                title="자품목 상세 수정"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
                     {getChildItemsForParent(selectedParentDetail.parent_item_code || selectedParentDetail.parent?.item_code).length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                           연결된 자품목이 없습니다.
                         </td>
                       </tr>
@@ -3522,6 +3696,19 @@ export default function BOMPage() {
           onClose={handleItemEditModalClose}
           itemId={editingItemId}
           onItemUpdated={handleItemUpdated}
+        />
+      )}
+
+      {/* 자품목 상세 수정 모달 */}
+      {showChildItemEditModal && editingChildBOM && (
+        <ChildItemEditModal
+          bom={editingChildBOM}
+          onClose={() => {
+            console.log('[BOM Page] 자품목 상세 수정 모달 닫기');
+            setShowChildItemEditModal(false);
+            setEditingChildBOM(null);
+          }}
+          onSave={handleUpdateChildItemDetails}
         />
       )}
     </div>

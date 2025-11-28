@@ -9,6 +9,11 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import {
+  getCustomerMappingFromDB,
+  getSupplierMappingFromDB,
+  getSupplierId,
+} from './company-mappings';
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
@@ -23,59 +28,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 고객사 매핑 (시트명 -> company_id)
-const CUSTOMER_MAPPING: Record<string, number> = {
-  '대우당진': 416,
-  '대우포승': 417,
-  '풍기서산': 418,
-  '호원오토': 419,
-  '인알파코리아': 420,
-  '인알파코리아 ': 420, // 시트명에 공백 포함
-};
-
-// 공급사 매핑 (구매처명 -> company_id)
-const SUPPLIER_MAPPING: Record<string, number> = {
-  '태창금속': 421,
-  '삼진스틸': 422,
-  '아신금속': 423,
-  '대일CFT': 424,
-  '제이에스테크': 425,
-  '신성테크': 426,
-  '창경에스테크': 427,
-  '호원사급': 428,
-  '대우포승': 429,
-  '대우포승 사급': 429,
-  '세원테크': 430,
-  '현대제철': 431,
-  '신호': 432,
-  '신성사출': 433,
-  '신성산업': 434,
-  '민현': 435,
-  '세진오토': 436,
-  '오토다임': 437,
-  '대상': 438,
-  '코리아신예': 439,
-  '코리아신예(무상사급)': 439,
-  // 고객사도 공급사 역할을 할 수 있음
-  '대우당진': 416,
-  '풍기서산': 418,
-  '호원오토': 419,
-  '인알파코리아': 420,
-};
-
-// 구매처명 → company_id 변환 함수
-function getSupplierId(supplierName: string | undefined): number | null {
-  if (!supplierName) return null;
-  const trimmed = supplierName.trim();
-  
-  // "하드웨어"는 제외 (매핑하지 않음)
-  if (trimmed === '하드웨어') {
-    return null;
-  }
-  
-  return SUPPLIER_MAPPING[trimmed] || null;
-}
-
 interface ExcelBOM {
   parent_item_code: string;
   child_item_code: string;
@@ -85,7 +37,11 @@ interface ExcelBOM {
 }
 
 // Excel 파일에서 BOM과 구매처명 추출
-async function parseExcelFile(filePath: string): Promise<ExcelBOM[]> {
+async function parseExcelFile(
+  filePath: string,
+  customerMapping: Record<string, number>,
+  supplierMapping: Record<string, number>
+): Promise<ExcelBOM[]> {
   console.log(`Reading Excel file: ${filePath}`);
   const workbook = XLSX.readFile(filePath);
 
@@ -95,7 +51,7 @@ async function parseExcelFile(filePath: string): Promise<ExcelBOM[]> {
   for (const sheetName of workbook.SheetNames) {
     if (sheetName === '종합') continue;
 
-    const customerId = CUSTOMER_MAPPING[sheetName];
+    const customerId = customerMapping[sheetName];
     if (!customerId) {
       console.warn(`Unknown customer sheet: ${sheetName}`);
       continue;
@@ -125,7 +81,7 @@ async function parseExcelFile(filePath: string): Promise<ExcelBOM[]> {
       if (isChildRow && 품번_구매 && currentParentCode) {
         const childCode = String(품번_구매).trim();
         const 구매처명_값 = String(구매처명 || '').trim();
-        const supplierId = getSupplierId(구매처명_값);
+        const supplierId = getSupplierId(구매처명_값, supplierMapping);
 
         if (구매처명_값 && !supplierId) {
           console.warn(`  ⚠️  구매처명 매핑 실패: "${구매처명_값}" (parent: ${currentParentCode}, child: ${childCode})`);
@@ -301,8 +257,15 @@ async function main() {
   );
 
   try {
+    // 0. 데이터베이스에서 매핑 정보 조회
+    console.log('데이터베이스에서 거래처 매핑 정보 조회 중...');
+    const customerMapping = await getCustomerMappingFromDB(supabase);
+    const supplierMapping = await getSupplierMappingFromDB(supabase);
+    console.log(`  - 고객사: ${Object.keys(customerMapping).length}개`);
+    console.log(`  - 공급사: ${Object.keys(supplierMapping).length}개`);
+
     // 1. Excel 파일 파싱
-    const excelBoms = await parseExcelFile(excelPath);
+    const excelBoms = await parseExcelFile(excelPath, customerMapping, supplierMapping);
 
     // 2. 기존 BOM 데이터 조회
     const bomMap = await fetchExistingBOMs();

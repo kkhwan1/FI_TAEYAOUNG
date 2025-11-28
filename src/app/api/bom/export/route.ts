@@ -91,6 +91,12 @@ interface BOMDetailRow {
   child_unit_price?: number;
   child_price_per_kg?: number;
   child_price_note?: string;
+  // Parent closing information (마감수량, 마감금액)
+  parent_closing_quantity?: number | null;
+  parent_closing_amount?: number | null;
+  // Child purchase information (구매수량, 구매금액)
+  child_purchase_quantity?: number | null;
+  child_purchase_amount?: number | null;
 }
 
 interface ExportOptions {
@@ -201,6 +207,12 @@ async function exportBOMToExcel(
     '자품목단가': row.child_unit_price || 0,
     '자품목KG단가': row.child_price_per_kg || 0,
     '자품목단가비고': row.child_price_note || '',
+    // Parent closing information (마감수량, 마감금액)
+    '마감수량': row.parent_closing_quantity || 0,
+    '마감금액': row.parent_closing_amount || 0,
+    // Child purchase information (구매수량, 구매금액)
+    '구매수량': row.child_purchase_quantity || 0,
+    '구매금액': row.child_purchase_amount || 0,
     // Cost analysis fields (if included)
     ...(options.includeCostAnalysis && {
       '단품 원가': row.component_cost || 0,
@@ -267,7 +279,13 @@ async function exportBOMToExcel(
       { wch: 12 }, // 자품목단가월
       { wch: 12 }, // 자품목단가
       { wch: 12 }, // 자품목KG단가
-      { wch: 20 }  // 자품목단가비고
+      { wch: 20 }, // 자품목단가비고
+      // Parent closing information
+      { wch: 12 }, // 마감수량
+      { wch: 15 }, // 마감금액
+      // Child purchase information
+      { wch: 12 }, // 구매수량
+      { wch: 15 }  // 구매금액
   ];
 
   if (options.includeCostAnalysis) {
@@ -675,10 +693,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // Fetch closing and purchase fields from bom table directly
+    const bomIds = filteredData.map(row => row.bom_id);
+    const { data: bomDetails, error: bomDetailsError } = await supabase
+      .from('bom')
+      .select('bom_id, parent_closing_quantity, parent_closing_amount, child_purchase_quantity, child_purchase_amount')
+      .in('bom_id', bomIds);
+
+    // Create bom_id -> closing/purchase info mapping
+    const bomDetailsMap = new Map<number, {
+      parent_closing_quantity?: number | null;
+      parent_closing_amount?: number | null;
+      child_purchase_quantity?: number | null;
+      child_purchase_amount?: number | null;
+    }>();
+
+    if (bomDetails && !bomDetailsError) {
+      bomDetails.forEach((bom: any) => {
+        bomDetailsMap.set(bom.bom_id, {
+          parent_closing_quantity: bom.parent_closing_quantity,
+          parent_closing_amount: bom.parent_closing_amount,
+          child_purchase_quantity: bom.child_purchase_quantity,
+          child_purchase_amount: bom.child_purchase_amount
+        });
+      });
+    }
+
     // Add item details and supplier information to BOM data
     filteredData = filteredData.map(row => {
       const parentDetails = itemDetailsMap.get(row.parent_item_id);
       const childDetails = itemDetailsMap.get(row.child_item_id);
+      const bomInfo = bomDetailsMap.get(row.bom_id);
       
       return {
         ...row,
@@ -713,7 +758,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         child_supplier_phone: childDetails?.supplier?.phone,
         child_supplier_email: childDetails?.supplier?.email,
         child_supplier_address: childDetails?.supplier?.address,
-        child_supplier_type: childDetails?.supplier?.company_type
+        child_supplier_type: childDetails?.supplier?.company_type,
+        // Closing and purchase information from bom table
+        parent_closing_quantity: bomInfo?.parent_closing_quantity,
+        parent_closing_amount: bomInfo?.parent_closing_amount,
+        child_purchase_quantity: bomInfo?.child_purchase_quantity,
+        child_purchase_amount: bomInfo?.child_purchase_amount
       };
     });
 

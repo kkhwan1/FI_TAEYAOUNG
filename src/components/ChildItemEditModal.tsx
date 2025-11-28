@@ -48,6 +48,7 @@ interface ChildItemEditModalProps {
 }
 
 export default function ChildItemEditModal({ bom, onClose, onSave }: ChildItemEditModalProps) {
+  console.log('[ChildItemEditModal] 렌더링됨, bom:', bom);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     quantity: bom.quantity || bom.quantity_required || 1,
@@ -92,6 +93,7 @@ export default function ChildItemEditModal({ bom, onClose, onSave }: ChildItemEd
       onClose={onClose}
       title="자품목 상세 수정"
       size="lg"
+      maxHeight="tall"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* 자품목 정보 */}

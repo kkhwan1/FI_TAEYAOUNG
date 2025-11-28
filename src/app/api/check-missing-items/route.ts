@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/db-unified';
-
-const COMPANY_ID = 359; // 대우당진
+import { getCustomerMappingFromDB } from '@/lib/company-mappings';
 const MISSING_ITEMS = [
   { code: '65852-BY000', name: 'MBR-RR FLR CTR CROSS (HEV)' },
   { code: '66724-2J700', name: 'R/F COWL INR LWR' },
@@ -10,6 +9,39 @@ const MISSING_ITEMS = [
 
 export async function GET() {
   const supabase = getSupabaseClient();
+
+  // 데이터베이스에서 대우당진 company_id 조회
+  let COMPANY_ID: number | null = null;
+  try {
+    const customerMapping = await getCustomerMappingFromDB(supabase);
+    COMPANY_ID = customerMapping['대우당진'] || null;
+    
+    if (!COMPANY_ID) {
+      // 대우당진을 찾을 수 없으면 직접 조회
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('company_id')
+        .eq('company_name', '대우당진')
+        .eq('company_type', '고객사')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      COMPANY_ID = companyData?.company_id || null;
+    }
+  } catch (error) {
+    console.error('Failed to fetch company ID:', error);
+    return NextResponse.json({
+      success: false,
+      error: '거래처 정보를 조회할 수 없습니다.'
+    }, { status: 500 });
+  }
+
+  if (!COMPANY_ID) {
+    return NextResponse.json({
+      success: false,
+      error: '대우당진 거래처를 찾을 수 없습니다.'
+    }, { status: 404 });
+  }
 
   const results = {
     itemsNotInDB: [] as typeof MISSING_ITEMS,

@@ -205,6 +205,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           // customer와 child_supplier 정보 명시적으로 포함
           customer: item.customer || null,
           child_supplier: item.child_supplier || null,
+          // 모품목 마감 정보 및 자품목 구매 정보
+          parent_closing_quantity: item.parent_closing_quantity || null,
+          parent_closing_amount: item.parent_closing_amount || null,
+          child_purchase_quantity: item.child_purchase_quantity || null,
+          child_purchase_amount: item.child_purchase_amount || null,
           is_active: true
         };
       })

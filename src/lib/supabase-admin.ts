@@ -296,43 +296,12 @@ export const supabaseAdminHelpers = {
           throw new Error(`Failed to insert items: ${itemsError.message}`)
         }
 
-        // Sample companies
-        const companies = [
-          {
-            company_code: 'CUST-001',
-            name: '현대자동차',
-            company_type: '고객사' as const,
-            business_number: '101-81-12345',
-            ceo_name: '정의선',
-            phone: '02-3464-1114',
-            address: '서울특별시 서초구 헌릉로 12',
-            contact_person: '김과장'
-          },
-          {
-            company_code: 'SUPP-001',
-            name: '동일철강',
-            company_type: '공급사' as const,
-            business_number: '124-81-45678',
-            ceo_name: '박철수',
-            phone: '031-123-4567',
-            address: '경기도 안산시 단원구 별망로 100',
-            contact_person: '최대리'
-          }
-        ]
-
-        const { data: insertedCompanies, error: companiesError } = await supabaseAdmin
-          .from('companies')
-          .insert(companies as any)
-          .select()
-
-        if (companiesError) {
-          throw new Error(`Failed to insert companies: ${companiesError.message}`)
-        }
+        // Sample companies removed - no hardcoded companies
 
         return {
           users: insertedUsers,
           items: insertedItems,
-          companies: insertedCompanies
+          companies: []
         }
       } catch (error) {
         throw new Error(`Failed to import sample data: ${error}`)

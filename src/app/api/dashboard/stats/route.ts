@@ -14,20 +14,45 @@ export const dynamic = 'force-dynamic';
 export const GET = createValidatedRoute(
   async (request: Request) => {
     try {
+      // Extract filter parameters from URL
+      const url = new URL(request.url);
+      const supplierId = url.searchParams.get('supplier_id');
+      const customerId = url.searchParams.get('customer_id');
+      const category = url.searchParams.get('category');
+
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
       const threeMonthsAgoISO = threeMonthsAgo.toISOString();
 
+      // Build items query with filters
+      let itemsQuery = supabaseAdmin
+        .from('items')
+        .select('item_id, item_code, item_name, current_stock, safety_stock, price, is_active, created_at, supplier_id, category')
+        .eq('is_active', true);
+      
+      if (supplierId) {
+        itemsQuery = itemsQuery.eq('supplier_id', parseInt(supplierId, 10));
+      }
+      if (category) {
+        itemsQuery = itemsQuery.eq('category', category);
+      }
+
+      // Build transactions query with filters
+      let transactionsQuery = supabaseAdmin
+        .from('inventory_transactions')
+        .select('transaction_id, transaction_type, quantity, transaction_date, item_id, total_amount, company_id')
+        .gte('transaction_date', threeMonthsAgoISO);
+      
+      if (supplierId) {
+        transactionsQuery = transactionsQuery.eq('company_id', parseInt(supplierId, 10));
+      }
+      if (customerId) {
+        transactionsQuery = transactionsQuery.eq('company_id', parseInt(customerId, 10));
+      }
+
       const [itemsResult, transactionsResult, companiesResult] = (await Promise.all([
-        supabaseAdmin
-          .from('items')
-          .select('item_id, item_code, item_name, current_stock, safety_stock, price, is_active, created_at')
-          .eq('is_active', true), // 활성 품목만 조회
-        supabaseAdmin
-          .from('inventory_transactions')
-          .select('transaction_id, transaction_type, quantity, transaction_date, item_id, total_amount')
-          .gte('transaction_date', threeMonthsAgoISO)
-          .order('transaction_date', { ascending: false }),
+        itemsQuery.order('created_at', { ascending: false }),
+        transactionsQuery.order('transaction_date', { ascending: false }),
         supabaseAdmin
           .from('companies')
           .select('company_id, company_name, company_type, is_active, created_at')

@@ -6,7 +6,7 @@ import { Save, Loader2 } from 'lucide-react';
 interface Company {
   company_id?: number;
   company_name: string;
-  company_type: 'CUSTOMER' | 'SUPPLIER' | 'BOTH';
+  company_type: 'CUSTOMER' | 'SUPPLIER';
   business_number?: string;
   contact_person?: string;
   phone?: string;
@@ -339,7 +339,6 @@ export default function CompanyForm({ company, onSubmit, onCancel }: CompanyForm
           >
             <option value="CUSTOMER">고객사</option>
             <option value="SUPPLIER">공급사</option>
-            <option value="BOTH">고객사/공급사</option>
           </select>
           {errors.company_type && (
             <p className="mt-1 text-sm text-red-500">{errors.company_type}</p>

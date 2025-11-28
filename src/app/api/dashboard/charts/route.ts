@@ -78,13 +78,28 @@ function applyTransaction(quantity: number, type: TransactionType, target: Daily
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { data: stockItems, error: stockError } = await supabaseAdmin
+    // Extract filter parameters from URL
+    const url = new URL(request.url);
+    const supplierId = url.searchParams.get('supplier_id');
+    const customerId = url.searchParams.get('customer_id');
+    const category = url.searchParams.get('category');
+
+    // Build items query with filters
+    let stockItemsQuery = supabaseAdmin
       .from('items')
       .select('item_id, item_code, item_name, current_stock, safety_stock')
-      .eq('is_active', true)
-      .order('current_stock', { ascending: true });
+      .eq('is_active', true);
+    
+    if (supplierId) {
+      stockItemsQuery = stockItemsQuery.eq('supplier_id', parseInt(supplierId, 10));
+    }
+    if (category) {
+      stockItemsQuery = stockItemsQuery.eq('category', category);
+    }
+
+    const { data: stockItems, error: stockError } = await stockItemsQuery.order('current_stock', { ascending: true });
 
     if (stockError) {
       throw new Error(`Failed to fetch stock data: ${stockError.message}`);
@@ -94,10 +109,19 @@ export async function GET() {
 
     // Fetch prices for all items to calculate stock value
     // 실제 items 테이블 스키마에 맞게 컬럼 선택 (min_stock_level, max_stock_level 제거)
-    const { data: itemsWithPrices, error: itemsPriceError } = await supabaseAdmin
+    let itemsWithPricesQuery = supabaseAdmin
       .from('items')
       .select('item_id, item_code, item_name, current_stock, safety_stock, category, price')
       .eq('is_active', true);
+    
+    if (supplierId) {
+      itemsWithPricesQuery = itemsWithPricesQuery.eq('supplier_id', parseInt(supplierId, 10));
+    }
+    if (category) {
+      itemsWithPricesQuery = itemsWithPricesQuery.eq('category', category);
+    }
+
+    const { data: itemsWithPrices, error: itemsPriceError } = await itemsWithPricesQuery;
 
     if (itemsPriceError) {
       console.error('[Dashboard Charts] Failed to fetch items with prices:', itemsPriceError);
@@ -157,11 +181,20 @@ export async function GET() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
 
-    const { data: dailyTransactionsData, error: dailyError } = await supabaseAdmin
+    // Build transactions query with filters
+    let dailyTransactionsQuery = supabaseAdmin
       .from('inventory_transactions')
-      .select('transaction_date, transaction_type, quantity')
-      .gte('transaction_date', thirtyDaysAgoISO)
-      .order('transaction_date', { ascending: false });
+      .select('transaction_date, transaction_type, quantity, company_id')
+      .gte('transaction_date', thirtyDaysAgoISO);
+    
+    if (supplierId) {
+      dailyTransactionsQuery = dailyTransactionsQuery.eq('company_id', parseInt(supplierId, 10));
+    }
+    if (customerId) {
+      dailyTransactionsQuery = dailyTransactionsQuery.eq('company_id', parseInt(customerId, 10));
+    }
+
+    const { data: dailyTransactionsData, error: dailyError } = await dailyTransactionsQuery.order('transaction_date', { ascending: false });
 
     if (dailyError) {
       throw new Error(`Failed to fetch daily transactions: ${dailyError.message}`);
@@ -171,11 +204,20 @@ export async function GET() {
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     const twelveMonthsAgoISO = twelveMonthsAgo.toISOString();
 
-    const { data: monthlyTransactionsData, error: monthlyError } = await supabaseAdmin
+    // Build monthly transactions query with filters
+    let monthlyTransactionsQuery = supabaseAdmin
       .from('inventory_transactions')
       .select('transaction_date, transaction_type, quantity, item_id, company_id, unit_price, total_amount')
-      .gte('transaction_date', twelveMonthsAgoISO)
-      .order('transaction_date', { ascending: false });
+      .gte('transaction_date', twelveMonthsAgoISO);
+    
+    if (supplierId) {
+      monthlyTransactionsQuery = monthlyTransactionsQuery.eq('company_id', parseInt(supplierId, 10));
+    }
+    if (customerId) {
+      monthlyTransactionsQuery = monthlyTransactionsQuery.eq('company_id', parseInt(customerId, 10));
+    }
+
+    const { data: monthlyTransactionsData, error: monthlyError } = await monthlyTransactionsQuery.order('transaction_date', { ascending: false });
 
     if (monthlyError) {
       throw new Error(`Failed to fetch monthly transactions: ${monthlyError.message}`);

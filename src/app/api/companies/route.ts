@@ -8,15 +8,12 @@ export const dynamic = 'force-dynamic';
 
 
 // Company type mapping between Korean (DB) and English (API)
+// 납품처(고객사)와 구매처(공급사)만 허용
 const companyTypeMap: Record<string, string> = {
   'CUSTOMER': '고객사',
   'SUPPLIER': '공급사',
-  'BOTH': '협력사',  // BOTH maps to 협력사
-  'OTHER': '기타',
   '고객사': '고객사',
-  '공급사': '공급사',
-  '협력사': '협력사',
-  '기타': '기타'
+  '공급사': '공급사'
 };
 
 /**
@@ -61,8 +58,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (type.includes(',')) {
         // Split and map each type to Korean
         const types = type.split(',').map(t => t.trim());
-        const dbTypes = types.map(t => companyTypeMap[t] || t) as ('고객사' | '공급사' | '협력사' | '기타')[];
-        query = query.in('company_type', dbTypes);
+        const dbTypes = types.map(t => companyTypeMap[t] || t).filter(t => t === '고객사' || t === '공급사') as ('고객사' | '공급사')[];
+        if (dbTypes.length > 0) {
+          query = query.in('company_type', dbTypes);
+        }
       } else {
         // Single type - use .eq() for backward compatibility
         const dbType = companyTypeMap[type] || type;
@@ -102,8 +101,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (type.includes(',')) {
         // Multiple types
         const types = type.split(',').map(t => t.trim());
-        const dbTypes = types.map(t => companyTypeMap[t] || t) as ('고객사' | '공급사' | '협력사' | '기타')[];
-        countQuery = countQuery.in('company_type', dbTypes);
+        const dbTypes = types.map(t => companyTypeMap[t] || t).filter(t => t === '고객사' || t === '공급사') as ('고객사' | '공급사')[];
+        if (dbTypes.length > 0) {
+          countQuery = countQuery.in('company_type', dbTypes);
+        }
       } else {
         // Single type
         const dbType = companyTypeMap[type] || type;
@@ -232,11 +233,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Generate company_code automatically based on company_type
+    // 납품처(고객사)와 구매처(공급사)만 허용
     const prefixMap: Record<string, string> = {
       '고객사': 'CUS',
-      '공급사': 'SUP',
-      '협력사': 'PAR',
-      '기타': 'OTH'
+      '공급사': 'SUP'
     };
 
     const prefix = prefixMap[dbCompanyType] || 'COM';

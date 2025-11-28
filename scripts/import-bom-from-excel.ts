@@ -9,6 +9,11 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import {
+  getCustomerMappingFromDB,
+  getSupplierMappingFromDB,
+  getSupplierId,
+} from './company-mappings';
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
@@ -23,45 +28,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 고객사 매핑 (시트명 -> company_id)
-const CUSTOMER_MAPPING: Record<string, number> = {
-  '대우당진': 416,
-  '대우포승': 417,
-  '풍기서산': 418,
-  '호원오토': 419,
-  '인알파코리아': 420,
-  '인알파코리아 ': 420, // 시트명에 공백 포함
-};
-
-// 공급사 매핑 (구매처명 -> company_id)
-const SUPPLIER_MAPPING: Record<string, number> = {
-  '태창금속': 421,
-  '삼진스틸': 422,
-  '아신금속': 423,
-  '대일CFT': 424,
-  '제이에스테크': 425,
-  '신성테크': 426,
-  '창경에스테크': 427,
-  '호원사급': 428,
-  '대우포승': 429,
-  '대우포승 사급': 429,
-  '세원테크': 430,
-  '현대제철': 431,
-  '신호': 432,
-  '신성사출': 433,
-  '신성산업': 434,
-  '민현': 435,
-  '세진오토': 436,
-  '오토다임': 437,
-  '대상': 438,
-  '코리아신예': 439,
-  '코리아신예(무상사급)': 439,
-  // 고객사도 공급사 역할을 할 수 있음
-  '대우당진': 416,
-  '풍기서산': 418,
-  '호원오토': 419,
-  '인알파코리아': 420,
-};
+// 매핑 정보 (DB에서 동적으로 조회)
+let customerMapping: Record<string, number> = {};
+let supplierMapping: Record<string, number> = {};
 
 interface ExcelRow {
   납품처?: string;
@@ -130,18 +99,6 @@ interface ParsedBOM {
   child_supplier_id?: number | null; // 구매처명을 company_id로 변환한 값
 }
 
-// 구매처명 → company_id 변환 함수
-function getSupplierId(supplierName: string | undefined): number | null {
-  if (!supplierName) return null;
-  const trimmed = supplierName.trim();
-  
-  // "하드웨어"는 제외 (매핑하지 않음)
-  if (trimmed === '하드웨어') {
-    return null;
-  }
-  
-  return SUPPLIER_MAPPING[trimmed] || null;
-}
 
 // 품목 유형 결정 - DB constraint 기준 (RAW, SUB, FINISHED)
 function determineItemType(category?: string, itemName?: string): 'RAW' | 'SUB' | 'FINISHED' {
@@ -177,7 +134,7 @@ async function parseExcelFile(filePath: string): Promise<{
   for (const sheetName of workbook.SheetNames) {
     if (sheetName === '종합') continue;
 
-    const customerId = CUSTOMER_MAPPING[sheetName];
+    const customerId = customerMapping[sheetName];
     if (!customerId) {
       console.warn(`Unknown customer sheet: ${sheetName}`);
       continue;
@@ -195,12 +152,18 @@ async function parseExcelFile(filePath: string): Promise<{
     let childCount = 0;
 
     for (const row of data) {
-      // 컬럼 매핑 - 단순하게 Excel 순서대로 처리
+      // 컬럼 매핑 - Excel 구조에 맞게 수정
+      // 모품목: A-G열 (납품처, 차종, 품번, 품명, 단가, 마감수량, 마감금액)
+      // 자품목: I-P열 (구매처, 차종, 품번, 품명, U/S, 단가, 구매수량, 구매금액)
       const 납품처 = String(row['납품처'] || '').trim();
       const 차종 = String(row['차종'] || '').trim();
       const 품번 = String(row['품번'] || '').trim();
       const 품명 = String(row['품명'] || '').trim();
+      // H열은 비어있거나 업체구분이므로 건너뜀
+      // I열부터 자품목 정보 시작
       const 구매처명 = String(row['구매처'] || '').trim();
+      // Excel에서 자품목의 품번, 품명, 차종은 중복된 헤더명이므로 인덱스로 접근하거나 다른 방법 사용
+      // XLSX는 중복 헤더를 자동으로 _1, _2로 변환하므로 확인 필요
       const 품번_구매 = String(row['품번_1'] || row['품번'] || '').trim();
       const 품명_구매 = String(row['품명_1'] || row['품명'] || '').trim();
       const 차종_구매 = String(row['차종_1'] || row['차종'] || '').trim();
@@ -221,8 +184,11 @@ async function parseExcelFile(filePath: string): Promise<{
       const 스크랩금액 = row['스크랩금액'];
       const 비고 = row['비고'];
 
-      // 1. 납품처와 품번이 있으면 모품목으로 인식
-      if (납품처 && 품번) {
+      // 1. 모품목 판별: A-G열 중 하나라도 값이 있으면 모품목 행
+      // Excel 구조: 모품목은 A-G열에 데이터, 자품목은 A-G열이 비어있고 H열 이후에 데이터
+      const isParentRow = 납품처 || 차종 || 품번 || 품명 || 단가;
+      
+      if (isParentRow && 품번) {
         currentParentCode = 품번;
         currentParentName = 품명;
         
@@ -242,9 +208,13 @@ async function parseExcelFile(filePath: string): Promise<{
         }
       }
 
-      // 2. 품번_구매가 있으면 자식으로 처리 (Excel 순서대로)
-      if (품번_구매 && currentParentCode) {
-        const childCode = 품번_구매;
+      // 2. 자품목 판별: A-G열이 비어있고 H열 이후에 값이 있으면 자품목 행
+      // Excel 구조: 자품목은 A-G열이 비어있고, H열(업체구분) 또는 I열(구매처)부터 데이터
+      const isChildRow = !isParentRow && (구매처명 || 품번_구매 || 품명_구매);
+      
+      if (isChildRow && currentParentCode) {
+        // 구매처명이 있으면 자품목 행으로 처리
+        const childCode = 품번_구매 || 품번; // 자품목 품번이 없으면 모품목 품번 사용 (자기 참조)
         let 구매처명_값 = 구매처명;
         
         // 자기 참조이고 구매처명이 없으면 납품처명 사용
@@ -337,7 +307,7 @@ async function parseExcelFile(filePath: string): Promise<{
   
   // 대우당진 BOM 디버그
   const daewooBoms = boms.filter(b => {
-    const customerName = Object.entries(CUSTOMER_MAPPING).find(([_, id]) => id === b.customer_id)?.[0];
+    const customerName = Object.entries(customerMapping).find(([_, id]) => id === b.customer_id)?.[0];
     return customerName === '대우당진';
   });
   console.log(`\n대우당진 BOM 상세:`);
@@ -472,19 +442,97 @@ async function insertBOMs(boms: ParsedBOM[], itemIdMap: Map<string, number>): Pr
 
   console.log(`Unique BOM records: ${uniqueBoms.length}`);
 
-  // 배치 삽입 (100개씩)
+  // 모품목 기준으로 정렬 (Excel 파일 순서 유지)
+  // parent_item_id를 기준으로 정렬하여 모품목별로 그룹화
+  uniqueBoms.sort((a, b) => {
+    if (a.parent_item_id !== b.parent_item_id) {
+      return a.parent_item_id - b.parent_item_id;
+    }
+    // 같은 모품목 내에서는 자품목 ID로 정렬
+    return a.child_item_id - b.child_item_id;
+  });
+
+  // 기존 BOM 데이터를 삭제하지 않고 upsert로 업데이트/추가
+  // Excel 파일 기준으로 모품목 위주로 변경
+  console.log(`Updating/Inserting BOMs based on Excel file order (parent item focused)`);
+
+  // 기존 BOM 조회 (모든 고객사의 BOM)
+  const customerIds = [...new Set(uniqueBoms.map(b => b.customer_id).filter(id => id !== null))];
+  const { data: existingBoms, error: fetchError } = await supabase
+    .from('bom')
+    .select('bom_id, parent_item_id, child_item_id, customer_id, child_supplier_id')
+    .in('customer_id', customerIds);
+
+  if (fetchError) {
+    console.error('Error fetching existing BOMs:', fetchError);
+  }
+
+  // 기존 BOM을 Map으로 변환 (키: parent-child-customer-supplier 조합)
+  const existingBomMap = new Map<string, number>();
+  if (existingBoms) {
+    existingBoms.forEach(bom => {
+      const key = `${bom.parent_item_id}-${bom.child_item_id}-${bom.customer_id}-${bom.child_supplier_id || 'NULL'}`;
+      existingBomMap.set(key, bom.bom_id);
+    });
+  }
+
+  console.log(`Found ${existingBomMap.size} existing BOM records`);
+
+  // 업데이트할 BOM과 새로 삽입할 BOM 분리
+  const bomsToUpdate: Array<{ bom_id: number; data: typeof uniqueBoms[0] }> = [];
+  const bomsToInsert: typeof uniqueBoms = [];
+
+  uniqueBoms.forEach(bom => {
+    const key = `${bom.parent_item_id}-${bom.child_item_id}-${bom.customer_id}-${bom.child_supplier_id || 'NULL'}`;
+    const existingBomId = existingBomMap.get(key);
+    if (existingBomId) {
+      bomsToUpdate.push({ bom_id: existingBomId, data: bom });
+    } else {
+      bomsToInsert.push(bom);
+    }
+  });
+
+  console.log(`BOMs to update: ${bomsToUpdate.length}`);
+  console.log(`BOMs to insert: ${bomsToInsert.length}`);
+
+  // 배치 업데이트 및 삽입 (100개씩)
   const batchSize = 100;
+  let updatedCount = 0;
   let insertedCount = 0;
 
-  for (let i = 0; i < uniqueBoms.length; i += batchSize) {
-    const batch = uniqueBoms.slice(i, i + batchSize);
+  // 기존 BOM 업데이트
+  for (let i = 0; i < bomsToUpdate.length; i += batchSize) {
+    const batch = bomsToUpdate.slice(i, i + batchSize);
+    
+    for (const { bom_id, data } of batch) {
+      const { error } = await supabase
+        .from('bom')
+        .update({
+          quantity_required: data.quantity_required,
+          is_active: data.is_active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('bom_id', bom_id);
+
+      if (error) {
+        console.error(`Error updating BOM ${bom_id}:`, error);
+      } else {
+        updatedCount++;
+      }
+    }
+    
+    if (batch.length > 0) {
+      console.log(`Updated BOM batch ${Math.floor(i / batchSize) + 1}: ${batch.length} records`);
+    }
+  }
+
+  // 새 BOM 삽입
+  for (let i = 0; i < bomsToInsert.length; i += batchSize) {
+    const batch = bomsToInsert.slice(i, i + batchSize);
 
     const { data, error } = await supabase
       .from('bom')
-      .upsert(batch, {
-        onConflict: 'parent_item_id,child_item_id,customer_id,child_supplier_id', // 새로운 제약조건에 맞게 수정
-        ignoreDuplicates: false, // 덮어쓰기 허용 (복사본.xlsx 기준으로 재구성)
-      })
+      .insert(batch)
       .select('bom_id');
 
     if (error) {
@@ -495,14 +543,24 @@ async function insertBOMs(boms: ParsedBOM[], itemIdMap: Map<string, number>): Pr
     }
   }
 
-  console.log(`Total BOM records inserted: ${insertedCount}`);
+  console.log(`\nTotal BOM records processed: ${updatedCount + insertedCount}`);
+  console.log(`  - Updated: ${updatedCount} existing BOMs`);
+  console.log(`  - Inserted: ${insertedCount} new BOMs`);
+  console.log(`BOM data updated/inserted based on Excel file order (parent item focused)`);
 }
 
 // 메인 실행
 async function main() {
-  const excelPath = path.join(__dirname, '..', '.plan', '(추가)BOM 종합 - ERP (1) copy - 복사본.xlsx');
+  const excelPath = path.join(__dirname, '..', '.example', '(추가)BOM 종합 - ERP (1).xlsx');
 
   try {
+    // 0. 데이터베이스에서 매핑 정보 조회
+    console.log('데이터베이스에서 거래처 매핑 정보 조회 중...');
+    customerMapping = await getCustomerMappingFromDB(supabase);
+    supplierMapping = await getSupplierMappingFromDB(supabase);
+    console.log(`  - 고객사: ${Object.keys(customerMapping).length}개`);
+    console.log(`  - 공급사: ${Object.keys(supplierMapping).length}개`);
+
     // 1. 엑셀 파싱
     const { items, boms } = await parseExcelFile(excelPath);
 

@@ -67,7 +67,7 @@ export default function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-[60] overflow-y-auto">
       {/* Backdrop - explicit z-index 1, aria-hidden */}
       <div
         className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 transition-opacity"
