@@ -1603,6 +1603,90 @@ export default function BOMPage() {
     ));
   };
 
+  // grouped 뷰 전용 렌더링 함수 (테이블 헤더와 일치하는 컬럼 구조)
+  const renderGroupedBOMRows = (bomList: BOM[]): React.ReactElement[] => {
+    return bomList.map((bom: any) => (
+      <tr key={bom.bom_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        {/* 자품번 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-left">
+          <span className="text-gray-900 dark:text-white">
+            {bom.child_item_code || bom.child?.item_code || '-'}
+          </span>
+        </td>
+        {/* 자품명 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 text-sm text-left">
+          <span className="text-gray-900 dark:text-white block" title={bom.child_item_name || bom.child?.item_name || '-'}>
+            {bom.child_item_name || bom.child?.item_name || '-'}
+          </span>
+        </td>
+        {/* 소요량 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {parseFloat((bom.quantity || bom.quantity_required || 0).toString()).toLocaleString()}
+        </td>
+        {/* 단위 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-center text-gray-900 dark:text-white">
+          {bom.child_item_unit || bom.child?.unit || '-'}
+        </td>
+        {/* 단가 (₩) */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {((bom.unit_price && bom.unit_price > 0) ? bom.unit_price.toLocaleString() : 
+            (bom.child?.price && bom.child.price > 0) ? bom.child.price.toLocaleString() : '-')}
+        </td>
+        {/* 재료비 (₩) */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+          {(bom.material_cost && bom.material_cost > 0) ? bom.material_cost.toLocaleString() : '-'}
+        </td>
+        {/* 구분 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-center text-gray-900 dark:text-white">
+          {bom.item_type === 'internal_production' ? '내부생산' : bom.item_type === 'external_purchase' ? '외부구매' : '-'}
+        </td>
+        {/* 비고 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 text-sm text-left">
+          <span className="text-gray-600 dark:text-gray-400">
+            {bom.notes || bom.remarks || '-'}
+          </span>
+        </td>
+        {/* 상태 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-sm text-center">
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            bom.is_active 
+              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+              : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+          }`}>
+            {bom.is_active ? '활성' : '비활성'}
+          </span>
+        </td>
+        {/* 작업 */}
+        <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-center">
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => {
+                setEditingBOM(bom);
+                setShowAddModal(true);
+              }}
+              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+              title="수정"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(bom)}
+              disabled={deletingBomId === bom.bom_id}
+              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="삭제"
+            >
+              {deletingBomId === bom.bom_id ? (
+                <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </td>
+      </tr>
+    ));
+  };
+
   // 그룹화 뷰 렌더링 함수
   const renderGroupedView = () => {
     if (!groupedBOMData || groupedBOMData.size === 0) {
@@ -1730,7 +1814,7 @@ export default function BOMPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {renderBOMRows(bomEntries)}
+                      {renderGroupedBOMRows(bomEntries)}
                     </tbody>
                   </table>
                 </div>
