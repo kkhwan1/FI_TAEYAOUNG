@@ -382,53 +382,113 @@ export default function BOMPage() {
     }
   }, []);
 
-  // 납품처(고객사) 목록 가져오기
+  // 납품처 목록 가져오기 (BOM에서 실제 사용되는 customer_id 기준)
   const fetchCustomers = useCallback(async () => {
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
-      const data = await safeFetchJson('/api/companies?type=고객사&limit=500', {}, {
+      
+      // BOM에서 사용되는 납품처(customer_id) 추출
+      const bomData = await safeFetchJson('/api/bom?limit=10000', {}, {
         timeout: 10000,
         maxRetries: 2,
         retryDelay: 1000
       });
 
-      if (data.success && data.data) {
-        // API 응답 구조: { success: true, data: { data: [...], meta: {...} } }
-        const companies = data.data.data || data.data || [];
-        const customerList: CustomerInfo[] = companies.map((c: any) => ({
-          company_id: c.company_id,
-          company_name: c.company_name,
-          company_code: c.company_code
-        }));
-        setCustomers(customerList);
+      if (bomData.success && bomData.data && bomData.data.bom_entries) {
+        // BOM에서 사용되는 고유한 customer_id 추출
+        const customerIds = new Set<number>();
+        bomData.data.bom_entries.forEach((entry: any) => {
+          if (entry.customer_id) {
+            customerIds.add(entry.customer_id);
+          }
+        });
+
+        // 모든 회사 정보 가져오기
+        const allCompaniesData = await safeFetchJson('/api/companies?limit=1000', {}, {
+          timeout: 10000,
+          maxRetries: 2,
+          retryDelay: 1000
+        });
+
+        if (allCompaniesData.success && allCompaniesData.data) {
+          const allCompanies = allCompaniesData.data.data || allCompaniesData.data || [];
+          const customerList: CustomerInfo[] = allCompanies
+            .filter((c: any) => customerIds.has(c.company_id))
+            .map((c: any) => ({
+              company_id: c.company_id,
+              company_name: c.company_name,
+              company_code: c.company_code
+            }))
+            .sort((a: CustomerInfo, b: CustomerInfo) => 
+              (a.company_name || '').localeCompare(b.company_name || '', 'ko')
+            );
+          
+          console.log('[BOM] Fetched customers from BOM:', customerList.length, customerList.slice(0, 3));
+          setCustomers(customerList);
+        } else {
+          setCustomers([]);
+        }
+      } else {
+        setCustomers([]);
       }
     } catch (err) {
       console.error('Failed to fetch customers:', err);
+      setCustomers([]);
     }
   }, []);
 
-  // 공급처 목록 가져오기 (공급사 + 협력사)
+  // 공급처 목록 가져오기 (BOM에서 실제 사용되는 child_supplier_id 기준)
   const fetchSuppliers = useCallback(async () => {
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
-      const data = await safeFetchJson('/api/companies?type=공급사,협력사&limit=500', {}, {
+      
+      // BOM에서 사용되는 공급처(child_supplier_id) 추출
+      const bomData = await safeFetchJson('/api/bom?limit=10000', {}, {
         timeout: 10000,
         maxRetries: 2,
         retryDelay: 1000
       });
 
-      if (data.success && data.data) {
-        // API 응답 구조: { success: true, data: { data: [...], meta: {...} } }
-        const companies = data.data.data || data.data || [];
-        const supplierList: SupplierInfo[] = companies.map((s: any) => ({
-          company_id: s.company_id,
-          company_name: s.company_name,
-          company_code: s.company_code
-        }));
-        setSuppliers(supplierList);
+      if (bomData.success && bomData.data && bomData.data.bom_entries) {
+        // BOM에서 사용되는 고유한 child_supplier_id 추출
+        const supplierIds = new Set<number>();
+        bomData.data.bom_entries.forEach((entry: any) => {
+          if (entry.child_supplier_id) {
+            supplierIds.add(entry.child_supplier_id);
+          }
+        });
+
+        // 모든 회사 정보 가져오기
+        const allCompaniesData = await safeFetchJson('/api/companies?limit=1000', {}, {
+          timeout: 10000,
+          maxRetries: 2,
+          retryDelay: 1000
+        });
+
+        if (allCompaniesData.success && allCompaniesData.data) {
+          const allCompanies = allCompaniesData.data.data || allCompaniesData.data || [];
+          const supplierList: SupplierInfo[] = allCompanies
+            .filter((s: any) => supplierIds.has(s.company_id))
+            .map((s: any) => ({
+              company_id: s.company_id,
+              company_name: s.company_name,
+              company_code: s.company_code
+            }))
+            .sort((a: SupplierInfo, b: SupplierInfo) => 
+              (a.company_name || '').localeCompare(b.company_name || '', 'ko')
+            );
+          
+          console.log('[BOM] Fetched suppliers from BOM:', supplierList.length, supplierList.slice(0, 3));
+          setSuppliers(supplierList);
+        } else {
+          setSuppliers([]);
+        }
+      } else {
+        setSuppliers([]);
       }
     } catch (err) {
       console.error('Failed to fetch suppliers:', err);
+      setSuppliers([]);
     }
   }, []);
 
@@ -544,6 +604,54 @@ export default function BOMPage() {
 
         setBomData(bomList);
         setCostSummary(data.data.cost_summary);
+
+        // BOM 데이터에서 납품처와 공급처 목록 추출
+        const customerIds = new Set<number>();
+        const supplierIds = new Set<number>();
+        bomList.forEach((item: BOM) => {
+          if (item.customer?.company_id) {
+            customerIds.add(item.customer.company_id);
+          }
+          if (item.child_supplier?.company_id) {
+            supplierIds.add(item.child_supplier.company_id);
+          }
+        });
+
+        // 납품처 목록 업데이트
+        if (customerIds.size > 0) {
+          const customerList: CustomerInfo[] = [];
+          customerIds.forEach(id => {
+            const bomItem = bomList.find((item: BOM) => item.customer?.company_id === id);
+            if (bomItem?.customer) {
+              customerList.push({
+                company_id: bomItem.customer.company_id,
+                company_name: bomItem.customer.company_name || '',
+                company_code: bomItem.customer.company_code
+              });
+            }
+          });
+          customerList.sort((a, b) => a.company_name.localeCompare(b.company_name, 'ko'));
+          setCustomers(customerList);
+          console.log('[BOM] Updated customers from BOM data:', customerList.length);
+        }
+
+        // 공급처 목록 업데이트
+        if (supplierIds.size > 0) {
+          const supplierList: SupplierInfo[] = [];
+          supplierIds.forEach(id => {
+            const bomItem = bomList.find((item: BOM) => item.child_supplier?.company_id === id);
+            if (bomItem?.child_supplier) {
+              supplierList.push({
+                company_id: bomItem.child_supplier.company_id,
+                company_name: bomItem.child_supplier.company_name || '',
+                company_code: bomItem.child_supplier.company_code
+              });
+            }
+          });
+          supplierList.sort((a, b) => a.company_name.localeCompare(b.company_name, 'ko'));
+          setSuppliers(supplierList);
+          console.log('[BOM] Updated suppliers from BOM data:', supplierList.length);
+        }
       } else {
         console.error('API Error:', data.error);
         const { extractErrorMessage } = await import('@/lib/fetch-utils');
@@ -3232,11 +3340,15 @@ export default function BOMPage() {
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
             >
               <option value="">납품처</option>
-              {customers.map(c => (
-                <option key={c.company_id} value={c.company_id}>
-                  {c.company_name}
-                </option>
-              ))}
+              {customers.length > 0 ? (
+                customers.map(c => (
+                  <option key={c.company_id} value={c.company_id}>
+                    {c.company_name}
+                  </option>
+                ))
+              ) : (
+                <option value="" disabled>로딩 중...</option>
+              )}
             </select>
 
             {/* 공급처 필터 (자품목의 supplier) */}
@@ -3249,11 +3361,15 @@ export default function BOMPage() {
               className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
             >
               <option value="">공급처</option>
-              {suppliers.map(s => (
-                <option key={s.company_id} value={s.company_id}>
-                  {s.company_name}
-                </option>
-              ))}
+              {suppliers.length > 0 ? (
+                suppliers.map(s => (
+                  <option key={s.company_id} value={s.company_id}>
+                    {s.company_name}
+                  </option>
+                ))
+              ) : (
+                <option value="" disabled>로딩 중...</option>
+              )}
             </select>
 
             {/* 차종 필터 */}
