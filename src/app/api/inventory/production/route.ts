@@ -166,7 +166,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       reference_number,
       notes,
       created_by,
-      transaction_type
+      transaction_type,
+      process_types,
+      press_capacity
     } = body;
 
     // 필수 필드 검증
@@ -306,6 +308,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     // === API 레벨 BOM 검증 종료 ===
 
+    // Prepare production metadata (process types and press capacity)
+    const productionMetadata: any = {};
+    if (process_types && Array.isArray(process_types) && process_types.length > 0) {
+      productionMetadata.process_types = process_types;
+    }
+    if (press_capacity) {
+      productionMetadata.press_capacity = press_capacity;
+    }
+    const description = Object.keys(productionMetadata).length > 0 
+      ? JSON.stringify(productionMetadata) 
+      : null;
+
     // Insert production transaction using parsed values
     const { data, error } = await supabase
       .from('inventory_transactions')
@@ -319,7 +333,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         company_id: company_id || null,
         reference_number: reference_number || null,
         transaction_date,
-        notes: notes || null
+        notes: notes || null,
+        description: description  // 생산 실적 정보 저장 (프레스/용접/도장, 프레스 용량)
       }])
       .select(`
         *,

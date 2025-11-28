@@ -338,15 +338,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 400 });
     }
 
-    // 1. 자기 자신 참조 방지
-    if (parent_item_id === child_item_id) {
-      return NextResponse.json({
-        success: false,
-        error: "모품목과 자품목이 동일할 수 없습니다"
-      }, { status: 400 });
-    }
+    // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
-    // 2. 중복 BOM 체크 (활성 + 비활성 모두 확인)
+    // 중복 BOM 체크 (활성 + 비활성 모두 확인)
     const { data: existing } = await supabase
       .from('bom')
       .select('bom_id, is_active')
@@ -369,40 +363,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 3. 순환 참조 체크 함수
-    async function checkCircularReference(
-      supabase: any, 
-      parentId: number, 
-      childId: number
-    ): Promise<boolean> {
-      // childId를 모품목으로 가지는 BOM들을 재귀적으로 조회
-      const { data } = await supabase
-        .from('bom')
-        .select('child_item_id')
-        .eq('parent_item_id', childId)
-        .eq('is_active', true);
-      
-      if (!data || data.length === 0) return false;
-      
-      for (const row of data) {
-        if (row.child_item_id === parentId) return true;
-        if (await checkCircularReference(supabase, parentId, row.child_item_id)) {
-          return true;
-        }
-      }
-      return false;
-    }
+    // 순환 참조 허용: 모든 순환 참조를 허용함
 
-    // 순환 참조 체크 실행
-    const hasCircularReference = await checkCircularReference(supabase, parent_item_id, child_item_id);
-    if (hasCircularReference) {
-      return NextResponse.json({
-        success: false,
-        error: "순환 참조가 감지되었습니다. BOM 구조를 확인해주세요."
-      }, { status: 400 });
-    }
-
-    // 4. 소요량 검증
+    // 소요량 검증
     if (quantity_required <= 0) {
       return NextResponse.json({
         success: false,
@@ -664,14 +627,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         }, { status: 400 });
       }
 
-      // Check for self-reference
-      const childId = updateData.child_item_id ?? existingBom.child_item_id;
-      if (updateData.parent_item_id === childId) {
-        return NextResponse.json({
-          success: false,
-          error: '모품목과 자품목이 동일할 수 없습니다.'
-        }, { status: 400 });
-      }
+      // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
     }
 
     // Validate child_item_id if being updated
@@ -696,14 +652,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         }, { status: 400 });
       }
 
-      // Check for self-reference
-      const parentId = updateData.parent_item_id ?? existingBom.parent_item_id;
-      if (updateData.child_item_id === parentId) {
-        return NextResponse.json({
-          success: false,
-          error: '모품목과 자품목이 동일할 수 없습니다.'
-        }, { status: 400 });
-      }
+      // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
     }
 
     // Validate customer_id if being updated (must be type '고객사' or null)

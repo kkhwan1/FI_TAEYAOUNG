@@ -422,15 +422,7 @@ async function validateAndParseRow(
     });
   }
 
-  // Check for self-reference
-  if (parentItemCode === childItemCode) {
-    errors.push({
-      row: rowNumber,
-      field: 'child_item_code',
-      message: '부모품목과 자식품목이 동일할 수 없습니다 (자기 참조)',
-      severity: 'error'
-    });
-  }
+  // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
   // If critical errors exist, return null
   if (errors.some(e => e.severity === 'error')) {
@@ -571,17 +563,7 @@ async function performCrossValidation(rows: BOMExcelRow[]): Promise<ValidationEr
     bomGraph.get(row.parent_item_code)!.add(row.child_item_code);
   });
 
-  // Detect simple cycles
-  rows.forEach((row, idx) => {
-    if (hasCircularReference(row.parent_item_code, row.child_item_code, bomGraph)) {
-      errors.push({
-        row: idx + 2,
-        field: 'child_item_code',
-        message: `순환 참조 감지: ${row.parent_item_code} ↔ ${row.child_item_code} (직접 또는 간접)`,
-        severity: 'error'
-      });
-    }
-  });
+  // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
 
   return errors;
 }
@@ -595,32 +577,8 @@ function hasCircularReference(
   graph: Map<string, Set<string>>,
   visited: Set<string> = new Set()
 ): boolean {
-  if (parent === child) {
-    return true;
-  }
-
-  if (visited.has(child)) {
-    return false;
-  }
-
-  visited.add(child);
-
-  const children = graph.get(child);
-  if (!children) {
-    return false;
-  }
-
-  const childrenArray = Array.from(children);
-  for (const nextChild of childrenArray) {
-    if (nextChild === parent) {
-      return true;
-    }
-
-    if (hasCircularReference(parent, nextChild, graph, new Set(visited))) {
-      return true;
-    }
-  }
-
+  // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
+  // 항상 false를 반환하여 순환 참조 검사를 비활성화
   return false;
 }
 

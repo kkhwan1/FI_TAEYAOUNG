@@ -36,13 +36,7 @@ export class BOMHandler extends CRUDHandler {
       );
     }
 
-    // Self-reference check
-    if (parent_item_id === child_item_id) {
-      throw new ERPError(
-        ErrorType.VALIDATION,
-        '모품목과 자품목이 동일할 수 없습니다'
-      );
-    }
+    // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
     // Quantity validation
     if (quantity_required <= 0) {

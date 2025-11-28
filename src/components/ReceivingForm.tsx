@@ -21,7 +21,6 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
     items: [],
     company_id: undefined,
     reference_no: '',
-    notes: '',
     created_by: 1 // Default user ID
   });
 
@@ -41,7 +40,6 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
         items: initialData.items || [],
         company_id: initialData.company_id,
         reference_no: initialData.reference_no || '',
-        notes: initialData.notes || '',
         created_by: initialData.created_by || 1
       });
       
@@ -351,12 +349,12 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
       };
 
       // Remove empty optional fields
-      Object.keys(submissionData).forEach(key => {
-        if (key !== 'items' && (submissionData[key as keyof typeof submissionData] === '' ||
-            submissionData[key as keyof typeof submissionData] === undefined)) {
-          delete submissionData[key as keyof typeof submissionData];
-        }
-      });
+      if (submissionData.company_id === undefined) {
+        delete submissionData.company_id;
+      }
+      if (submissionData.reference_no === '') {
+        delete submissionData.reference_no;
+      }
 
       await onSubmit(submissionData);
     } finally {
@@ -654,20 +652,6 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
 
 
 
-        {/* 메모 */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            메모
-          </label>
-          <textarea
-            name="notes"
-            value={formData.notes}
-            onChange={handleChange}
-            rows={3}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="추가 메모나 특이사항을 입력하세요"
-          />
-        </div>
       </div>
 
       {/* Added Items List */}

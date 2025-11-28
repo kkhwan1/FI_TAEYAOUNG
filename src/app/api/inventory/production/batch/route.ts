@@ -33,7 +33,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       reference_no,
       notes,
       use_bom = true,
-      created_by = 1
+      created_by = 1,
+      process_types,
+      press_capacity
     } = body;
 
     // 필수 필드 검증
@@ -161,6 +163,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 400 });
     }
 
+    // Prepare production metadata (process types and press capacity)
+    const productionMetadata: any = {};
+    if (process_types && Array.isArray(process_types) && process_types.length > 0) {
+      productionMetadata.process_types = process_types;
+    }
+    if (press_capacity) {
+      productionMetadata.press_capacity = press_capacity;
+    }
+    const description = Object.keys(productionMetadata).length > 0 
+      ? JSON.stringify(productionMetadata) 
+      : null;
+
     // 일괄 거래 생성 (생산입고)
     const transactions = items.map((item: any) => ({
       item_id: item.product_item_id || item.item_id,
@@ -171,6 +185,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       reference_number: reference_no || null,
       transaction_date,
       notes: notes || null,
+      description: description,  // 생산 실적 정보 저장 (프레스/용접/도장, 프레스 용량)
       status: '완료',
       created_by: created_by || 1
     }));

@@ -719,6 +719,15 @@ export default function BOMPage() {
     return groupBOMByParent(filteredData);
   }, [filteredData, viewMode, selectedParentItem, groupBOMByParent]);
 
+  // items를 Map으로 변환하여 O(1) 조회 최적화 (메모이제이션)
+  const itemsMap = useMemo(() => {
+    const map = new Map<number, any>();
+    items.forEach(item => {
+      map.set(item.item_id, item);
+    });
+    return map;
+  }, [items]);
+
   // 확장/축소 토글 함수
   const toggleParent = useCallback((parentId: number) => {
     setExpandedParents(prev => {
@@ -751,7 +760,8 @@ export default function BOMPage() {
     const matchingParentIds = new Set<number>();
 
     groupedBOMData.forEach((bomEntries, parentId) => {
-      const parentItem = items.find(item => item.item_id === parentId);
+      // items Map을 사용하여 O(1) 조회로 최적화
+      const parentItem = itemsMap.get(parentId);
       const matchesParent = 
         parentItem?.item_code?.toLowerCase().includes(searchTerm) ||
         parentItem?.item_name?.toLowerCase().includes(searchTerm);
@@ -773,7 +783,7 @@ export default function BOMPage() {
         return next;
       });
     }
-  }, [filters.searchTerm, groupedBOMData, items]);
+  }, [filters.searchTerm, groupedBOMData, itemsMap]);
 
   // CRUD handlers
   const handleDelete = async (bom: BOM) => {
@@ -1620,8 +1630,8 @@ export default function BOMPage() {
     ));
   };
 
-  // grouped 뷰 전용 렌더링 함수 (테이블 헤더와 일치하는 컬럼 구조)
-  const renderGroupedBOMRows = (bomList: BOM[]): React.ReactElement[] => {
+  // grouped 뷰 전용 렌더링 함수 (테이블 헤더와 일치하는 컬럼 구조) - useCallback으로 메모이제이션
+  const renderGroupedBOMRows = useCallback((bomList: BOM[]): React.ReactElement[] => {
     return bomList.map((bom: any) => (
       <tr key={bom.bom_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         {/* 자품번 */}
@@ -1702,7 +1712,20 @@ export default function BOMPage() {
         </td>
       </tr>
     ));
-  };
+  }, [setEditingBOM, setShowAddModal, handleDelete, deletingBomId]);
+
+  // parentIds 정렬 결과 메모이제이션 (items Map 사용으로 O(1) 조회 최적화)
+  const sortedParentIds = useMemo(() => {
+    if (!groupedBOMData) return [];
+    return Array.from(groupedBOMData.keys()).sort((a, b) => {
+      // items Map을 사용하여 O(1) 조회로 최적화
+      const itemA = itemsMap.get(a);
+      const itemB = itemsMap.get(b);
+      const codeA = itemA?.item_code || '';
+      const codeB = itemB?.item_code || '';
+      return codeA.localeCompare(codeB);
+    });
+  }, [groupedBOMData, itemsMap]);
 
   // 그룹화 뷰 렌더링 함수
   const renderGroupedView = () => {
@@ -1716,13 +1739,7 @@ export default function BOMPage() {
       );
     }
 
-    const parentIds = Array.from(groupedBOMData.keys()).sort((a, b) => {
-      const itemA = items.find(item => item.item_id === a);
-      const itemB = items.find(item => item.item_id === b);
-      const codeA = itemA?.item_code || '';
-      const codeB = itemB?.item_code || '';
-      return codeA.localeCompare(codeB);
-    });
+    const parentIds = sortedParentIds;
 
     return (
       <div className="space-y-4">
@@ -1750,7 +1767,8 @@ export default function BOMPage() {
         {/* 모품목별 그룹 */}
         {parentIds.map(parentId => {
           const bomEntries = groupedBOMData.get(parentId) || [];
-          const parentItem = items.find(item => item.item_id === parentId);
+          // items Map을 사용하여 O(1) 조회로 최적화
+          const parentItem = itemsMap.get(parentId);
           const isExpanded = expandedParents.has(parentId);
           const bomCount = bomEntries.length;
 

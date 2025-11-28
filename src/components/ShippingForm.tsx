@@ -23,7 +23,6 @@ import {
   ItemForComponent as Item
 } from '@/types/inventory';
 import { Database } from '@/types/supabase';
-import ItemSelect from '@/components/ItemSelect';
 import CompanySelect from '@/components/CompanySelect';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useToastNotification } from '@/hooks/useToast';
@@ -39,10 +38,6 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     transaction_date: new Date().toISOString().split('T')[0],
     customer_id: undefined,
     items: [],
-    reference_no: '',
-    delivery_address: '',
-    delivery_date: '',
-    notes: '',
     created_by: 1 // Default user ID
   });
 
@@ -66,10 +61,6 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         transaction_date: initialData.transaction_date || new Date().toISOString().split('T')[0],
         customer_id: initialData.customer_id,
         items: initialData.items || [],
-        reference_no: initialData.reference_no || '',
-        delivery_address: initialData.delivery_address || '',
-        delivery_date: initialData.delivery_date || '',
-        notes: initialData.notes || '',
         created_by: initialData.created_by || 1
       });
     }
@@ -226,8 +217,8 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     }));
 
     // 예정일이 변경되고 품목이 추가되어 있으면 해당 월의 단가를 자동으로 업데이트
-    if ((name === 'delivery_date' || name === 'transaction_date') && formData.items.length > 0) {
-      const targetDate = name === 'delivery_date' ? value : (name === 'transaction_date' ? value : formData.delivery_date || formData.transaction_date || '');
+    if (name === 'transaction_date' && formData.items.length > 0) {
+      const targetDate = value || formData.transaction_date || '';
       if (targetDate) {
         // 모든 품목의 단가를 업데이트
         const updatedItems = await Promise.all(
@@ -310,7 +301,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     setAddingProduct(true);
     try {
       // 예정일이 있으면 해당 월의 단가를 조회, 없으면 현재 품목 단가 사용
-      const targetDate = formData.delivery_date || formData.transaction_date || '';
+      const targetDate = formData.transaction_date || '';
       let unitPrice = item.unit_price || item.price || 0;
       let isMonthly = false;
       
@@ -368,9 +359,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     // 고객사 정보 자동 입력
     setFormData(prev => ({
       ...prev,
-      customer_id: customerId || undefined,
-      // 고객사 주소를 배송주소로 자동 입력 (배송주소가 비어있을 때만)
-      delivery_address: customer?.address && !prev.delivery_address ? customer.address : prev.delivery_address
+      customer_id: customerId || undefined
     }));
 
     setSelectedCustomerItemIds(new Set()); // 선택 초기화
@@ -557,9 +546,6 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
       newErrors.quantity = '모든 제품의 수량이 0보다 커야 합니다';
     }
 
-    if (formData.delivery_date && formData.delivery_date < formData.transaction_date) {
-      newErrors.delivery_date = '배송일은 출고일자보다 뒤여야 합니다';
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -592,13 +578,10 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         created_by: 1 // Default user ID, should be from auth context
       };
 
-      // Remove empty optional fields
-      Object.keys(submissionData).forEach(key => {
-        if (key !== 'items' && (submissionData[key as keyof typeof submissionData] === '' ||
-            submissionData[key as keyof typeof submissionData] === undefined)) {
-          delete submissionData[key as keyof typeof submissionData];
-        }
-      });
+      // Remove empty optional fields (only customer_id can be optional)
+      if (submissionData.customer_id === undefined) {
+        delete submissionData.customer_id;
+      }
 
       await onSubmit(submissionData);
     } catch (error) {
@@ -609,18 +592,6 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     }
   };
 
-  const generateShippingOrder = () => {
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 12);
-    return `SHP-${timestamp}`;
-  };
-
-  const handleGenerateReference = () => {
-    setFormData(prev => ({
-      ...prev,
-      reference_no: generateShippingOrder()
-    }));
-  };
 
   const calculateTotalAmount = () => {
     return formData.items.reduce((total, item) => total + item.total_amount, 0);
@@ -669,95 +640,6 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
           />
         </div>
 
-        {/* 출고번호 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            
-            출고번호
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              name="reference_no"
-              value={formData.reference_no}
-              onChange={handleChange}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="예: SHP-20240101001"
-            />
-            <button
-              type="button"
-              onClick={handleGenerateReference}
-              className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              title="자동 생성"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* 배송일 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            배송 예정일
-          </label>
-          <input
-            type="date"
-            name="delivery_date"
-            value={formData.delivery_date}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.delivery_date ? 'border-gray-500' : 'border-gray-300 dark:border-gray-700'
-            }`}
-          />
-          {errors.delivery_date && (
-            <p className="mt-1 text-sm text-gray-500">{errors.delivery_date}</p>
-          )}
-        </div>
-
-        {/* 배송주소 */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            배송주소
-          </label>
-          <input
-            type="text"
-            name="delivery_address"
-            value={formData.delivery_address}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="예: 서울시 강남구 테헤란로 123"
-          />
-        </div>
-      </div>
-
-      {/* Product Search and Selection */}
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <ItemSelect
-            key={`item-select-${formData.items.length}`}
-            onChange={handleAddProduct}
-            label="출고 제품 추가"
-            placeholder="제품 품번 또는 품명으로 검색하여 추가..."
-            required={true}
-            showPrice={true}
-            itemType="PRODUCT"
-            className="flex-1"
-            error={errors.items}
-            disabled={addingProduct}
-          />
-          {addingProduct && (
-            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>추가 중...</span>
-            </div>
-          )}
-        </div>
-        {errors.items && (
-          <div className="mt-1 flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
-            <AlertCircle className="w-4 h-4" />
-            <span>{errors.items}</span>
-          </div>
-        )}
       </div>
 
       {/* 고객별 품목 목록 */}
@@ -1141,21 +1023,6 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
           </div>
         </div>
       )}
-
-      {/* 메모 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          메모
-        </label>
-        <textarea
-          name="notes"
-          value={formData.notes}
-          onChange={handleChange}
-          rows={3}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="출고 관련 특이사항이나 메모를 입력하세요"
-        />
-      </div>
 
       {/* Buttons */}
       <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">

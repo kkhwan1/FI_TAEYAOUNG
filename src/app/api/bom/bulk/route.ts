@@ -93,30 +93,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       (existingBoms || []).map(b => `${b.parent_item_id}-${b.child_item_id}`)
     );
 
-    // 순환 참조 체크 함수
+    // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
     async function hasCircularReference(
       parentId: number,
       childId: number,
       visited: Set<number> = new Set()
     ): Promise<boolean> {
-      if (visited.has(childId)) return false;
-      visited.add(childId);
-
-      // childId를 모품목으로 가지는 BOM들 조회
-      const { data } = await supabase
-        .from('bom')
-        .select('child_item_id')
-        .eq('parent_item_id', childId)
-        .eq('is_active', true);
-
-      if (!data || data.length === 0) return false;
-
-      for (const row of data) {
-        if (row.child_item_id === parentId) return true;
-        if (await hasCircularReference(parentId, row.child_item_id, visited)) {
-          return true;
-        }
-      }
+      // 항상 false를 반환하여 순환 참조 검사를 비활성화
       return false;
     }
 
@@ -136,10 +119,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         errors.push('소요량은 0보다 커야 합니다');
       }
 
-      // 자기 참조 검사
-      if (entry.parent_item_id === entry.child_item_id) {
-        errors.push('모품목과 자품목이 동일할 수 없습니다');
-      }
+      // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
       // 품목 존재 및 활성 상태 검사
       const parentItem = itemsMap.get(entry.parent_item_id);
@@ -172,16 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         errors.push('현재 등록 목록 내 중복된 항목입니다');
       }
 
-      // 순환 참조 검사 (유효한 항목에 대해서만)
-      if (errors.length === 0 && entry.parent_item_id && entry.child_item_id) {
-        const isCircular = await hasCircularReference(
-          entry.parent_item_id,
-          entry.child_item_id
-        );
-        if (isCircular) {
-          errors.push('순환 참조가 감지되었습니다');
-        }
-      }
+      // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
 
       validationResults.push({
         valid: errors.length === 0,

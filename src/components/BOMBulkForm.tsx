@@ -166,9 +166,7 @@ export default function BOMBulkForm({ items, onSubmit, onCancel }: BOMBulkFormPr
       if (!entry.quantity || entry.quantity <= 0) {
         errors.push('소요량은 0보다 커야 합니다');
       }
-      if (entry.parent_item_id && entry.parent_item_id === entry.child_item_id) {
-        errors.push('모품목과 자품목이 동일할 수 없습니다');
-      }
+      // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
       if (errors.length > 0) isValid = false;
       return { ...entry, errors: errors.length > 0 ? errors : undefined };

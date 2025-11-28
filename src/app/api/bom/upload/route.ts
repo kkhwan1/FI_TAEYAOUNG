@@ -412,15 +412,7 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
         }
       }
 
-      // Self-reference check
-      if (row.parent_item_code === row.child_item_code) {
-        rowErrors.push({
-          row: rowNumber,
-          field: 'parent_item_code',
-          message: '부모 품목과 자식 품목이 동일할 수 없습니다',
-          value: row.parent_item_code
-        });
-      }
+      // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
       // If no errors, add to valid data
       if (rowErrors.length === 0) {

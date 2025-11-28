@@ -11,6 +11,9 @@ import {
   List,
   Package
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import CompanySelect from '@/components/CompanySelect';
 import {
   Product,
   BOMItem,
@@ -40,7 +43,6 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     product_item_id: 0,
     quantity: 0,
     reference_no: '',
-    notes: '',
     use_bom: true,
     scrap_quantity: 0,
     created_by: 1 // Default user ID
@@ -53,6 +55,13 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
   const [showResultModal, setShowResultModal] = useState(false);
   const [productionResult, setProductionResult] = useState<ProductionResponse | null>(null);
   const [savedBomCheckData, setSavedBomCheckData] = useState<any>(null);
+  
+  // 공정 구분 상태 (프레스, 용접, 도장)
+  const [processTypes, setProcessTypes] = useState<('프레스' | '용접' | '도장')[]>(['프레스', '용접']); // 기본값: 프레스, 용접
+  const [pressCapacity, setPressCapacity] = useState<number | undefined>(undefined);
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   // New hooks for BOM checking with debounce
   const { data: bomCheckData, loading: bomLoading, error: bomError, checkBom } = useBomCheck();
@@ -230,13 +239,14 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             item_id: item.item_id,
             quantity: Math.floor(Number(item.quantity)),
             unit_price: item.unit_price || 0,
-            reference_no: item.reference_no || '',
-            notes: item.notes || ''
+            reference_no: item.reference_no || ''
           })),
           reference_no: formData.reference_no,
-          notes: formData.notes,
           use_bom: formData.use_bom,
-          created_by: formData.created_by || 1
+          created_by: formData.created_by || 1,
+          process_types: processTypes.length > 0 ? processTypes : undefined,
+          press_capacity: pressCapacity || undefined,
+          company_id: customerId || undefined
         };
 
         // Remove empty optional fields
@@ -260,11 +270,13 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             product_item_id: 0,
             quantity: 0,
             reference_no: '',
-            notes: '',
             use_bom: true,
             scrap_quantity: 0,
             created_by: 1
           });
+          setProcessTypes(['프레스', '용접']); // 기본값으로 리셋
+          setPressCapacity(undefined);
+          setCustomerId(null);
 
           // Close modal - parent component will refresh stock info
           onCancel();
@@ -290,10 +302,11 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         product_item_id: itemId,
         quantity: parsedQuantity,
         reference_no: formData.reference_no,
-        notes: formData.notes,
         use_bom: formData.use_bom,
         scrap_quantity: formData.scrap_quantity,
-        created_by: 1 // Default user ID
+        created_by: 1, // Default user ID
+        process_types: processTypes.length > 0 ? processTypes : undefined,
+        press_capacity: pressCapacity || undefined
       };
 
       // Convert reference_no to reference_number for API compatibility
@@ -302,6 +315,9 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         apiData.reference_number = apiData.reference_no;
         delete apiData.reference_no;
       }
+      
+      // Add company_id for API compatibility
+      apiData.company_id = customerId || undefined;
       
       // Include selectedProduct for unit_price extraction
       if (selectedProduct) {
@@ -408,6 +424,107 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           </div>
         </div>
 
+        {/* 공정 구분 */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            공정 구분
+          </label>
+          <div className="flex gap-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="process_press"
+                checked={processTypes.includes('프레스')}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setProcessTypes([...processTypes, '프레스']);
+                  } else {
+                    setProcessTypes(processTypes.filter(p => p !== '프레스'));
+                    setPressCapacity(undefined);
+                    setCustomerId(null);
+                  }
+                }}
+              />
+              <label htmlFor="process_press" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                프레스
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="process_weld"
+                checked={processTypes.includes('용접')}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setProcessTypes([...processTypes, '용접']);
+                  } else {
+                    setProcessTypes(processTypes.filter(p => p !== '용접'));
+                  }
+                }}
+              />
+              <label htmlFor="process_weld" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                용접
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="process_coating"
+                checked={processTypes.includes('도장')}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setProcessTypes([...processTypes, '도장']);
+                  } else {
+                    setProcessTypes(processTypes.filter(p => p !== '도장'));
+                  }
+                }}
+              />
+              <label htmlFor="process_coating" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                도장
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* 프레스 용량 선택 (프레스 선택 시에만 표시) */}
+        {processTypes.includes('프레스') && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              프레스 용량
+            </label>
+            <Select
+              value={pressCapacity?.toString() || ''}
+              onValueChange={(value) => setPressCapacity(parseInt(value))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="프레스 용량 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="400">400톤</SelectItem>
+                <SelectItem value="600">600톤</SelectItem>
+                <SelectItem value="800">800톤</SelectItem>
+                <SelectItem value="1000">1000톤</SelectItem>
+                <SelectItem value="1600">1600톤</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 고객사 선택 (프레스 선택 시에만 표시) */}
+        {processTypes.includes('프레스') && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              고객사 (주문처)
+            </label>
+            <CompanySelect
+              value={customerId}
+              onChange={(value) => {
+                const numValue = value ? Number(value) : null;
+                setCustomerId(numValue);
+              }}
+              companyType="CUSTOMER"
+              placeholder="고객사를 선택하세요"
+            />
+          </div>
+        )}
+
         {/* 배치 모드 토글 */}
         <div className="md:col-span-2">
           <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -448,11 +565,12 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             value={formData.product_item_id > 0 ? formData.product_item_id : undefined}
             onChange={handleProductSelect}
             label="생산 제품"
-            placeholder="제품 품번 또는 품명으로 검색..."
+            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : "제품 품번 또는 품명으로 검색..."}
             required={true}
             error={errors.product_item_id}
             showPrice={true}
             itemType="PRODUCT"
+            customerId={processTypes.includes('프레스') ? customerId : null}
           />
         </div>
         )}
@@ -468,8 +586,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             name="quantity"
             value={formData.quantity}
             onChange={handleChange}
-            min="0"
-            step="0.01"
+            min="1"
+            step="1"
             className={`w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.quantity ? 'border-gray-500' : 'border-gray-300 dark:border-gray-700'
             }`}
@@ -597,10 +715,11 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                               };
                               setBatchItems(updatedItems);
                             }}
-                            placeholder="제품 검색..."
+                            placeholder={processTypes.includes('프레스') && customerId ? "모 품목 검색..." : "제품 검색..."}
                             required={true}
                             showPrice={true}
                             itemType="PRODUCT"
+                            customerId={processTypes.includes('프레스') ? customerId : null}
                             error={errors[`batchItem_${index}_product`]}
                           />
                         </td>
@@ -612,12 +731,12 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                               const updatedItems = [...batchItems];
                               updatedItems[index] = {
                                 ...updatedItems[index],
-                                quantity: parseFloat(e.target.value) || 0
+                                quantity: Math.floor(parseFloat(e.target.value) || 0)
                               };
                               setBatchItems(updatedItems);
                             }}
-                            min="0"
-                            step="0.01"
+                            min="1"
+                            step="1"
                             className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400 ${
                               errors[`batchItem_${index}_quantity`] 
                                 ? 'border-red-500 dark:border-red-500' 
@@ -708,20 +827,6 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           </p>
         </div>
 
-        {/* 메모 */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            메모
-          </label>
-          <textarea
-            name="notes"
-            value={formData.notes}
-            onChange={handleChange}
-            rows={3}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="생산 관련 특이사항이나 메모를 입력하세요"
-          />
-        </div>
       </div>
 
       {/* BOM Preview Panel */}

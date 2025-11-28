@@ -110,10 +110,8 @@ export const BOMCreateSchema = z.object({
   child_item_id: IdSchema,
   quantity: PositiveNumberSchema,
   notes: OptionalTextSchema
-}).refine((data) => data.parent_item_id !== data.child_item_id, {
-  message: '부모 항목과 자식 항목이 같을 수 없습니다',
-  path: ['child_item_id']
 });
+// 자기 참조 허용: 모품목과 자품목이 같을 수 있음
 
 export const BOMUpdateSchema = BOMCreateSchema.partial().extend({
   bom_id: IdSchema

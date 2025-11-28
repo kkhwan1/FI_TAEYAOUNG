@@ -483,13 +483,12 @@ export class TransactionManager {
         }
       }
 
-      // Check for circular dependency
-      const circularDependency = await this.checkCircularDependency(connection, parentItemId);
+      // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
 
       return {
-        isValid: errors.length === 0 && !circularDependency,
-        errors: circularDependency ? [...errors, 'Circular dependency detected in BOM structure'] : errors,
-        circularDependency,
+        isValid: errors.length === 0,
+        errors: errors,
+        circularDependency: false,
         materialShortages,
         totalCost
       };
@@ -507,6 +506,7 @@ export class TransactionManager {
 
   /**
    * Check for circular dependencies in BOM
+   * 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
    */
   private static async checkCircularDependency(
     connection: PoolConnection,
@@ -514,34 +514,8 @@ export class TransactionManager {
     visited: Set<number> = new Set(),
     depth: number = 0
   ): Promise<boolean> {
-    // Prevent infinite loops
-    if (depth > 20) {
-      return true;
-    }
-
-    if (visited.has(parentItemId)) {
-      return true;
-    }
-
-    visited.add(parentItemId);
-
-    try {
-      const [children] = await connection.execute(
-        'SELECT child_item_id FROM boms WHERE parent_item_id = ? AND is_active = 1',
-        [parentItemId]
-      ) as any[];
-
-      for (const child of children) {
-        if (await this.checkCircularDependency(connection, child.child_item_id, new Set(visited), depth + 1)) {
-          return true;
-        }
-      }
-
-      return false;
-    } catch (error) {
-      console.error('Error checking circular dependency:', error);
-      return true; // Assume circular dependency on error for safety
-    }
+    // 항상 false를 반환하여 순환 참조 검사를 비활성화
+    return false;
   }
 
   /**
@@ -1095,27 +1069,7 @@ export class ERPTransactions {
         throw new Error('Child item not found or inactive');
       }
 
-      // Check for circular dependency
-      const [circularCheck] = await connection.execute(
-        `WITH RECURSIVE bom_tree AS (
-          SELECT child_item_id, parent_item_id, 1 as level
-          FROM boms
-          WHERE parent_item_id = ? AND is_active = 1
-
-          UNION ALL
-
-          SELECT b.child_item_id, b.parent_item_id, bt.level + 1
-          FROM boms b
-          INNER JOIN bom_tree bt ON b.parent_item_id = bt.child_item_id
-          WHERE bt.level < 10 AND b.is_active = 1
-        )
-        SELECT 1 FROM bom_tree WHERE child_item_id = ?`,
-        [data.child_item_id, data.parent_item_id]
-      ) as any[];
-
-      if (circularCheck && circularCheck.length > 0) {
-        throw new Error('Circular dependency detected in BOM structure');
-      }
+      // 순환 참조 허용: 모든 순환 참조(자기 참조 포함)를 허용함
 
       // Check for duplicate BOM entry
       const [duplicateCheck] = await connection.execute(

@@ -502,7 +502,6 @@ function InventoryContent() {
               arrival_date: multiItemData.transaction_date
             })),
             reference_no: multiItemData.reference_no,
-            notes: multiItemData.notes,
             created_by: multiItemData.created_by || 1
           } : {
             transaction_date: multiItemData.transaction_date,
@@ -510,13 +509,8 @@ function InventoryContent() {
             items: multiItemData.items.map(item => ({
               item_id: item.item_id,
               quantity: item.quantity,
-              unit_price: item.unit_price,
-              delivery_address: (multiItemData as ShippingFormData).delivery_address
+              unit_price: item.unit_price
             })),
-            reference_no: multiItemData.reference_no,
-            delivery_address: (multiItemData as ShippingFormData).delivery_address,
-            delivery_date: (multiItemData as ShippingFormData).delivery_date,
-            notes: multiItemData.notes,
             created_by: multiItemData.created_by || 1
           };
 
@@ -555,10 +549,6 @@ function InventoryContent() {
             item_id: item.item_id,
             quantity: item.quantity,
             unit_price: item.unit_price,
-            reference_number: multiItemData.reference_no || `SHP-${Date.now()}`,
-            location: (multiItemData as ShippingFormData).delivery_address,
-            delivery_date: (multiItemData as ShippingFormData).delivery_date || null,
-            notes: multiItemData.notes,
             created_by: multiItemData.created_by || 1
           } : {
             transaction_date: multiItemData.transaction_date,
@@ -570,7 +560,6 @@ function InventoryContent() {
             lot_no: (item as ReceivingItem).lot_no || null,
             expiry_date: (item as ReceivingItem).expiry_date || null,
             to_location: (item as ReceivingItem).to_location || null,
-            notes: multiItemData.notes,
             created_by: multiItemData.created_by || 1
           };
 
@@ -622,9 +611,11 @@ function InventoryContent() {
               unit_price: item.unit_price || 0
             })),
             reference_no: productionData.reference_no,
-            notes: productionData.notes,
             use_bom: productionData.use_bom,
-            created_by: productionData.created_by || 1
+            created_by: productionData.created_by || 1,
+            process_types: (productionData as any).process_types,
+            press_capacity: (productionData as any).press_capacity,
+            company_id: (productionData as any).company_id
           };
 
           const { safeFetchJson } = await import('@/lib/fetch-utils');
@@ -672,9 +663,11 @@ function InventoryContent() {
             unit_price: selectedProduct?.price || selectedProduct?.unit_price || (productionData as any).unit_price || 0,
             transaction_type: '생산입고',
             reference_number: productionData.reference_no || (productionData as any).reference_number,
-            notes: productionData.notes,
             use_bom: productionData.use_bom !== undefined ? productionData.use_bom : true,
-            created_by: productionData.created_by || 1
+            created_by: productionData.created_by || 1,
+            process_types: (productionData as any).process_types,
+            press_capacity: (productionData as any).press_capacity,
+            company_id: (productionData as any).company_id
           };
           
           // Remove undefined/null fields
@@ -827,7 +820,6 @@ function InventoryContent() {
               }],
               company_id: (selectedTransaction as any).company_id || undefined,
               reference_no: selectedTransaction.reference_no || '',
-              notes: (selectedTransaction as any).notes || '',
               created_by: (selectedTransaction as any).created_by || 1
             } : undefined}
             isEdit={!!selectedTransaction}
@@ -843,7 +835,6 @@ function InventoryContent() {
               product_item_id: selectedTransaction.item_id || 0,
               quantity: selectedTransaction.quantity || 0,
               reference_no: selectedTransaction.reference_no || '',
-              notes: (selectedTransaction as any).notes || '',
               use_bom: true,
               scrap_quantity: 0,
               created_by: (selectedTransaction as any).created_by || 1
@@ -870,9 +861,6 @@ function InventoryContent() {
                 total_amount: (selectedTransaction.quantity || 0) * (selectedTransaction.unit_price || 0),
                 sufficient_stock: true
               }],
-              reference_no: selectedTransaction.reference_no || '',
-              delivery_address: (selectedTransaction as any).location || '',
-              notes: (selectedTransaction as any).notes || '',
               created_by: (selectedTransaction as any).created_by || 1
             } : undefined}
             isEdit={!!selectedTransaction}

@@ -240,9 +240,7 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
     if (!formData.child_item_id) {
       newErrors.child_item_id = '자품목을 선택해주세요';
     }
-    if (formData.parent_item_id === formData.child_item_id) {
-      newErrors.child_item_id = '모품목과 자품목이 같을 수 없습니다';
-    }
+    // 자기 참조 허용: 모품목과 자품목이 같을 수 있음
     if (!formData.quantity || formData.quantity <= 0) {
       newErrors.quantity = '소요량은 0보다 커야 합니다';
     }

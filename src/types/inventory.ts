@@ -155,7 +155,6 @@ export interface ReceivingFormData {
   items: ReceivingItem[];
   company_id?: number;
   reference_no?: string;
-  notes?: string;
   created_by: number;
 }
 
@@ -176,10 +175,11 @@ export interface ProductionFormData {
   quantity: number; // 단일 품목 모드용 (호환성)
   items?: ProductionItem[]; // 다중 품목 일괄 등록용
   reference_no?: string;
-  notes?: string;
   use_bom: boolean;
   scrap_quantity?: number;
   created_by: number;
+  process_types?: ('프레스' | '용접' | '도장')[]; // 공정 구분
+  press_capacity?: number; // 프레스 용량 (400, 600, 800, 1000, 1600)
 }
 
 export interface ShippingItem {
@@ -199,10 +199,6 @@ export interface ShippingFormData {
   transaction_date: string;
   customer_id?: number;
   items: ShippingItem[];
-  reference_no?: string;
-  delivery_address?: string;
-  delivery_date?: string;
-  notes?: string;
   created_by: number;
 }
 

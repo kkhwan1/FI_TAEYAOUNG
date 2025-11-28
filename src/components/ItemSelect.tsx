@@ -21,6 +21,7 @@ export interface ItemSelectProps {
   showPrice?: boolean;
   itemType?: 'ALL' | ItemTypeCode;
   supplierId?: number | null;
+  customerId?: number | null;
 }
 
 interface ApiSuccessResponse {
@@ -55,7 +56,8 @@ export default function ItemSelect({
   className = "",
   showPrice = true,
   itemType = 'ALL',
-  supplierId
+  supplierId,
+  customerId
 }: ItemSelectProps) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -71,7 +73,7 @@ export default function ItemSelect({
   // Fetch items from API
   useEffect(() => {
     fetchItems();
-  }, [itemType, supplierId]);
+  }, [itemType, supplierId, customerId]);
 
   // Handle search filtering
   useEffect(() => {
@@ -156,22 +158,29 @@ export default function ItemSelect({
     setLoadError('');
 
     try {
-      let url = '/api/items?limit=1000'; // Get all items (no pagination for select dropdown)
-      if (itemType !== 'ALL') {
-        // Map itemType to category parameter
-        const categoryMap: Record<string, string> = {
-          'PRODUCT': '제품',
-          'SEMI_PRODUCT': '반제품',
-          'RAW_MATERIAL': '원자재',
-          'SUBSIDIARY': '부자재'
-        };
-        const category = categoryMap[itemType as string] || (itemType as string);
-        url += `&category=${encodeURIComponent(category)}`;
-      }
+      let url: string;
+      
+      // 고객사가 선택되어 있으면 모 품목만 조회
+      if (customerId) {
+        url = `/api/items/by-customer?customer_id=${customerId}&limit=1000`;
+      } else {
+        url = '/api/items?limit=1000'; // Get all items (no pagination for select dropdown)
+        if (itemType !== 'ALL') {
+          // Map itemType to category parameter
+          const categoryMap: Record<string, string> = {
+            'PRODUCT': '제품',
+            'SEMI_PRODUCT': '반제품',
+            'RAW_MATERIAL': '원자재',
+            'SUBSIDIARY': '부자재'
+          };
+          const category = categoryMap[itemType as string] || (itemType as string);
+          url += `&category=${encodeURIComponent(category)}`;
+        }
 
-      // Filter by supplier if provided
-      if (supplierId) {
-        url += `&company_id=${supplierId}`;
+        // Filter by supplier if provided
+        if (supplierId) {
+          url += `&company_id=${supplierId}`;
+        }
       }
 
       const response = await fetch(url);
