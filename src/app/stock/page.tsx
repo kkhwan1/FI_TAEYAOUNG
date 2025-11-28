@@ -25,7 +25,7 @@ interface StockItem {
   item_id: number;
   item_code: string;
   item_name: string;
-  spec: string;
+  spec: string | null;
   unit: string;
   category: string;
   current_stock: number;
@@ -35,6 +35,18 @@ interface StockItem {
   is_low_stock: boolean;
   last_transaction_date: string | null;
   last_transaction_type: string | null;
+  // 규격 및 숫자 필드
+  thickness?: number | null;
+  width?: number | null;
+  height?: number | null;
+  specific_gravity?: number | null;
+  mm_weight?: number | null;
+  daily_requirement?: number | null;
+  blank_size?: number | null;
+  material?: string | null;
+  vehicle_model?: string | null;
+  item_type?: string | null;
+  material_type?: string | null;
 }
 
 interface StockHistory {
@@ -335,9 +347,16 @@ export default function StockPage() {
     if (!Array.isArray(stockItems)) return [];
 
     return stockItems.filter(item => {
-      const matchesSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (item.spec && item.spec.toLowerCase().includes(searchTerm.toLowerCase()));
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = item.item_name?.toLowerCase().includes(searchLower) ||
+                           item.item_code?.toLowerCase().includes(searchLower) ||
+                           item.spec?.toLowerCase().includes(searchLower) ||
+                           item.material?.toLowerCase().includes(searchLower) ||
+                           item.vehicle_model?.toLowerCase().includes(searchLower) ||
+                           (item.thickness !== null && item.thickness !== undefined && String(item.thickness).includes(searchTerm)) ||
+                           (item.width !== null && item.width !== undefined && String(item.width).includes(searchTerm)) ||
+                           (item.height !== null && item.height !== undefined && String(item.height).includes(searchTerm)) ||
+                           (item.mm_weight !== null && item.mm_weight !== undefined && String(item.mm_weight).includes(searchTerm));
 
       const matchesFilter = stockFilter === 'all' ||
                            (stockFilter === 'low' && item.is_low_stock) ||
@@ -725,7 +744,7 @@ export default function StockPage() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="품번, 품명 또는 규격으로 검색..."
+                    placeholder="품번, 품명, 규격, 재질, 차종, 두께, 폭, 길이 등으로 검색..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
@@ -975,9 +994,28 @@ export default function StockPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 overflow-hidden align-middle">
-                        <div className="text-sm text-gray-900 dark:text-white truncate" title={item.spec || '-'}>
-                          {item.spec || '-'}
+                      <td className="px-3 sm:px-6 py-4 align-middle">
+                        <div className="space-y-1">
+                          <div className="text-sm text-gray-900 dark:text-white truncate" title={item.spec || '-'}>
+                            {item.spec || '-'}
+                          </div>
+                          {(item.material || item.vehicle_model || item.thickness || item.width || item.height || item.specific_gravity || item.mm_weight || item.daily_requirement || item.blank_size) && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                              {item.material && <div>재질: {item.material}</div>}
+                              {item.vehicle_model && <div>차종: {item.vehicle_model}</div>}
+                              {(item.thickness || item.width || item.height) && (
+                                <div>
+                                  {item.thickness !== null && item.thickness !== undefined && `두께: ${item.thickness}`}
+                                  {item.width !== null && item.width !== undefined && ` 폭: ${item.width}`}
+                                  {item.height !== null && item.height !== undefined && ` 길이: ${item.height}`}
+                                </div>
+                              )}
+                              {item.specific_gravity !== null && item.specific_gravity !== undefined && <div>비중: {item.specific_gravity}</div>}
+                              {item.mm_weight !== null && item.mm_weight !== undefined && <div>EA중량: {item.mm_weight}</div>}
+                              {item.daily_requirement !== null && item.daily_requirement !== undefined && <div>일일소요량: {item.daily_requirement}</div>}
+                              {item.blank_size !== null && item.blank_size !== undefined && <div>재단사이즈: {item.blank_size}</div>}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right align-middle">

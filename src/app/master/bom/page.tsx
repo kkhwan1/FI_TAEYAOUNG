@@ -37,6 +37,7 @@ import PrintButton from '@/components/PrintButton';
 import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie } from 'recharts';
 import BOMViewer from '@/components/bom/BOMViewer';
 import { ItemEditModal } from '@/components/ItemEditModal';
+import ChildItemEditModal from '@/components/ChildItemEditModal';
 
 // 납품처 정보 인터페이스
 interface CustomerInfo {
@@ -231,6 +232,10 @@ export default function BOMPage() {
   // 품목 수정 모달 상태
   const [isItemEditModalOpen, setIsItemEditModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
+
+  // 자품목 상세 수정 모달 상태
+  const [showChildItemEditModal, setShowChildItemEditModal] = useState(false);
+  const [editingChildBOM, setEditingChildBOM] = useState<BOM | null>(null);
 
   // 모품목 더블클릭 핸들러 - 해당 모품목 관련 모든 BOM 조회
   const handleParentDoubleClick = useCallback((bom: BOM) => {
@@ -886,6 +891,66 @@ export default function BOMPage() {
       console.error('Bulk delete error:', err);
     } finally {
       setDeletingBomId(null);
+    }
+  };
+
+  // 자품목 상세 수정 핸들러
+  const handleUpdateChildItemDetails = async (updateData: {
+    quantity?: number;
+    notes?: string;
+    child_item_data?: {
+      price?: number | null;
+      vehicle_model?: string | null;
+      thickness?: number | null;
+      width?: number | null;
+      height?: number | null;
+      material?: string | null;
+    };
+  }) => {
+    if (!editingChildBOM) return;
+
+    try {
+      const { safeFetchJson } = await import('@/lib/fetch-utils');
+      const apiBody: any = {
+        bom_id: editingChildBOM.bom_id,
+      };
+
+      if (updateData.quantity !== undefined) {
+        apiBody.quantity_required = updateData.quantity;
+      }
+
+      if (updateData.notes !== undefined) {
+        apiBody.notes = updateData.notes;
+      }
+
+      if (updateData.child_item_data) {
+        apiBody.child_item_data = updateData.child_item_data;
+      }
+
+      const result = await safeFetchJson('/api/bom', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(apiBody),
+      }, {
+        timeout: 15000,
+        maxRetries: 2,
+        retryDelay: 1000
+      });
+
+      if (result.success) {
+        success('자품목 상세 수정 완료', '자품목 상세 정보가 성공적으로 수정되었습니다.');
+        setShowChildItemEditModal(false);
+        setEditingChildBOM(null);
+        fetchBOMData();
+      } else {
+        const { extractErrorMessage } = await import('@/lib/fetch-utils');
+        error('수정 실패', extractErrorMessage(result.error) || '자품목 상세 정보 수정에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('Failed to update child item details:', err);
+      error('수정 실패', '자품목 상세 정보 수정 중 오류가 발생했습니다.');
     }
   };
 
@@ -1688,11 +1753,21 @@ export default function BOMPage() {
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={() => {
+                setEditingChildBOM(bom);
+                setShowChildItemEditModal(true);
+              }}
+              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              title="자품목 상세 수정"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
                 setEditingBOM(bom);
                 setShowAddModal(true);
               }}
               className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
-              title="수정"
+              title="BOM 수정"
             >
               <Edit2 className="w-4 h-4" />
             </button>
@@ -1712,7 +1787,7 @@ export default function BOMPage() {
         </td>
       </tr>
     ));
-  }, [setEditingBOM, setShowAddModal, handleDelete, deletingBomId]);
+  }, [setEditingBOM, setShowAddModal, handleDelete, deletingBomId, setEditingChildBOM, setShowChildItemEditModal]);
 
   // parentIds 정렬 결과 메모이제이션 (items Map 사용으로 O(1) 조회 최적화)
   const sortedParentIds = useMemo(() => {

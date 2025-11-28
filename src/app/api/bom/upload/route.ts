@@ -72,6 +72,9 @@ interface BOMExcelRow {
   quantity_required: number;
   level_no?: number;
   notes?: string;
+  // Purchase quantity and amount (구매수량, 구매금액)
+  child_purchase_quantity?: number;
+  child_purchase_amount?: number;
   // Monthly price information (parent)
   parent_price_month?: string;
   parent_unit_price?: number;
@@ -220,6 +223,8 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
                 else if (header === '단가') mappedHeader = '자품목단가';
                 else if (header === 'U/S' || header === '소요량') mappedHeader = 'quantity_required';
                 else if (header === '구매처') mappedHeader = '자품목공급사명';
+                else if (header === '구매수량') mappedHeader = '자품목구매수량';
+                else if (header === '구매금액') mappedHeader = '자품목구매금액';
               } else if (C >= 16) {
                 // Q 이후 영역 (자품목 상세 정보)
                 if (header === '비고') mappedHeader = 'notes';
@@ -304,6 +309,12 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           if (row['자품목공급사명']) {
             row['child_supplier'] = row['자품목공급사명'];
             row['child_supplier_name'] = row['자품목공급사명'];
+          }
+          if (row['자품목구매수량']) {
+            row['child_purchase_quantity'] = row['자품목구매수량'];
+          }
+          if (row['자품목구매금액']) {
+            row['child_purchase_amount'] = row['자품목구매금액'];
           }
           
           // 시트 이름 저장 (고객사 정보로 사용)
@@ -474,6 +485,9 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           child_unit_price: row.child_unit_price ? (typeof row.child_unit_price === 'number' ? row.child_unit_price : parseFloat(String(row.child_unit_price))) : undefined,
           child_price_per_kg: row.child_price_per_kg ? (typeof row.child_price_per_kg === 'number' ? row.child_price_per_kg : parseFloat(String(row.child_price_per_kg))) : undefined,
           child_price_note: row.child_price_note ? String(row.child_price_note).trim() : undefined,
+          // Purchase quantity and amount (구매수량, 구매금액)
+          child_purchase_quantity: row.child_purchase_quantity ? (typeof row.child_purchase_quantity === 'number' ? row.child_purchase_quantity : parseFloat(String(row.child_purchase_quantity))) : undefined,
+          child_purchase_amount: row.child_purchase_amount ? (typeof row.child_purchase_amount === 'number' ? row.child_purchase_amount : parseFloat(String(row.child_purchase_amount))) : undefined,
           // Sheet information for customer identification
           sheet_name: row.sheet_name ? String(row.sheet_name).trim() : undefined
         });

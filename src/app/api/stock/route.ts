@@ -10,13 +10,25 @@ interface CurrentStock {
   item_id: number;
   item_code: string;
   item_name: string;
-  spec?: string;
+  spec?: string | null;
   category: string;
   unit: string;
   current_stock: number;
   safety_stock?: number;
   stock_value: number;
   is_low_stock: boolean;
+  // 규격 및 숫자 필드
+  thickness?: number | null;
+  width?: number | null;
+  height?: number | null;
+  specific_gravity?: number | null;
+  mm_weight?: number | null;
+  daily_requirement?: number | null;
+  blank_size?: number | null;
+  material?: string | null;
+  vehicle_model?: string | null;
+  item_type?: string | null;
+  material_type?: string | null;
   // Phase 3 - Classification fields
   inventory_type?: InventoryType | null;
   warehouse_zone?: string | null;
