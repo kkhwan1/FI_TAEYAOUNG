@@ -27,8 +27,8 @@ interface RealTimeDashboardProps {
 
 export const RealTimeDashboard: React.FC<RealTimeDashboardProps> = ({
   className = '',
-  initialRefreshInterval = '수동',
-  autoStart = false
+  initialRefreshInterval = '30초',
+  autoStart = true
 }) => {
   const { isDark } = useTheme();
 

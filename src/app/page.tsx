@@ -68,7 +68,7 @@ export default function Dashboard() {
       </div>
 
       {/* Real-Time Dashboard */}
-      <RealTimeDashboard />
+      <RealTimeDashboard initialRefreshInterval="30초" autoStart={true} />
     </div>
   );
 }

@@ -145,8 +145,7 @@ export type RefreshInterval = keyof typeof REFRESH_INTERVALS;
 // Custom hook for dashboard data management
 export const useDashboardData = (
   initialInterval: RefreshInterval = '1분',
-  autoStart: boolean = true,
-  filters: { supplierId?: string; customerId?: string; category?: string } = {}
+  autoStart: boolean = true
 ) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,13 +165,8 @@ export const useDashboardData = (
       }
       setError(null);
 
-      // Build query parameters from filters
-      const queryParams = new URLSearchParams();
-      if (filters.supplierId) queryParams.set('supplier_id', filters.supplierId);
-      if (filters.customerId) queryParams.set('customer_id', filters.customerId);
-      if (filters.category) queryParams.set('category', filters.category);
-      const queryString = queryParams.toString();
-      const suffix = queryString ? `?${queryString}` : '';
+      // No filters - fetch all data
+      const suffix = '';
 
       // Fetch data from multiple endpoints for complete dashboard (타임아웃 및 재시도 포함)
       const { safeFetchAllJson } = await import('@/lib/fetch-utils');
@@ -255,15 +249,33 @@ export const useDashboardData = (
   // Auto-refresh with continuous intervals
   useEffect(() => {
     if (!isAutoRefreshEnabled || refreshInterval === '수동') {
+      // Clear interval if auto-refresh is disabled
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    // Don't start auto-refresh until initial data is loaded
+    if (!data) {
       return;
     }
 
     const interval = REFRESH_INTERVALS[refreshInterval];
     if (interval <= 0) return;
 
+    // Clear any existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
     // Use setInterval for continuous refreshing
+    // Only refresh if data exists (avoid refreshing during initial load)
     intervalRef.current = setInterval(() => {
-      fetchDashboardData(false); // Silent refresh for auto-updates
+      if (data && !loading) {
+        fetchDashboardData(false); // Silent refresh for auto-updates
+      }
     }, interval);
 
     return () => {
@@ -272,7 +284,7 @@ export const useDashboardData = (
         intervalRef.current = null;
       }
     };
-  }, [fetchDashboardData, refreshInterval, isAutoRefreshEnabled]);
+  }, [fetchDashboardData, refreshInterval, isAutoRefreshEnabled, data, loading]);
 
   // Initial data fetch
   useEffect(() => {
@@ -286,7 +298,7 @@ export const useDashboardData = (
         clearTimeout(intervalRef.current);
       }
     };
-  }, [fetchDashboardData, filters]);
+  }, [fetchDashboardData]);
 
   // Pause auto-refresh when tab is not visible
   useEffect(() => {
