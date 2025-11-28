@@ -1,0 +1,373 @@
+1	'use client';
+2	
+3	import { useState, useEffect, useRef } from 'react';
+4	import {
+5	  Search,
+6	  Loader2,
+7	  AlertCircle
+8	} from 'lucide-react';
+9	import { ItemForComponent as Item } from '@/types/inventory';
+10	import type { ItemTypeCode } from '@/types/supabase';
+11	
+12	export interface ItemSelectProps {
+13	  value?: number;
+14	  onChange: (item: Item | null) => void;
+15	  placeholder?: string;
+16	  label?: string;
+17	  required?: boolean;
+18	  error?: string;
+19	  disabled?: boolean;
+20	  className?: string;
+21	  showPrice?: boolean;
+22	  itemType?: 'ALL' | ItemTypeCode;
+23	  supplierId?: number | null;
+24	}
+25	
+26	interface ApiSuccessResponse {
+27	  success: true;
+28	  data: {
+29	    items: Item[];
+30	    pagination?: {
+31	      page: number;
+32	      limit: number;
+33	      total: number;
+34	      totalPages: number;
+35	      hasMore: boolean;
+36	    };
+37	  };
+38	}
+39	
+40	interface ApiErrorResponse {
+41	  success: false;
+42	  error?: string;
+43	}
+44	
+45	type ApiResponse = ApiSuccessResponse | ApiErrorResponse;
+46	
+47	export default function ItemSelect({
+48	  value,
+49	  onChange,
+50	  placeholder = "?ˆë²ˆ ?ëŠ” ?ˆëª…?¼ë¡œ ê²€??..",
+51	  label = "?ˆëª©",
+52	  required = false,
+53	  error,
+54	  disabled = false,
+55	  className = "",
+56	  showPrice = true,
+57	  itemType = 'ALL',
+58	  supplierId
+59	}: ItemSelectProps) {
+60	  const [search, setSearch] = useState('');
+61	  const [isOpen, setIsOpen] = useState(false);
+62	  const [items, setItems] = useState<Item[]>([]);
+63	  const [filteredItems, setFilteredItems] = useState<Item[]>([]);
+64	  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+65	  const [loading, setLoading] = useState(false);
+66	  const [loadError, setLoadError] = useState('');
+67	
+68	  const dropdownRef = useRef<HTMLDivElement>(null);
+69	  const inputRef = useRef<HTMLInputElement>(null);
+70	
+71	  // Fetch items from API
+72	  useEffect(() => {
+73	    fetchItems();
+74	  }, [itemType, supplierId]);
+75	
+76	  // Handle search filtering
+77	  useEffect(() => {
+78	    if (search.trim()) {
+79	      const searchLower = search.toLowerCase().trim();
+80	      let filtered = items.filter(item => {
+81	        const codeMatch = item.item_code?.toLowerCase().includes(searchLower) || false;
+82	        const nameMatch = item.item_name?.toLowerCase().includes(searchLower) || false;
+83	        // ?œê? ê²€?‰ì„ ?„í•´ ?ë³¸ ?ìŠ¤?¸ë„ ?•ì¸
+84	        const codeOriginalMatch = item.item_code?.includes(search) || false;
+85	        const nameOriginalMatch = item.item_name?.includes(search) || false;
+86	        return codeMatch || nameMatch || codeOriginalMatch || nameOriginalMatch;
+87	      });
+88	      
+89	      // ? íƒ????ª©??ê²€??ê²°ê³¼???†ìœ¼ë©?ë§??„ì— ì¶”ê?
+90	      if (selectedItem && !filtered.find(i => i.item_id === selectedItem.item_id)) {
+91	        filtered = [selectedItem, ...filtered];
+92	      }
+93	      setFilteredItems(filtered.slice(0, 10)); // Limit to 10 results for performance
+94	      setIsOpen(true);
+95	    } else {
+96	      setFilteredItems([]);
+97	      setIsOpen(false);
+98	    }
+99	  }, [search, items, selectedItem]);
+100	
+101	  // Handle click outside to close dropdown
+102	  useEffect(() => {
+103	    const handleClickOutside = (event: MouseEvent) => {
+104	      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+105	        setIsOpen(false);
+106	      }
+107	    };
+108	
+109	    document.addEventListener('mousedown', handleClickOutside);
+110	    return () => document.removeEventListener('mousedown', handleClickOutside);
+111	  }, []);
+112	
+113	  // Update search when value changes externally
+114	  useEffect(() => {
+115	    if (value && value > 0) {
+116	      // ë¨¼ì? items ë°°ì—´?ì„œ ì°¾ê¸°
+117	      const item = items.find(item => item.item_id === value);
+118	      if (item) {
+119	        // ?´ë? ? íƒ????ª©?´ë©´ ?…ë°?´íŠ¸?˜ì? ?ŠìŒ (?¬ìš©???…ë ¥ ì¤‘ì¼ ???ˆìŒ)
+120	        if (selectedItem?.item_id !== item.item_id) {
+121	          setSelectedItem(item);
+122	          setSearch(`${item.item_code} - ${item.item_name}`);
+123	        }
+124	      } else if (items.length > 0) {
+125	        // items ë°°ì—´???†ìœ¼ë©?ê°œë³„ ì¡°íšŒ
+126	        fetch(`/api/items/${value}`)
+127	          .then(res => res.json())
+128	          .then(result => {
+129	            if (result.success && result.data) {
+130	              const itemData = {
+131	                ...result.data,
+132	                item_id: result.data.item_id || result.data.id,
+133	                item_name: result.data.item_name || result.data.name,
+134	                unit_price: result.data.unit_price || result.data.price || 0
+135	              };
+136	              // ?´ë? ? íƒ????ª©?´ë©´ ?…ë°?´íŠ¸?˜ì? ?ŠìŒ
+137	              if (selectedItem?.item_id !== itemData.item_id) {
+138	                setSelectedItem(itemData);
+139	                setSearch(`${itemData.item_code} - ${itemData.item_name}`);
+140	              }
+141	            }
+142	          })
+143	          .catch(err => console.error('Failed to fetch item:', err));
+144	      }
+145	    } else if (!value || value === 0) {
+146	      // valueê°€ ?†ê±°??0?´ë©´ ì´ˆê¸°??(?¬ìš©?ê? ì§ì ‘ ?…ë ¥ ì¤‘ì´ ?„ë‹ ?Œë§Œ)
+147	      if (!search || search.trim() === '') {
+148	        setSelectedItem(null);
+149	        setSearch('');
+150	      }
+151	    }
+152	  }, [value, items]);
+153	
+154	  const fetchItems = async () => {
+155	    setLoading(true);
+156	    setLoadError('');
+157	
+158	    try {
+159	      let url = '/api/items?limit=1000'; // Get all items (no pagination for select dropdown)
+160	      if (itemType !== 'ALL') {
+161	        // Map itemType to category parameter
+162	        const categoryMap: Record<string, string> = {
+163	          'PRODUCT': '?œí’ˆ',
+164	          'SEMI_PRODUCT': 'ë°˜ì œ??,
+165	          'RAW_MATERIAL': '?ì??,
+166	          'SUBSIDIARY': 'ë¶€?ì¬'
+167	        };
+168	        const category = categoryMap[itemType as string] || (itemType as string);
+169	        url += `&category=${encodeURIComponent(category)}`;
+170	      }
+171	
+172	      // Filter by supplier if provided
+173	      if (supplierId) {
+174	        url += `&company_id=${supplierId}`;
+175	      }
+176	
+177	      const response = await fetch(url);
+178	      const data: ApiResponse = await response.json();
+179	
+180	      if (data.success && data.data && data.data.items) {
+181	        // Transform data to match ItemForComponent interface
+182	        const transformedItems: Item[] = data.data.items.map(item => ({
+183	          ...item,
+184	          item_id: item.item_id || item.id,
+185	          item_name: item.item_name || item.name,
+186	          unit_price: item.unit_price || item.price || 0
+187	        }));
+188	
+189	        setItems(transformedItems);
+190	      } else {
+191	        const errorMsg = !data.success && 'error' in data ? data.error : '?ˆëª© ëª©ë¡??ë¶ˆëŸ¬?¤ëŠ”???¤íŒ¨?ˆìŠµ?ˆë‹¤.';
+192	        throw new Error(errorMsg);
+193	      }
+194	    } catch (error) {
+195	      console.error('Failed to fetch items:', error);
+196	      const errorMessage = error instanceof Error ? error.message : '?ˆëª© ëª©ë¡??ë¶ˆëŸ¬?¤ëŠ”???¤íŒ¨?ˆìŠµ?ˆë‹¤.';
+197	      setLoadError(`${errorMessage} (?ˆë¡œê³ ì¹¨ ë²„íŠ¼???´ë¦­?˜ì—¬ ?¤ì‹œ ?œë„?˜ì„¸??`);
+198	      setItems([]);
+199	    } finally {
+200	      setLoading(false);
+201	    }
+202	  };
+203	
+204	  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+205	    const newSearch = e.target.value;
+206	    setSearch(newSearch);
+207	    
+208	    // ê²€?‰ì–´ê°€ ë³€ê²½ë˜ë©?? íƒ????ª© ì´ˆê¸°??(?ˆë¡œ??ê²€?‰ì„ ?„í•´)
+209	    if (newSearch !== `${selectedItem?.item_code} - ${selectedItem?.item_name}`) {
+210	      setSelectedItem(null);
+211	    }
+212	  };
+213	
+214	  const handleItemSelect = (item: Item) => {
+215	    setSelectedItem(item);
+216	    setSearch(`${item.item_code} - ${item.item_name}`);
+217	    setIsOpen(false);
+218	    onChange(item);
+219	  };
+220	
+221	  const handleInputFocus = () => {
+222	    if (search && filteredItems.length > 0) {
+223	      setIsOpen(true);
+224	    }
+225	  };
+226	
+227	  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+228	    if (e.key === 'Escape') {
+229	      setIsOpen(false);
+230	    } else if (e.key === 'ArrowDown' && filteredItems.length > 0) {
+231	      e.preventDefault();
+232	      setIsOpen(true);
+233	    } else if (e.key === 'Enter' && isOpen && filteredItems.length === 1) {
+234	      e.preventDefault();
+235	      handleItemSelect(filteredItems[0]);
+236	    }
+237	  };
+238	
+239	  const handleRefresh = () => {
+240	    fetchItems();
+241	  };
+242	
+243	  return (
+244	    <div className={`relative ${className}`}>
+245	      {/* Label */}
+246	      {label && (
+247	        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+248	          
+249	          {label} {required && <span className="text-gray-500">*</span>}
+250	        </label>
+251	      )}
+252	
+253	      {/* Search Input */}
+254	      <div className="relative" ref={dropdownRef}>
+255	        <input
+256	          ref={inputRef}
+257	          type="text"
+258	          value={search}
+259	          onChange={handleSearchChange}
+260	          onFocus={handleInputFocus}
+261	          onKeyDown={handleKeyDown}
+262	          placeholder={placeholder}
+263	          disabled={disabled || loading}
+264	          className={`w-full px-4 py-2 pl-10 pr-10 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${
+265	            error ? 'border-gray-500' : 'border-gray-300 dark:border-gray-700'
+266	          }`}
+267	        />
+268	
+269	        {/* Search Icon */}
+270	        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+271	
+272	        {/* Loading/Refresh Button */}
+273	        <button
+274	          type="button"
+275	          onClick={handleRefresh}
+276	          disabled={loading}
+277	          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
+278	          title="?ˆëª© ëª©ë¡ ?ˆë¡œê³ ì¹¨"
+279	        >
+280	          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+281	        </button>
+282	      </div>
+283	
+284	      {/* Error Message */}
+285	      {(error || loadError) && (
+286	        <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
+287	          <AlertCircle className="w-3 h-3" />
+288	          <span>{error || loadError}</span>
+289	        </div>
+290	      )}
+291	
+292	      {/* Loading State */}
+293	      {loading && !items.length && (
+294	        <div className="mt-2 text-sm text-gray-500 flex items-center gap-2">
+295	          <Loader2 className="w-4 h-4 animate-spin" />
+296	          ?ˆëª© ëª©ë¡??ë¶ˆëŸ¬?¤ëŠ” ì¤?..
+297	        </div>
+298	      )}
+299	
+300	      {/* Dropdown */}
+301	      {isOpen && filteredItems.length > 0 && !disabled && (
+302	        <div className="absolute z-[9999] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm max-h-60 overflow-y-auto">
+303	          {filteredItems.map(item => (
+304	            <button
+305	              key={item.item_id}
+306	              type="button"
+307	              onMouseDown={(e) => {
+308	                e.preventDefault();
+309	                e.stopPropagation();
+310	                handleItemSelect(item);
+311	              }}
+312	              className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600 last:border-b-0 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
+313	            >
+314	              <div className="flex justify-between items-start">
+315	                <div className="flex-1 min-w-0">
+316	                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+317	                    {item.item_code}
+318	                  </div>
+319	                  <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+320	                    {item.item_name}
+321	                  </div>
+322	                </div>
+323	                <div className="text-right ml-2 flex-shrink-0">
+324	                  <div className="text-sm text-gray-500 dark:text-gray-400">
+325	                    {item.unit}
+326	                  </div>
+327	                  {showPrice && (
+328	                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+329	                      ??item.unit_price?.toLocaleString() || 0}
+330	                    </div>
+331	                  )}
+332	                </div>
+333	              </div>
+334	            </button>
+335	          ))}
+336	        </div>
+337	      )}
+338	
+339	      {/* No Results */}
+340	      {isOpen && search && filteredItems.length === 0 && !loading && (
+341	        <div className="absolute z-[9999] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm">
+342	          <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+343	            <div className="mb-1">ê²€??ê²°ê³¼ê°€ ?†ìŠµ?ˆë‹¤.</div>
+344	            {items.length === 0 ? (
+345	              <div className="text-xs text-gray-400 mt-1">
+346	                {supplierId
+347	                  ? '? íƒ??ê³µê¸‰?…ì²´???ˆëª© ëª©ë¡??ë¶ˆëŸ¬?¤ì? ëª»í–ˆ?µë‹ˆ?? ?ˆë¡œê³ ì¹¨ ë²„íŠ¼???´ë¦­?˜ì„¸??'
+348	                  : '?ˆëª© ëª©ë¡??ë¶ˆëŸ¬?¤ì? ëª»í–ˆ?µë‹ˆ?? ?ˆë¡œê³ ì¹¨ ë²„íŠ¼???´ë¦­?˜ì„¸??'
+349	                }
+350	              </div>
+351	            ) : (
+352	              <div className="text-xs text-gray-400 mt-1">
+353	                ?ˆëª©ì½”ë“œ ?ëŠ” ?ˆëª©ëª…ì˜ ?¼ë?ë¥??…ë ¥?˜ì„¸??
+354	                {supplierId
+355	                  ? ` (? íƒ??ê³µê¸‰?…ì²´ ?ˆëª© ${items.length}ê°?ë¡œë“œ??`
+356	                  : ` (?„ì¬ ${items.length}ê°??ˆëª© ë¡œë“œ??`
+357	                }
+358	              </div>
+359	            )}
+360	          </div>
+361	        </div>
+362	      )}
+363	
+364	      {/* Selected Item Info */}
+365	      {selectedItem && !isOpen && (
+366	        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+367	          ? íƒ???ˆëª©: {selectedItem.item_code} - {selectedItem.item_name}
+368	          {showPrice && ` (??{selectedItem.unit_price?.toLocaleString() || 0})`}
+369	        </div>
+370	      )}
+371	    </div>
+372	  );
+373	}
