@@ -69,6 +69,14 @@ export async function mcp__supabase__execute_sql(
       params: null
     });
 
+    console.log('[Supabase MCP] supabase.rpc execute_sql raw response:', {
+      hasData: !!data,
+      dataType: typeof data,
+      isArray: Array.isArray(data),
+      dataValue: data ? JSON.stringify(data).substring(0, 500) : null,
+      error: error ? error.message : null
+    });
+
     if (error) {
       console.error('[Supabase MCP] execute_sql error:', error);
       return {
@@ -80,23 +88,38 @@ export async function mcp__supabase__execute_sql(
     // data가 { rows: [], rowCount: 0 } 형태인 경우 처리
     let rows: Record<string, unknown>[] = [];
     if (data) {
+      console.log('[Supabase MCP] Processing data:', {
+        isArray: Array.isArray(data),
+        hasRows: typeof data === 'object' && 'rows' in data,
+        firstElement: Array.isArray(data) && data.length > 0 ? data[0] : null,
+        dataKeys: typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : null
+      });
+
       if (Array.isArray(data)) {
         // 배열인 경우
         if (data.length > 0 && typeof data[0] === 'object' && data[0] !== null && 'rows' in data[0]) {
           // 중첩된 구조: [{ rows: [], rowCount: 0 }]
           rows = (data[0] as any).rows || [];
+          console.log('[Supabase MCP] Extracted rows from nested array structure:', rows.length);
         } else {
           // 일반 배열: [{ item_id: 1, ... }]
           rows = data as Record<string, unknown>[];
+          console.log('[Supabase MCP] Using array as rows directly:', rows.length);
         }
       } else if (typeof data === 'object' && 'rows' in data) {
         // 객체이고 rows 속성이 있는 경우: { rows: [], rowCount: 0 }
         rows = (data as any).rows || [];
+        console.log('[Supabase MCP] Extracted rows from object.rows:', rows.length);
       } else {
         // 단일 객체인 경우
         rows = [data as Record<string, unknown>];
+        console.log('[Supabase MCP] Wrapped single object as array:', rows.length);
       }
+    } else {
+      console.warn('[Supabase MCP] data is null or undefined');
     }
+
+    console.log('[Supabase MCP] Final rows count:', rows.length);
 
     return {
       rows,

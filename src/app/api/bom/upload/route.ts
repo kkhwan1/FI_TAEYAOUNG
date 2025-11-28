@@ -82,6 +82,8 @@ interface BOMExcelRow {
   child_unit_price?: number;
   child_price_per_kg?: number;
   child_price_note?: string;
+  // Sheet information for customer identification
+  sheet_name?: string;
 }
 
 interface ValidationError {
@@ -304,6 +306,9 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
             row['child_supplier_name'] = row['자품목공급사명'];
           }
           
+          // 시트 이름 저장 (고객사 정보로 사용)
+          row['sheet_name'] = sheetName;
+          
           // BOM 엔트리 추가
           dataRows.push(row);
         }
@@ -468,7 +473,9 @@ function parseBOMExcel(buffer: Buffer): ValidationResult {
           child_price_month: row.child_price_month ? String(row.child_price_month).trim() : undefined,
           child_unit_price: row.child_unit_price ? (typeof row.child_unit_price === 'number' ? row.child_unit_price : parseFloat(String(row.child_unit_price))) : undefined,
           child_price_per_kg: row.child_price_per_kg ? (typeof row.child_price_per_kg === 'number' ? row.child_price_per_kg : parseFloat(String(row.child_price_per_kg))) : undefined,
-          child_price_note: row.child_price_note ? String(row.child_price_note).trim() : undefined
+          child_price_note: row.child_price_note ? String(row.child_price_note).trim() : undefined,
+          // Sheet information for customer identification
+          sheet_name: row.sheet_name ? String(row.sheet_name).trim() : undefined
         });
       } else {
         errors.push(...rowErrors);
@@ -1087,6 +1094,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return undefined;
     };
 
+    // Helper function to get customer_id from sheet name or parent supplier
+    const getCustomerId = (
+      sheetName: string | undefined,
+      parentSupplier: string | undefined,
+      companyMap: Map<string, number>
+    ): number | undefined => {
+      // 시트 이름을 우선적으로 사용 (예: "대우당진", "대우포승")
+      if (sheetName && companyMap.has(sheetName)) {
+        return companyMap.get(sheetName);
+      }
+      // 시트 이름이 없거나 찾을 수 없으면 납품처(parent_supplier) 사용
+      if (parentSupplier && companyMap.has(parentSupplier)) {
+        return companyMap.get(parentSupplier);
+      }
+      return undefined;
+    };
+
     // Add parent items
     parseResult.data.forEach(row => {
       if (!uniqueItems.has(row.parent_item_code)) {
@@ -1449,6 +1473,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       level_no: number;
       is_active: boolean;
       notes?: string;
+      customer_id?: number;
+      child_supplier_id?: number;
     }
 
     // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
@@ -1462,13 +1488,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
+      // customer_id 찾기 (시트 이름 우선, 없으면 납품처 사용)
+      const customerId = getCustomerId(
+        row.sheet_name,
+        row.parent_supplier_name || row.parent_supplier,
+        companyMap
+      );
+
+      // child_supplier_id 찾기 (기존 함수 활용)
+      const childSupplierId = getSupplierId(row, false);
+
       return {
         parent_item_id: parentId,
         child_item_id: childId,
         quantity_required: row.quantity_required,
         level_no: row.level_no ?? 1, // Use nullish coalescing to preserve 0
         is_active: true,
-        notes: row.notes ? String(row.notes).trim() : undefined
+        notes: row.notes ? String(row.notes).trim() : undefined,
+        customer_id: customerId,
+        child_supplier_id: childSupplierId
       };
     });
 

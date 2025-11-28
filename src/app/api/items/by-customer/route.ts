@@ -73,6 +73,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         query: sqlQuery
       });
 
+      console.log(`[Items by Customer API] mcp__supabase__execute_sql 결과:`, JSON.stringify(result, null, 2));
+      console.log(`[Items by Customer API] result.rows 타입:`, typeof result.rows);
+      console.log(`[Items by Customer API] result.rows가 배열인가?:`, Array.isArray(result.rows));
+      console.log(`[Items by Customer API] result.rows 길이:`, result.rows?.length || 0);
+
       if (result.error) {
         console.error('[Items by Customer API] SQL query error:', result.error);
         return NextResponse.json({
