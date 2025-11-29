@@ -62,6 +62,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         transaction_date: initialData.transaction_date || new Date().toISOString().split('T')[0],
         customer_id: initialData.customer_id,
         items: initialData.items || [],
+        reference_no: initialData.reference_no || '',
         created_by: initialData.created_by || 1
       });
     }
@@ -594,12 +595,21 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
   };
 
 
-  const calculateTotalAmount = () => {
-    return formData.items.reduce((total, item) => total + item.total_amount, 0);
+  const generateShippingOrder = (): string => {
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 12);
+    return `SHP-${timestamp}`;
   };
 
-  const hasInsufficientStock = () => {
-    return formData.items.some(item => !item.sufficient_stock || item.current_stock < item.quantity);
+  const handleGenerateReference = () => {
+    setFormData(prev => ({
+      ...prev,
+      reference_no: generateShippingOrder()
+    }));
+  };
+
+  const calculateTotalAmount = () => {
+    return formData.items.reduce((total, item) => total + item.total_amount, 0);
   };
 
   return (
@@ -803,6 +813,31 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
           )}
         </div>
       )}
+
+      {/* 출고번호 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          출고번호
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            name="reference_no"
+            value={formData.reference_no || ''}
+            onChange={handleChange}
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="예: SHP-202501301430"
+          />
+          <button
+            type="button"
+            onClick={handleGenerateReference}
+            className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            title="자동 생성"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
       {/* Selected Items */}
       {formData.items.length > 0 && (
