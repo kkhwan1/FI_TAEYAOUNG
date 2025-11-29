@@ -931,29 +931,7 @@ export async function validateBom(
       });
     }
 
-    // 4. 중복 BOM 항목 확인
-    const duplicateCheckSql = `
-      SELECT child_item_id, COUNT(*) as cnt
-      FROM bom
-      WHERE parent_item_id = $1 AND is_active = 1
-      GROUP BY child_item_id
-      HAVING COUNT(*) > 1
-    `;
-
-    const duplicateResult = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: duplicateCheckSql
-    });
-
-    const duplicateRows = duplicateResult.rows as Array<{child_item_id: number}> | undefined;
-
-    if (duplicateRows && duplicateRows.length > 0) {
-      duplicateRows.forEach((item) => {
-        errors.push(`하위 품목 ID ${item.child_item_id}에 대한 중복 BOM 항목이 존재합니다.`);
-      });
-    }
-
-    // 5. 0 수량 확인
+    // 4. 0 수량 확인
     const zeroQtyCheckSql = `
       SELECT i.item_code, i.item_name
       FROM bom b

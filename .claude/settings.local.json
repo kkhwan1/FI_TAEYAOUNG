@@ -19,7 +19,11 @@
       "Bash(cmd.exe /c \"taskkill /F /PID 93756\")",
       "Bash(powershell -Command \"Stop-Process -Id 93756 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 148392 -Force\")",
-      "Bash(powershell -Command \"Get-Process -Id (Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")"
+      "Bash(powershell -Command \"Get-Process -Id (Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(cat:*)",
+      "Skill(codex)",
+      "Bash(find:*)",
+      "Bash(timeout 10 bash -c 'while ! netstat -ano | findstr \"\":3000.*LISTENING\"\" > /dev/null 2>&1; do sleep 1; done; echo \"\"Server is ready\"\"')"
     ],
     "deny": [],
     "ask": []

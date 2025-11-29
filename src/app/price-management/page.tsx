@@ -703,32 +703,44 @@ export default function PriceManagementPage() {
             </label>
 
             {/* 카테고리 필터 */}
-            <select
-              value={filters.category}
-              onChange={(e) => {
-                setFilters({...filters, category: e.target.value});
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 border border-input rounded-lg bg-background text-foreground"
-            >
-              <option value="">전체 카테고리</option>
-              <option value="원자재">원자재</option>
-              <option value="부자재">부자재</option>
-              <option value="반제품">반제품</option>
-              <option value="제품">제품</option>
-            </select>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="category-filter-price" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                카테고리
+              </label>
+              <select
+                id="category-filter-price"
+                value={filters.category}
+                onChange={(e) => {
+                  setFilters({...filters, category: e.target.value});
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 border border-input rounded-lg bg-background text-foreground"
+              >
+                <option value="">전체 카테고리</option>
+                <option value="원자재">원자재</option>
+                <option value="부자재">부자재</option>
+                <option value="반제품">반제품</option>
+                <option value="제품">제품</option>
+              </select>
+            </div>
             
             {/* 검색 */}
-            <input
-              type="text"
-              placeholder="품목코드/품목명 검색"
-              value={filters.search}
-              onChange={(e) => {
-                setFilters({...filters, search: e.target.value});
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground"
-            />
+            <div className="flex flex-col gap-1">
+              <label htmlFor="search-filter-price" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                검색
+              </label>
+              <input
+                id="search-filter-price"
+                type="text"
+                placeholder="품목코드/품목명 검색"
+                value={filters.search}
+                onChange={(e) => {
+                  setFilters({...filters, search: e.target.value});
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
 
             {/* 일괄 저장 버튼 */}
             <button

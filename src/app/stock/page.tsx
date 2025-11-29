@@ -740,9 +740,13 @@ export default function StockPage() {
           <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
+                <label htmlFor="search-filter-current" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  검색
+                </label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   <input
+                    id="search-filter-current"
                     type="text"
                     placeholder="품번, 품명, 규격, 재질, 차종, 두께, 폭, 길이 등으로 검색..."
                     value={searchTerm}
@@ -752,42 +756,60 @@ export default function StockPage() {
                 </div>
               </div>
 
-              <select
-                value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-              >
-                <option value="all">전체</option>
-                <option value="normal">정상 재고</option>
-                <option value="low">재고 부족</option>
-              </select>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="stock-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  재고 상태
+                </label>
+                <select
+                  id="stock-filter"
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
+                >
+                  <option value="all">전체</option>
+                  <option value="normal">정상 재고</option>
+                  <option value="low">재고 부족</option>
+                </select>
+              </div>
 
-              <select
-                value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value || 'ALL')}
-                className="w-full sm:w-64 px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-                disabled={companiesLoading}
-              >
-                <option value="ALL">전체 거래처</option>
-                {companies.map(company => (
-                  <option key={company.value} value={company.value}>
-                    {company.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="company-filter-current" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  거래처
+                </label>
+                <select
+                  id="company-filter-current"
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value || 'ALL')}
+                  className="w-full sm:w-64 px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
+                  disabled={companiesLoading}
+                >
+                  <option value="ALL">전체 거래처</option>
+                  {companies.map(company => (
+                    <option key={company.value} value={company.value}>
+                      {company.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <select
-                value={refreshInterval}
-                onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
-                className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-                title="자동 업데이트 간격"
-              >
-                <option value="0">자동 업데이트: Off</option>
-                <option value="3000">자동 업데이트: 3초</option>
-                <option value="5000">자동 업데이트: 5초</option>
-                <option value="10000">자동 업데이트: 10초</option>
-                <option value="30000">자동 업데이트: 30초</option>
-              </select>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="refresh-interval-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  자동 업데이트
+                </label>
+                <select
+                  id="refresh-interval-filter"
+                  value={refreshInterval}
+                  onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
+                  className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
+                  title="자동 업데이트 간격"
+                >
+                  <option value="0">Off</option>
+                  <option value="3000">3초</option>
+                  <option value="5000">5초</option>
+                  <option value="10000">10초</option>
+                  <option value="30000">30초</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1116,9 +1138,13 @@ export default function StockPage() {
           <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
+                <label htmlFor="search-filter-history" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  검색
+                </label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   <input
+                    id="search-filter-history"
                     type="text"
                     placeholder="품목명, 코드, 거래처, 참조번호..."
                     value={historySearchTerm}
@@ -1128,12 +1154,16 @@ export default function StockPage() {
                 </div>
               </div>
 
-              <CompanyFilterSelect
-                value={companyFilter}
-                onChange={(value) => setCompanyFilter(String(value))}
-                width="w-64"
-                testId="history-company-filter"
-              />
+              <div>
+                <CompanyFilterSelect
+                  value={companyFilter}
+                  onChange={(value) => setCompanyFilter(String(value))}
+                  width="w-64"
+                  testId="history-company-filter"
+                  showLabel={true}
+                  label="거래처"
+                />
+              </div>
             </div>
           </div>
 
@@ -1339,9 +1369,13 @@ export default function StockPage() {
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                   <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full">
                     <div className="flex-1">
+                      <label htmlFor="search-filter-adjustment" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        검색
+                      </label>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                         <input
+                          id="search-filter-adjustment"
                           type="text"
                           placeholder="품목명, 코드, 참조번호, 비고..."
                           value={adjustmentSearchTerm}
@@ -1351,12 +1385,16 @@ export default function StockPage() {
                       </div>
                     </div>
 
-                    <CompanyFilterSelect
-                      value={companyFilter}
-                      onChange={(value) => setCompanyFilter(String(value))}
-                      width="w-64"
-                      testId="adjustment-company-filter"
-                    />
+                    <div>
+                      <CompanyFilterSelect
+                        value={companyFilter}
+                        onChange={(value) => setCompanyFilter(String(value))}
+                        width="w-64"
+                        testId="adjustment-company-filter"
+                        showLabel={true}
+                        label="거래처"
+                      />
+                    </div>
                   </div>
 
                   <button

@@ -473,48 +473,59 @@ export default function AccountingSummaryPage() {
             data-testid="filter-container"
           >
             {/* 첫 번째 행: 검색 및 카테고리 필터 */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
               {/* 검색 입력 */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="거래처명 검색..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  data-testid="search-input"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
-                             bg-white dark:bg-gray-900 text-gray-900 dark:text-white
-                             focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500
-                             focus:border-transparent transition-all"
-                />
+              <div className="flex flex-col gap-1 flex-1">
+                <label htmlFor="search-input" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  검색
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    id="search-input"
+                    type="text"
+                    placeholder="거래처명 검색..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    data-testid="search-input"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
+                               bg-white dark:bg-gray-900 text-gray-900 dark:text-white
+                               focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500
+                               focus:border-transparent transition-all"
+                  />
+                </div>
               </div>
 
               {/* 카테고리 필터 */}
-              <select
-                id="category-filter"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                data-testid="category-filter"
-                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
-                           bg-white dark:bg-gray-900 text-gray-900 dark:text-white
-                           focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500
-                           focus:border-transparent transition-all"
-              >
-                <option value="">전체 분류</option>
-                <option value={CompanyCategory.RAW_MATERIALS}>
-                  협력업체 (원자재)
-                </option>
-                <option value={CompanyCategory.OUTSOURCING}>
-                  협력업체 (외주)
-                </option>
-                <option value={CompanyCategory.CONSUMABLES}>
-                  소모품업체
-                </option>
-                <option value={CompanyCategory.OTHER}>
-                  기타
-                </option>
-              </select>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="category-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  카테고리
+                </label>
+                <select
+                  id="category-filter"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  data-testid="category-filter"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
+                             bg-white dark:bg-gray-900 text-gray-900 dark:text-white
+                             focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500
+                             focus:border-transparent transition-all"
+                >
+                  <option value="">전체 분류</option>
+                  <option value={CompanyCategory.RAW_MATERIALS}>
+                    협력업체 (원자재)
+                  </option>
+                  <option value={CompanyCategory.OUTSOURCING}>
+                    협력업체 (외주)
+                  </option>
+                  <option value={CompanyCategory.CONSUMABLES}>
+                    소모품업체
+                  </option>
+                  <option value={CompanyCategory.OTHER}>
+                    기타
+                  </option>
+                </select>
+              </div>
 
               {/* 필터 초기화 버튼 */}
               <button

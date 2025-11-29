@@ -237,8 +237,9 @@ export default function MonitoringDashboard() {
 
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-600 dark:text-gray-400">자동 새로고침</label>
+            <label htmlFor="auto-refresh-toggle" className="text-sm text-gray-600 dark:text-gray-400">자동 새로고침</label>
             <input
+              id="auto-refresh-toggle"
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
@@ -246,17 +247,23 @@ export default function MonitoringDashboard() {
             />
           </div>
 
-          <select
-            value={refreshInterval}
-            onChange={(e) => setRefreshInterval(Number(e.target.value))}
-            className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 dark:border-gray-600"
-            disabled={!autoRefresh}
-          >
-            <option value={10000}>10초</option>
-            <option value={30000}>30초</option>
-            <option value={60000}>1분</option>
-            <option value={300000}>5분</option>
-          </select>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="refresh-interval-select" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              새로고침 간격
+            </label>
+            <select
+              id="refresh-interval-select"
+              value={refreshInterval}
+              onChange={(e) => setRefreshInterval(Number(e.target.value))}
+              className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 dark:border-gray-600"
+              disabled={!autoRefresh}
+            >
+              <option value={10000}>10초</option>
+              <option value={30000}>30초</option>
+              <option value={60000}>1분</option>
+              <option value={300000}>5분</option>
+            </select>
+          </div>
 
           <button
             onClick={handleRefresh}

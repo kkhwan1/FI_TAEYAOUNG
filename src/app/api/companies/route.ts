@@ -50,22 +50,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let query = supabase
       .from('companies')
       .select('*')
+      .eq('is_active', true)  // 활성 회사만 가져오기
       .order('company_name', { ascending: true });
 
     // Apply filters safely - map English to Korean for database query
+    // 특별 처리: CUSTOMER 타입 요청 시 BOM에서 사용되는 납품처 회사들을 포함하기 위해 모든 활성 회사를 가져옴
     if (type) {
-      // Check if multiple types are provided (comma-separated)
-      if (type.includes(',')) {
-        // Split and map each type to Korean
-        const types = type.split(',').map(t => t.trim());
-        const dbTypes = types.map(t => companyTypeMap[t] || t).filter(t => t === '고객사' || t === '공급사') as ('고객사' | '공급사')[];
-        if (dbTypes.length > 0) {
-          query = query.in('company_type', dbTypes);
-        }
+      // CUSTOMER 타입의 경우: BOM에서 실제로 사용되는 납품처 회사들을 포함하기 위해 필터를 적용하지 않음
+      // (데이터베이스에서 납품처로 사용되는 회사들이 company_type='공급사'로 저장되어 있음)
+      if (type === 'CUSTOMER') {
+        // CUSTOMER 타입 요청 시에는 BOM에서 사용되는 회사들을 포함하기 위해 
+        // 모든 활성 회사를 가져오고, BOM에서 사용되는 회사들을 우선적으로 표시
+        // 필터를 적용하지 않고 모든 활성 회사를 반환
       } else {
-        // Single type - use .eq() for backward compatibility
-        const dbType = companyTypeMap[type] || type;
-        query = query.eq('company_type', dbType as '고객사' | '공급사');
+        // Check if multiple types are provided (comma-separated)
+        if (type.includes(',')) {
+          // Split and map each type to Korean
+          const types = type.split(',').map(t => t.trim());
+          const dbTypes = types.map(t => companyTypeMap[t] || t).filter(t => t === '고객사' || t === '공급사') as ('고객사' | '공급사')[];
+          if (dbTypes.length > 0) {
+            query = query.in('company_type', dbTypes);
+          }
+        } else {
+          // Single type - use .eq() for backward compatibility
+          const dbType = companyTypeMap[type] || type;
+          query = query.eq('company_type', dbType as '고객사' | '공급사');
+        }
       }
     }
 
@@ -94,21 +104,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Get total count for pagination (safe query)
     let countQuery = supabase
       .from('companies')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true);  // 활성 회사만 카운트
 
     // Apply same filters for count - handle multiple types
     if (type) {
-      if (type.includes(',')) {
-        // Multiple types
-        const types = type.split(',').map(t => t.trim());
-        const dbTypes = types.map(t => companyTypeMap[t] || t).filter(t => t === '고객사' || t === '공급사') as ('고객사' | '공급사')[];
-        if (dbTypes.length > 0) {
-          countQuery = countQuery.in('company_type', dbTypes);
-        }
+      // CUSTOMER 타입의 경우 필터를 적용하지 않음 (모든 활성 회사 포함)
+      if (type === 'CUSTOMER') {
+        // 필터 적용하지 않음
       } else {
-        // Single type
-        const dbType = companyTypeMap[type] || type;
-        countQuery = countQuery.eq('company_type', dbType as '고객사' | '공급사');
+        if (type.includes(',')) {
+          // Multiple types
+          const types = type.split(',').map(t => t.trim());
+          const dbTypes = types.map(t => companyTypeMap[t] || t).filter(t => t === '고객사' || t === '공급사') as ('고객사' | '공급사')[];
+          if (dbTypes.length > 0) {
+            countQuery = countQuery.in('company_type', dbTypes);
+          }
+        } else {
+          // Single type
+          const dbType = companyTypeMap[type] || type;
+          countQuery = countQuery.eq('company_type', dbType as '고객사' | '공급사');
+        }
       }
     }
 
@@ -126,22 +142,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     metricsCollector.trackRequest(endpoint, duration, false);
     logger.info('Companies GET success', { endpoint, duration, companyCount: companies?.length || 0 });
 
+    const safeLimit = limit > 0 ? limit : 1;
+    const safeTotalCount = totalCount || 0;
+
     return NextResponse.json({
       success: true,
       data: {
         data: mappedCompanies,
         meta: {
           limit,
-          totalCount: totalCount || 0,
-          totalPages: Math.ceil((totalCount || 0) / limit),
-          hasNext: offset + limit < (totalCount || 0),
+          totalCount: safeTotalCount,
+          totalPages: safeLimit > 0 ? Math.ceil(safeTotalCount / safeLimit) : 1,
+          hasNext: offset + limit < safeTotalCount,
           hasPrev: offset > 0
         },
         pagination: {
           limit,
-          totalCount: totalCount || 0,
-          totalPages: Math.ceil((totalCount || 0) / limit),
-          hasNext: offset + limit < (totalCount || 0),
+          totalCount: safeTotalCount,
+          totalPages: safeLimit > 0 ? Math.ceil(safeTotalCount / safeLimit) : 1,
+          hasNext: offset + limit < safeTotalCount,
           hasPrev: offset > 0
         }
       }

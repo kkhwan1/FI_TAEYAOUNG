@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { UNIT_OPTIONS } from '@/constants/units';
 
 interface ItemEditModalProps {
   isOpen: boolean;
@@ -248,13 +249,19 @@ export const ItemEditModal: React.FC<ItemEditModalProps> = ({
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       단위 <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={itemData.unit || ''}
                       onChange={(e) => handleInputChange('unit', e.target.value || null)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       required
-                    />
+                    >
+                      <option value="">선택</option>
+                      {UNIT_OPTIONS.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

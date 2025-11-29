@@ -18,6 +18,8 @@ import {
 import { ImageUploadZone } from '@/components/ImageUploadZone';
 import { ItemImageGallery } from '@/components/ItemImageGallery';
 import { useToast } from '@/contexts/ToastContext';
+import EditableInfoRow from '@/components/EditableInfoRow';
+import { UNIT_OPTIONS } from '@/constants/units';
 
 interface ItemDetail {
   // 기본 정보
@@ -412,7 +414,18 @@ export default function ItemDetailPage() {
                   <InfoRow label="차종" value={item.vehicle_model} />
                   <InfoRow label="재질" value={item.material} />
                   <InfoRow label="규격" value={item.spec} />
-                  <InfoRow label="단위" value={item.unit} />
+                  <EditableInfoRow
+                    label="단위"
+                    value={item.unit}
+                    fieldName="unit"
+                    itemId={itemId}
+                    type="select"
+                    options={UNIT_OPTIONS.map(value => ({ value, label: value }))}
+                    onUpdate={(newValue) => {
+                      setItem(prev => prev ? { ...prev, unit: newValue } : null);
+                    }}
+                    editable={true}
+                  />
                   <InfoRow label="도장상태" value={item.coating_status} />
                 </div>
               </div>

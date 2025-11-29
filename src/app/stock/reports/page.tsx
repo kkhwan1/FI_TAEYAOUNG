@@ -237,14 +237,20 @@ export default function StockReportsPage() {
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-gray-400" />
-              <input
-                type="date"
-                value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-              />
+            <div className="flex flex-col gap-1">
+              <label htmlFor="report-date-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                기준일
+              </label>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <input
+                  id="report-date-filter"
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
+                />
+              </div>
             </div>
 
             <button

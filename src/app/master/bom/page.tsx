@@ -234,6 +234,8 @@ export default function BOMPage() {
   const [categories, setCategories] = useState<string[]>([]);
   // 카테고리 고정 옵션 (완제품, 반제품, 원재료 등)
   const fixedCategories: string[] = ['완제품', '반제품', '원재료', '부품', '소재'];
+  // 품목 타입 고정 옵션 (내부생산, 외부구매)
+  const fixedItemTypes: string[] = ['internal_production', 'external_purchase'];
   // 소재유형 목록 (items에서 추출)
   const [materialTypes, setMaterialTypes] = useState<string[]>([]);
 
@@ -3246,161 +3248,213 @@ export default function BOMPage() {
               />
             </div>
 
-            <select
-              value={filters.level || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                level: e.target.value ? parseInt(e.target.value) : null
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
-            >
-              <option value="">모든 레벨</option>
-              {levels.map(level => (
-                <option key={level} value={level}>
-                  Level {level}
-                </option>
-              ))}
-            </select>
+            {/* 레벨 필터 */}
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                레벨
+              </label>
+              <select
+                value={filters.level || ''}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  level: e.target.value ? parseInt(e.target.value) : null
+                }))}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
+              >
+                <option value="">모든 레벨</option>
+                {levels.map(level => (
+                  <option key={level} value={level}>
+                    Level {level}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <select
-              value={filters.itemType}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                itemType: e.target.value as FilterState['itemType']
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
-            >
-              <option value="all">모든 품목</option>
-              {itemTypes.map(type => (
-                <option key={type} value={type}>
-                  {type === 'internal_production' ? '내부생산' : type === 'external_purchase' ? '외부구매' : type}
-                </option>
-              ))}
-            </select>
+            {/* 품목 타입 필터 */}
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                품목
+              </label>
+              <select
+                value={filters.itemType}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  itemType: e.target.value as FilterState['itemType']
+                }))}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
+              >
+                <option value="all">모든 품목</option>
+                {/* 고정 품목 타입 옵션 */}
+                {fixedItemTypes.map(type => (
+                  <option key={type} value={type}>
+                    {type === 'internal_production' ? '내부생산' : type === 'external_purchase' ? '외부구매' : type}
+                  </option>
+                ))}
+                {/* 동적으로 가져온 품목 타입 옵션 (고정 옵션에 없는 것만) */}
+                {itemTypes
+                  .filter(type => !fixedItemTypes.includes(type))
+                  .map(type => (
+                    <option key={type} value={type}>
+                      {type === 'internal_production' ? '내부생산' : type === 'external_purchase' ? '외부구매' : type}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
             {/* 카테고리 필터 */}
-            <select
-              value={filters.category}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                category: e.target.value
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
-            >
-              <option value="">카테고리</option>
-              {/* 고정 카테고리 옵션 */}
-              {fixedCategories.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-              {/* 동적으로 가져온 카테고리 옵션 (고정 옵션에 없는 것만) */}
-              {categories
-                .filter(cat => !fixedCategories.includes(cat))
-                .map(cat => (
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                카테고리
+              </label>
+              <select
+                value={filters.category}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  category: e.target.value
+                }))}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
+              >
+                <option value="">카테고리</option>
+                {/* 고정 카테고리 옵션 */}
+                {fixedCategories.map(cat => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
                 ))}
-            </select>
+                {/* 동적으로 가져온 카테고리 옵션 (고정 옵션에 없는 것만) */}
+                {categories
+                  .filter(cat => !fixedCategories.includes(cat))
+                  .map(cat => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
             {/* 소재유형 필터 */}
-            <select
-              value={filters.materialType}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                materialType: e.target.value
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
-            >
-              <option value="">소재유형</option>
-              {materialTypes.map(type => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                소재유형
+              </label>
+              <select
+                value={filters.materialType}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  materialType: e.target.value
+                }))}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap"
+              >
+                <option value="">소재유형</option>
+                {materialTypes.map(type => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* 납품처(고객사) 필터 */}
-            <select
-              value={filters.customerId || ''}
-              onChange={(e) => {
-                const customerId = e.target.value ? parseInt(e.target.value) : null;
-                setFilters(prev => ({
-                  ...prev,
-                  customerId: customerId
-                }));
-                // 납품처 선택에 따라 뷰 모드 자동 전환
-                if (customerId === null) {
-                  setViewMode('table'); // 전체 보기: 테이블 뷰
-                } else {
-                  setViewMode('grouped'); // 특정 납품처: 그룹화 뷰
-                }
-              }}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
-            >
-              <option value="">납품처</option>
-              {customers.length > 0 ? (
-                customers.map(c => (
-                  <option key={c.company_id} value={c.company_id}>
-                    {c.company_name}
-                  </option>
-                ))
-              ) : (
-                <option value="" disabled>로딩 중...</option>
-              )}
-            </select>
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                납품처
+              </label>
+              <select
+                value={filters.customerId || ''}
+                onChange={(e) => {
+                  const customerId = e.target.value ? parseInt(e.target.value) : null;
+                  setFilters(prev => ({
+                    ...prev,
+                    customerId: customerId
+                  }));
+                  // 납품처 선택에 따라 뷰 모드 자동 전환
+                  if (customerId === null) {
+                    setViewMode('table'); // 전체 보기: 테이블 뷰
+                  } else {
+                    setViewMode('grouped'); // 특정 납품처: 그룹화 뷰
+                  }
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+              >
+                <option value="">납품처</option>
+                {customers.length > 0 ? (
+                  customers.map(c => (
+                    <option key={c.company_id} value={c.company_id}>
+                      {c.company_name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>로딩 중...</option>
+                )}
+              </select>
+            </div>
 
             {/* 공급처 필터 (자품목의 supplier) */}
-            <select
-              value={filters.supplierId || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                supplierId: e.target.value ? parseInt(e.target.value) : null
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
-            >
-              <option value="">공급처</option>
-              {suppliers.length > 0 ? (
-                suppliers.map(s => (
-                  <option key={s.company_id} value={s.company_id}>
-                    {s.company_name}
-                  </option>
-                ))
-              ) : (
-                <option value="" disabled>로딩 중...</option>
-              )}
-            </select>
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                공급처
+              </label>
+              <select
+                value={filters.supplierId || ''}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  supplierId: e.target.value ? parseInt(e.target.value) : null
+                }))}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+              >
+                <option value="">공급처</option>
+                {suppliers.length > 0 ? (
+                  suppliers.map(s => (
+                    <option key={s.company_id} value={s.company_id}>
+                      {s.company_name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>로딩 중...</option>
+                )}
+              </select>
+            </div>
 
             {/* 차종 필터 */}
-            <select
-              value={filters.vehicleType}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                vehicleType: e.target.value
-              }))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
-            >
-              <option value="">차종</option>
-              {vehicleTypes.map(v => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                차종
+              </label>
+              <select
+                value={filters.vehicleType}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  vehicleType: e.target.value
+                }))}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[150px]"
+              >
+                <option value="">차종</option>
+                {vehicleTypes.map(v => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <select
-              value={selectedParentItem}
-              onChange={(e) => setSelectedParentItem(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[180px]"
-            >
-              <option value="">모품목</option>
-              {items.filter(item => item.category === '제품').map(item => (
-                <option key={item.item_id} value={item.item_id}>
-                  {item.item_code} - {item.item_name}
-                </option>
-              ))}
-            </select>
+            {/* 모품목 필터 */}
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                모품목
+              </label>
+              <select
+                value={selectedParentItem}
+                onChange={(e) => setSelectedParentItem(e.target.value)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm flex-shrink-0 whitespace-nowrap min-w-[180px]"
+              >
+                <option value="">모품목</option>
+                {items.filter(item => item.category === '제품').map(item => (
+                  <option key={item.item_id} value={item.item_id}>
+                    {item.item_code} - {item.item_name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg flex-shrink-0 whitespace-nowrap">
               <input

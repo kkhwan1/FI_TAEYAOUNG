@@ -498,9 +498,13 @@ export default function CompaniesPage() {
 
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
+            <label htmlFor="search-filter" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              검색
+            </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
+                id="search-filter"
                 type="text"
                 placeholder="거래처명, 사업자번호, 담당자로 검색..."
                 value={searchTerm}
@@ -510,16 +514,22 @@ export default function CompaniesPage() {
             </div>
           </div>
           <div className={`flex gap-2 ${showFilters ? 'flex' : 'hidden'} sm:flex`}>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="px-2 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500 flex-shrink-0 whitespace-nowrap min-w-[100px] max-w-[120px] sm:min-w-[120px] sm:max-w-[140px]"
-            >
-              <option value="">전체 타입</option>
-              {companyTypes.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="type-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                타입
+              </label>
+              <select
+                id="type-filter"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="px-2 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500 flex-shrink-0 whitespace-nowrap min-w-[100px] max-w-[120px] sm:min-w-[120px] sm:max-w-[140px]"
+              >
+                <option value="">전체 타입</option>
+                {companyTypes.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
             <button className="flex items-center gap-1 border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1.5 flex-shrink-0 text-xs font-medium transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
               <Filter className="w-4 h-4" />
               <span className="hidden lg:inline">필터</span>

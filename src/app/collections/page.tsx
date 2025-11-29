@@ -417,46 +417,66 @@ export default function CollectionsPage() {
         <div className={`${showFilters ? 'block' : 'hidden'} sm:block`}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* 검색 */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="수금번호, 매출번호, 고객사 검색..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-            />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              검색
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="수금번호, 매출번호, 고객사 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* 결제방법 필터 */}
-          <select
-            value={filterPaymentMethod}
-            onChange={(e) => setFilterPaymentMethod(e.target.value as PaymentMethod | '')}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          >
-            <option value="">전체 결제방법</option>
-            {PAYMENT_METHOD_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              결제방법
+            </label>
+            <select
+              value={filterPaymentMethod}
+              onChange={(e) => setFilterPaymentMethod(e.target.value as PaymentMethod | '')}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            >
+              <option value="">전체 결제방법</option>
+              {PAYMENT_METHOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* 시작일 */}
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              시작일
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            />
+          </div>
 
           {/* 종료일 */}
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              종료일
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            />
+          </div>
         </div>
 
         {/* 빠른 날짜 선택 */}

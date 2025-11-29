@@ -76,7 +76,7 @@ const MATERIAL_TYPES: { value: string; label: string }[] = [
   { value: 'OTHER', label: '기타 (OTHER)' }
 ];
 
-const UNIT_OPTIONS = ['EA', 'SET', 'KG', 'M', 'L', 'BOX', 'MM', 'CM'];
+import { UNIT_OPTIONS } from '@/constants/units';
 
 // COATING_STATUS_OPTIONS now imported from @/lib/constants/coatingStatus
 const COATING_STATUS_OPTIONS = SHARED_COATING_STATUS_OPTIONS.filter(opt => opt.value !== '');

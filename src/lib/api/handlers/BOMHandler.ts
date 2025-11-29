@@ -50,29 +50,6 @@ export class BOMHandler extends CRUDHandler {
     await this.validateItemExists(parent_item_id, '부모 품목');
     await this.validateItemExists(child_item_id, '자식 품목');
 
-    // Check duplicate BOM entry
-    const { data: existing } = await this.supabase
-      .from('bom')
-      .select('bom_id, is_active')
-      .eq('parent_item_id', parent_item_id)
-      .eq('child_item_id', child_item_id)
-      .single();
-
-    if (existing) {
-      if (!existing.is_active) {
-        // Delete inactive BOM before creating new one
-        await this.supabase
-          .from('bom')
-          .delete()
-          .eq('bom_id', existing.bom_id);
-      } else {
-        throw new ERPError(
-          ErrorType.DUPLICATE_ENTRY,
-          '이미 등록된 BOM 구조입니다. 기존 항목을 수정해주세요.'
-        );
-      }
-    }
-
     // Check circular reference
     const hasCircular = await this.checkCircularReference(parent_item_id, child_item_id);
     if (hasCircular) {

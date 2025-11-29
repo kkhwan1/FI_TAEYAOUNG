@@ -362,15 +362,21 @@ export default function PurchasesPage() {
         <div className={`${showFilters ? 'block' : 'hidden'} sm:block`}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 검색 */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="거래번호, 품목명, 공급사명 검색..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-            />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="search-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              검색
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                id="search-filter"
+                type="text"
+                placeholder="거래번호, 품목명, 공급사명 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* 공급사 필터 */}
@@ -378,62 +384,93 @@ export default function PurchasesPage() {
             <CompanyFilterSelect
               value={selectedCompany}
               onChange={(value) => setSelectedCompany(value === '' ? 'ALL' : Number(value))}
-              label=""
+              label="공급사"
               placeholder="전체 공급사"
               className="w-full"
+              showLabel={true}
             />
           </div>
 
           {/* 지급 상태 필터 */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as PaymentStatus | '')}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          >
-            <option value="">전체 상태</option>
-            {PAYMENT_STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="status-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              지급 상태
+            </label>
+            <select
+              id="status-filter"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as PaymentStatus | '')}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            >
+              <option value="">전체 상태</option>
+              {PAYMENT_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* 두 번째 행: 날짜 및 금액 필터 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
           {/* 시작일 */}
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="start-date-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              시작일
+            </label>
+            <input
+              id="start-date-filter"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            />
+          </div>
 
           {/* 종료일 */}
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="end-date-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              종료일
+            </label>
+            <input
+              id="end-date-filter"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            />
+          </div>
 
           {/* 최소 금액 */}
-          <input
-            type="number"
-            value={minAmount}
-            onChange={(e) => setMinAmount(e.target.value)}
-            placeholder="최소 금액"
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="min-amount-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              최소 금액
+            </label>
+            <input
+              id="min-amount-filter"
+              type="number"
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+              placeholder="최소 금액"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            />
+          </div>
 
           {/* 최대 금액 */}
-          <input
-            type="number"
-            value={maxAmount}
-            onChange={(e) => setMaxAmount(e.target.value)}
-            placeholder="최대 금액"
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-          />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="max-amount-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              최대 금액
+            </label>
+            <input
+              id="max-amount-filter"
+              type="number"
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+              placeholder="최대 금액"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+            />
+          </div>
         </div>
 
         <div className="mt-4 flex justify-end gap-1.5">
