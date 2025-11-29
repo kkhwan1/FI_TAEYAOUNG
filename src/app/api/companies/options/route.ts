@@ -33,8 +33,29 @@ export async function GET(request: Request) {
       .eq('is_active', true);
 
     // type에 따라 필터링 추가
+    // CUSTOMER: BOM 테이블의 customer_id로 연결된 회사들을 고객사로 인식
+    // (DB의 company_type이 '공급사'로 되어 있어도 BOM에서 고객사로 사용 중인 경우)
     if (type === 'CUSTOMER') {
-      query = query.eq('company_type', '고객사');
+      // BOM 테이블에서 customer_id로 사용되는 회사들 조회
+      const { data: customerData, error: customerError } = await supabaseAdmin
+        .from('bom')
+        .select('customer_id')
+        .not('customer_id', 'is', null);
+
+      if (customerError) throw customerError;
+
+      // 중복 제거하여 customer_id 목록 생성
+      const customerIds = [...new Set((customerData || []).map(b => b.customer_id))];
+
+      if (customerIds.length > 0) {
+        query = query.in('company_id', customerIds);
+      } else {
+        // 고객사가 없는 경우 빈 배열 반환
+        return NextResponse.json({
+          success: true,
+          data: []
+        });
+      }
     } else if (type === 'SUPPLIER') {
       query = query.in('company_type', ['공급사', '협력사']);
     }

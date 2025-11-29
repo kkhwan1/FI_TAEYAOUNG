@@ -200,6 +200,7 @@ export interface ShippingFormData {
   transaction_date: string;
   customer_id?: number;
   items: ShippingItem[];
+  reference_no?: string;
   created_by: number;
 }
 

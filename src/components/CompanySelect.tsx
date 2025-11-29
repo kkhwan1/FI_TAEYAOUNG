@@ -278,18 +278,20 @@ export default function CompanySelect({
                       <span>전화: {company.phone}</span>
                     )}
                   </div>
-                  {company.company_type && (
+                  {(company.company_type || companyType) && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       <span className={`
                         px-2 py-0.5 rounded-full text-xs
-                        ${company.company_type === '공급사'
-                          ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                          : company.company_type === '고객사'
+                        ${companyType === 'CUSTOMER'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          : companyType === 'SUPPLIER'
                           ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
                         }
                       `}>
-                        {company.company_type === '공급사' ? '공급업체' :
+                        {companyType === 'CUSTOMER' ? '납품처' :
+                         companyType === 'SUPPLIER' ? '공급업체' :
+                         company.company_type === '공급사' ? '공급업체' :
                          company.company_type === '고객사' ? '고객사' : '기타'}
                       </span>
                     </div>

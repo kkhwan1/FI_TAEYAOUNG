@@ -38,6 +38,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     transaction_date: new Date().toISOString().split('T')[0],
     customer_id: undefined,
     items: [],
+    reference_no: '',
     created_by: 1 // Default user ID
   });
 

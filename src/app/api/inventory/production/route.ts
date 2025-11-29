@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
+import { checkIdempotency } from '@/lib/api/idempotency-check';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,6 +154,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // Idempotency Key 추출 (헤더에서)
+    const idempotencyKey = request.headers.get('Idempotency-Key') || 
+                          request.headers.get('idempotency-key') || 
+                          null;
+
     // Korean text handling pattern - prevents character corruption
     const text = await request.text();
     const body = JSON.parse(text);

@@ -15,6 +15,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customer_id');
+    const pressCapacity = searchParams.get('press_capacity'); // 프레스 용량 파라미터 추가
     const limit = parseInt(searchParams.get('limit') || '1000');
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -37,6 +38,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // limit과 offset 검증
     const validLimit = Math.max(1, Math.min(limit, 10000)); // 1~10000 사이로 제한
     const validOffset = Math.max(0, offset);
+
+    // 프레스 용량에 따른 공정 타입 결정
+    let pressProcessType: 'BLANKING' | 'STAMPING' | null = null;
+    if (pressCapacity) {
+      const capacity = parseInt(pressCapacity);
+      if (capacity >= 400 && capacity <= 600) {
+        // 블랭킹: 400~600톤
+        pressProcessType = 'BLANKING';
+      } else if (capacity >= 1000 && capacity <= 1600) {
+        // 성형: 1000~1600톤
+        pressProcessType = 'STAMPING';
+      }
+      // 800톤 등 기타 용량은 필터링하지 않음
+    }
 
     console.log(`[Items by Customer API] customer_id: ${customerId}, Supabase 쿼리 실행`);
     
@@ -83,11 +98,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.log(`[Items by Customer API] 고유한 parent_item_id 수: ${itemIds.length}`);
 
     // 2단계: items 테이블에서 해당 item_id들 조회
-    const { data: itemsData, error: itemsError } = await supabase
+    let itemsQuery = supabase
       .from('items')
-      .select('item_id, item_code, item_name, spec, unit, price, category, inventory_type, vehicle_model, is_active')
+      .select('item_id, item_code, item_name, spec, unit, price, category, inventory_type, vehicle_model, press_process_type, is_active')
       .in('item_id', itemIds)
-      .eq('is_active', true)
+      .eq('is_active', true);
+
+    // 프레스 용량에 따른 필터링 적용
+    if (pressProcessType) {
+      itemsQuery = itemsQuery.eq('press_process_type', pressProcessType);
+    }
+
+    const { data: itemsData, error: itemsError } = await itemsQuery
       .order('item_code', { ascending: true })
       .range(validOffset, validOffset + validLimit - 1);
 

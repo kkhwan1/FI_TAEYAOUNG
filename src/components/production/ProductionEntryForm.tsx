@@ -145,7 +145,13 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
         if (processTypes.includes('프레스')) {
           if (customerId) {
             // 고객사 선택 시: 해당 고객사의 모 품목만 조회
-            const response = await fetch(`/api/items/by-customer?customer_id=${customerId}&limit=1000`);
+            // 프레스 용량이 선택된 경우 필터링 파라미터 추가
+            let url = `/api/items/by-customer?customer_id=${customerId}&limit=1000`;
+            if (pressCapacity) {
+              url += `&press_capacity=${pressCapacity}`;
+            }
+            
+            const response = await fetch(url);
             const data = await response.json();
             
             if (data.success) {
@@ -190,7 +196,7 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
     };
 
     fetchItems();
-  }, [toast, processTypes, customerId]);
+  }, [toast, processTypes, customerId, pressCapacity]); // pressCapacity 의존성 추가
 
   // BOM 체크 - 품목과 수량이 변경될 때 실시간으로 확인
   useEffect(() => {
@@ -203,6 +209,12 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
   }, [selectedItemId, quantity, debouncedCheckBom]);
 
   const onSubmit = async (data: ProductionFormData) => {
+    // 중복 제출 방지
+    if (loading) {
+      toast.warning('처리 중', '이미 처리 중인 요청이 있습니다. 잠시만 기다려주세요.');
+      return;
+    }
+
     setLoading(true);
     setStockError(null);
     setBomDeductions([]);
@@ -224,9 +236,17 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
           press_capacity: pressCapacity || undefined
         };
 
+        // Idempotency Key 생성
+        const { generateIdempotencyKey, extractKeyData } = await import('@/lib/utils/idempotency');
+        const keyData = extractKeyData(batchData);
+        const idempotencyKey = generateIdempotencyKey(data.created_by || 1, keyData);
+
         const response = await fetch('/api/inventory/production/batch', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey
+          },
           body: JSON.stringify(batchData)
         });
 
@@ -272,20 +292,28 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
       }
 
       // Single item mode submission (existing logic)
+      const requestBody = {
+        ...data,
+        item_id: parseInt(data.item_id),
+        quantity: Number(data.quantity),
+        unit_price: Number(data.unit_price),
+        company_id: data.company_id ? Number(data.company_id) : null,
+        process_types: processTypes.length > 0 ? processTypes : undefined,
+        press_capacity: pressCapacity || undefined
+      };
+
+      // Idempotency Key 생성
+      const { generateIdempotencyKey, extractKeyData } = await import('@/lib/utils/idempotency');
+      const keyData = extractKeyData(requestBody);
+      const idempotencyKey = generateIdempotencyKey(data.created_by || 1, keyData);
+
       const response = await fetch('/api/inventory/production', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey
         },
-        body: JSON.stringify({
-          ...data,
-          item_id: parseInt(data.item_id),
-          quantity: Number(data.quantity),
-          unit_price: Number(data.unit_price),
-          company_id: data.company_id ? Number(data.company_id) : null,
-          process_types: processTypes.length > 0 ? processTypes : undefined,
-          press_capacity: pressCapacity || undefined
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const result = await response.json();
