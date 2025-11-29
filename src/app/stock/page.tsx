@@ -777,55 +777,55 @@ export default function StockPage() {
                 <label htmlFor="stock-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
                   재고 상태
                 </label>
-                <select
+              <select
                   id="stock-filter"
-                  value={stockFilter}
-                  onChange={(e) => setStockFilter(e.target.value)}
-                  className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-                >
-                  <option value="all">전체</option>
-                  <option value="normal">정상 재고</option>
-                  <option value="low">재고 부족</option>
-                </select>
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
+              >
+                <option value="all">전체</option>
+                <option value="normal">정상 재고</option>
+                <option value="low">재고 부족</option>
+              </select>
               </div>
 
               <div className="flex flex-col gap-1">
                 <label htmlFor="company-filter-current" className="text-xs font-medium text-gray-700 dark:text-gray-300">
                   거래처
                 </label>
-                <select
+              <select
                   id="company-filter-current"
-                  value={companyFilter}
-                  onChange={(e) => setCompanyFilter(e.target.value || 'ALL')}
-                  className="w-full sm:w-64 px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-                  disabled={companiesLoading}
-                >
-                  <option value="ALL">전체 거래처</option>
-                  {companies.map(company => (
-                    <option key={company.value} value={company.value}>
-                      {company.label}
-                    </option>
-                  ))}
-                </select>
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value || 'ALL')}
+                className="w-full sm:w-64 px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
+                disabled={companiesLoading}
+              >
+                <option value="ALL">전체 거래처</option>
+                {companies.map(company => (
+                  <option key={company.value} value={company.value}>
+                    {company.label}
+                  </option>
+                ))}
+              </select>
               </div>
 
               <div className="flex flex-col gap-1">
                 <label htmlFor="refresh-interval-filter" className="text-xs font-medium text-gray-700 dark:text-gray-300">
                   자동 업데이트
                 </label>
-                <select
+              <select
                   id="refresh-interval-filter"
-                  value={refreshInterval}
-                  onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
-                  className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-                  title="자동 업데이트 간격"
-                >
+                value={refreshInterval}
+                onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
+                className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
+                title="자동 업데이트 간격"
+              >
                   <option value="0">Off</option>
                   <option value="3000">3초</option>
                   <option value="5000">5초</option>
                   <option value="10000">10초</option>
                   <option value="30000">30초</option>
-                </select>
+              </select>
               </div>
 
               {/* 필터 초기화 버튼 */}
@@ -1185,11 +1185,11 @@ export default function StockPage() {
               </div>
 
               <div>
-                <CompanyFilterSelect
-                  value={companyFilter}
-                  onChange={(value) => setCompanyFilter(String(value))}
-                  width="w-64"
-                  testId="history-company-filter"
+              <CompanyFilterSelect
+                value={companyFilter}
+                onChange={(value) => setCompanyFilter(String(value))}
+                width="w-64"
+                testId="history-company-filter"
                   showLabel={true}
                   label="거래처"
                 />
@@ -1429,11 +1429,11 @@ export default function StockPage() {
                     </div>
 
                     <div>
-                      <CompanyFilterSelect
-                        value={companyFilter}
-                        onChange={(value) => setCompanyFilter(String(value))}
-                        width="w-64"
-                        testId="adjustment-company-filter"
+                    <CompanyFilterSelect
+                      value={companyFilter}
+                      onChange={(value) => setCompanyFilter(String(value))}
+                      width="w-64"
+                      testId="adjustment-company-filter"
                         showLabel={true}
                         label="거래처"
                       />

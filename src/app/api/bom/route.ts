@@ -123,6 +123,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // All filtering is now done server-side via SQL queries
+    // 각 BOM 항목을 개별로 표시 (중복 합산하지 않음)
+    // 사용자가 각 항목을 개별적으로 수정/삭제할 수 있도록 함
     const filteredEntries = bomEntries || [];
 
     // Step 1: 코일 스펙 정보 일괄 조회 (N+1 문제 방지)

@@ -30,7 +30,9 @@
       "Bash(npx next build:*)",
       "Bash(npm run build:*)",
       "Bash(node scripts/apply-bom-indexes.js:*)",
-      "Bash(node scripts/apply-bom-indexes-pg.js:*)"
+      "Bash(node scripts/apply-bom-indexes-pg.js:*)",
+      "Bash(xargs:*)",
+      "Skill(skill-codex)"
     ],
     "deny": [],
     "ask": []

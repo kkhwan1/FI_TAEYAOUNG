@@ -384,52 +384,33 @@ export default function BOMPage() {
     }
   }, []);
 
-  // 납품처 목록 가져오기 (BOM에서 실제 사용되는 customer_id 기준)
+  // 납품처 목록 가져오기 (전체 고객사 목록)
+  // 순환 참조 방지: BOM 필터와 무관하게 전체 고객사를 먼저 조회
   const fetchCustomers = useCallback(async () => {
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
-      
-      // BOM에서 사용되는 납품처(customer_id) 추출
-      const bomData = await safeFetchJson('/api/bom?limit=10000', {}, {
+
+      // 전체 고객사 목록 조회 (type=CUSTOMER 파라미터 사용)
+      const companiesData = await safeFetchJson('/api/companies?type=CUSTOMER&limit=1000', {}, {
         timeout: 10000,
         maxRetries: 2,
         retryDelay: 1000
       });
 
-      if (bomData.success && bomData.data && bomData.data.bom_entries) {
-        // BOM에서 사용되는 고유한 customer_id 추출
-        const customerIds = new Set<number>();
-        bomData.data.bom_entries.forEach((entry: any) => {
-          if (entry.customer_id) {
-            customerIds.add(entry.customer_id);
-          }
-        });
+      if (companiesData.success && companiesData.data) {
+        const allCompanies = companiesData.data.data || companiesData.data || [];
+        const customerList: CustomerInfo[] = allCompanies
+          .map((c: any) => ({
+            company_id: c.company_id,
+            company_name: c.company_name,
+            company_code: c.company_code
+          }))
+          .sort((a: CustomerInfo, b: CustomerInfo) =>
+            (a.company_name || '').localeCompare(b.company_name || '', 'ko')
+          );
 
-        // 모든 회사 정보 가져오기
-        const allCompaniesData = await safeFetchJson('/api/companies?limit=1000', {}, {
-          timeout: 10000,
-          maxRetries: 2,
-          retryDelay: 1000
-        });
-
-        if (allCompaniesData.success && allCompaniesData.data) {
-          const allCompanies = allCompaniesData.data.data || allCompaniesData.data || [];
-          const customerList: CustomerInfo[] = allCompanies
-            .filter((c: any) => customerIds.has(c.company_id))
-            .map((c: any) => ({
-              company_id: c.company_id,
-              company_name: c.company_name,
-              company_code: c.company_code
-            }))
-            .sort((a: CustomerInfo, b: CustomerInfo) => 
-              (a.company_name || '').localeCompare(b.company_name || '', 'ko')
-            );
-          
-          console.log('[BOM] Fetched customers from BOM:', customerList.length, customerList.slice(0, 3));
-          setCustomers(customerList);
-        } else {
-          setCustomers([]);
-        }
+        console.log('[BOM] Fetched all customers:', customerList.length, customerList.slice(0, 3));
+        setCustomers(customerList);
       } else {
         setCustomers([]);
       }

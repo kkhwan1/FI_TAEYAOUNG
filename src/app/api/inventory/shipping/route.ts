@@ -161,7 +161,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Calculate total amount
     const total_amount = quantity * unit_price;
 
-    // Insert shipping transaction
+    // STEP 1: Check current stock BEFORE inserting transaction
+    const { data: itemData, error: stockError } = await supabase
+      .from('items')
+      .select('current_stock')
+      .eq('item_id', item_id)
+      .single();
+
+    if (stockError) {
+      console.error('Stock query error:', stockError);
+      return NextResponse.json({
+        success: false,
+        error: '재고 조회 중 오류가 발생했습니다.',
+        details: stockError.message
+      }, { status: 500 });
+    }
+
+    const current_stock = itemData?.current_stock || 0;
+
+    // STEP 2: Validate stock availability BEFORE inserting transaction
+    if (current_stock < quantity) {
+      return NextResponse.json({
+        success: false,
+        error: '재고가 부족합니다.',
+        details: `현재 재고: ${current_stock}, 출고 요청: ${quantity}`
+      }, { status: 400 });
+    }
+
+    // Calculate new stock level
+    const new_stock = current_stock - quantity;
+
+    // STEP 3: Insert shipping transaction ONLY after stock validation passes
     const { data, error } = await supabase
       .from('inventory_transactions')
       .insert([{
@@ -210,24 +240,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
-    // Update stock - subtract shipped quantity
-    const { data: itemData, error: stockError } = await supabase
-      .from('items')
-      .select('current_stock')
-      .eq('item_id', item_id)
-      .single();
-
-    if (stockError) {
-      console.error('Stock query error:', stockError);
-      return NextResponse.json({
-        success: false,
-        error: '재고 조회 중 오류가 발생했습니다.',
-        details: stockError.message
-      }, { status: 500 });
-    }
-
-    const new_stock = (itemData?.current_stock || 0) - quantity;
-
+    // STEP 4: Update stock AFTER successful transaction insert
     const { error: updateError } = await supabase
       .from('items')
       .update({ current_stock: new_stock })
@@ -304,6 +317,16 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     // Validate fields if being updated
+    // CRITICAL: Prevent item_id changes to avoid stock corruption
+    // Type normalization: Convert both to numbers for comparison to handle string/number type mismatches
+    if (updateData.item_id !== undefined && Number(updateData.item_id) !== Number(existingTransaction.item_id)) {
+      return NextResponse.json({
+        success: false,
+        error: '품목 변경은 허용되지 않습니다. 기존 거래를 삭제하고 새로운 거래를 생성해주세요.',
+        details: `기존 품목 ID: ${existingTransaction.item_id}, 요청 품목 ID: ${updateData.item_id}`
+      }, { status: 400 });
+    }
+
     if (updateData.quantity !== undefined && updateData.quantity <= 0) {
       return NextResponse.json({
         success: false,
@@ -323,6 +346,57 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       const newQuantity = updateData.quantity ?? existingTransaction.quantity;
       const newUnitPrice = updateData.unit_price ?? existingTransaction.unit_price;
       updateData.total_amount = newQuantity * newUnitPrice;
+    }
+
+    // Update stock if quantity changed
+    if (updateData.quantity !== undefined) {
+      const oldQuantity = existingTransaction.quantity;
+      const newQuantity = updateData.quantity;
+      const quantityDifference = newQuantity - oldQuantity;
+
+      // Get current stock
+      const { data: itemData, error: stockError } = await supabase
+        .from('items')
+        .select('current_stock')
+        .eq('item_id', existingTransaction.item_id)
+        .single();
+
+      if (stockError) {
+        return NextResponse.json({
+          success: false,
+          error: '재고 조회 중 오류가 발생했습니다.',
+          details: stockError.message
+        }, { status: 500 });
+      }
+
+      const current_stock = itemData?.current_stock || 0;
+
+      // If increasing quantity (shipping more), check if enough stock
+      if (quantityDifference > 0) {
+        if (current_stock < quantityDifference) {
+          return NextResponse.json({
+            success: false,
+            error: '재고가 부족합니다.',
+            details: `현재 재고: ${current_stock}, 추가 출고 요청: ${quantityDifference}`
+          }, { status: 400 });
+        }
+      }
+
+      // Adjust stock: if quantity increased, subtract difference; if decreased, add difference
+      const new_stock = current_stock - quantityDifference;
+
+      const { error: updateStockError } = await supabase
+        .from('items')
+        .update({ current_stock: new_stock })
+        .eq('item_id', existingTransaction.item_id);
+
+      if (updateStockError) {
+        return NextResponse.json({
+          success: false,
+          error: '재고 업데이트 중 오류가 발생했습니다.',
+          details: updateStockError.message
+        }, { status: 500 });
+      }
     }
 
     // Update transaction
@@ -388,7 +462,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       // Check if transaction exists and is a shipping transaction
       const { data: existingTransaction, error: existingError } = await supabase
         .from('inventory_transactions')
-        .select('transaction_id')
+        .select('transaction_id, item_id, quantity')
         .eq('transaction_id', parseInt(id))
       .eq('transaction_type', '출고')
       .single();
@@ -398,6 +472,37 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
         success: false,
         error: 'Shipping transaction not found'
       }, { status: 404 });
+    }
+
+    // Restore stock before deleting
+    const { data: itemData, error: stockError } = await supabase
+      .from('items')
+      .select('current_stock')
+      .eq('item_id', existingTransaction.item_id)
+      .single();
+
+    if (stockError) {
+      return NextResponse.json({
+        success: false,
+        error: '재고 조회 중 오류가 발생했습니다.',
+        details: stockError.message
+      }, { status: 500 });
+    }
+
+    const current_stock = itemData?.current_stock || 0;
+    const restored_stock = current_stock + existingTransaction.quantity;
+
+    const { error: updateStockError } = await supabase
+      .from('items')
+      .update({ current_stock: restored_stock })
+      .eq('item_id', existingTransaction.item_id);
+
+    if (updateStockError) {
+      return NextResponse.json({
+        success: false,
+        error: '재고 복원 중 오류가 발생했습니다.',
+        details: updateStockError.message
+      }, { status: 500 });
     }
 
     // Delete transaction

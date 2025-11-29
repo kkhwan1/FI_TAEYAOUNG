@@ -594,12 +594,15 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
                 <Label htmlFor="press_capacity">프레스 용량</Label>
                 <Select
                   value={pressCapacity?.toString() || ''}
-                  onValueChange={(value) => setPressCapacity(parseInt(value))}
+                  onValueChange={(value) => {
+                    console.log('[ProductionEntryForm] 프레스 용량 선택:', value);
+                    setPressCapacity(parseInt(value));
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="프레스 용량 선택" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[9999]">
                     <SelectItem value="400">400톤</SelectItem>
                     <SelectItem value="600">600톤</SelectItem>
                     <SelectItem value="800">800톤</SelectItem>
@@ -675,6 +678,111 @@ export default function ProductionEntryForm({ onSuccess }: ProductionEntryFormPr
         ) : (
           /* Batch Mode */
           <div className="space-y-6">
+            {/* 공정 구분 - Batch Mode에서도 표시 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 공정 구분 */}
+              <div className="space-y-2">
+                <Label>공정 구분</Label>
+                <div className="flex gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="batch_process_press"
+                      checked={processTypes.includes('프레스')}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setProcessTypes([...processTypes, '프레스']);
+                        } else {
+                          setProcessTypes(processTypes.filter(p => p !== '프레스'));
+                          setPressCapacity(undefined);
+                          setCustomerId(null);
+                          setValue('company_id', null);
+                        }
+                      }}
+                    />
+                    <label htmlFor="batch_process_press" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      프레스
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="batch_process_weld"
+                      checked={processTypes.includes('용접')}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setProcessTypes([...processTypes, '용접']);
+                        } else {
+                          setProcessTypes(processTypes.filter(p => p !== '용접'));
+                        }
+                      }}
+                    />
+                    <label htmlFor="batch_process_weld" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      용접
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="batch_process_coating"
+                      checked={processTypes.includes('도장')}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setProcessTypes([...processTypes, '도장']);
+                        } else {
+                          setProcessTypes(processTypes.filter(p => p !== '도장'));
+                        }
+                      }}
+                    />
+                    <label htmlFor="batch_process_coating" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      도장
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 프레스 용량 선택 (프레스 선택 시에만 표시) */}
+              {processTypes.includes('프레스') && (
+                <div className="space-y-2">
+                  <Label htmlFor="batch_press_capacity">프레스 용량</Label>
+                  <Select
+                    value={pressCapacity?.toString() || ''}
+                    onValueChange={(value) => {
+                      console.log('[ProductionEntryForm-Batch] 프레스 용량 선택:', value);
+                      setPressCapacity(parseInt(value));
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="프레스 용량 선택" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      <SelectItem value="400">400톤</SelectItem>
+                      <SelectItem value="600">600톤</SelectItem>
+                      <SelectItem value="800">800톤</SelectItem>
+                      <SelectItem value="1000">1000톤</SelectItem>
+                      <SelectItem value="1600">1600톤</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* 고객사 선택 (프레스 선택 시에만 표시) - Batch Mode */}
+            {processTypes.includes('프레스') && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="batch_company_id">고객사 (주문처)</Label>
+                  <CompanySelect
+                    value={customerId}
+                    onChange={(value) => {
+                      const numValue = value ? Number(value) : null;
+                      setCustomerId(numValue);
+                      setValue('company_id', numValue);
+                    }}
+                    companyType="CUSTOMER"
+                    placeholder="고객사를 선택하세요"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Batch Item Input Section */}
             <div className="p-4 border rounded-lg bg-muted/30">
               <h4 className="font-semibold mb-4">품목 추가</h4>

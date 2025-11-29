@@ -23,11 +23,23 @@ type CompanyOption = {
  */
 export async function GET(request: Request) {
   try {
-    const { data, error } = await supabaseAdmin
+    // type 파라미터 읽기 (CUSTOMER, SUPPLIER)
+    const url = new URL(request.url);
+    const type = url.searchParams.get('type');
+
+    let query = supabaseAdmin
       .from('companies')
-      .select('company_id, company_name, company_code')
-      .eq('is_active', true)
-      .order('company_name', { ascending: true });
+      .select('company_id, company_name, company_code, company_type')
+      .eq('is_active', true);
+
+    // type에 따라 필터링 추가
+    if (type === 'CUSTOMER') {
+      query = query.eq('company_type', '고객사');
+    } else if (type === 'SUPPLIER') {
+      query = query.in('company_type', ['공급사', '협력사']);
+    }
+
+    const { data, error } = await query.order('company_name', { ascending: true });
 
     if (error) throw error;
 

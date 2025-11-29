@@ -54,14 +54,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .order('company_name', { ascending: true });
 
     // Apply filters safely - map English to Korean for database query
-    // 특별 처리: CUSTOMER 타입 요청 시 BOM에서 사용되는 납품처 회사들을 포함하기 위해 모든 활성 회사를 가져옴
     if (type) {
-      // CUSTOMER 타입의 경우: BOM에서 실제로 사용되는 납품처 회사들을 포함하기 위해 필터를 적용하지 않음
-      // (데이터베이스에서 납품처로 사용되는 회사들이 company_type='공급사'로 저장되어 있음)
+      // CUSTOMER 타입의 경우: 고객사만 필터링
       if (type === 'CUSTOMER') {
-        // CUSTOMER 타입 요청 시에는 BOM에서 사용되는 회사들을 포함하기 위해 
-        // 모든 활성 회사를 가져오고, BOM에서 사용되는 회사들을 우선적으로 표시
-        // 필터를 적용하지 않고 모든 활성 회사를 반환
+        query = query.eq('company_type', '고객사');
+      } else if (type === 'SUPPLIER') {
+        // SUPPLIER 타입의 경우: 공급사와 협력사 포함
+        query = query.in('company_type', ['공급사', '협력사']);
       } else {
         // Check if multiple types are provided (comma-separated)
         if (type.includes(',')) {
@@ -109,9 +108,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Apply same filters for count - handle multiple types
     if (type) {
-      // CUSTOMER 타입의 경우 필터를 적용하지 않음 (모든 활성 회사 포함)
+      // CUSTOMER 타입의 경우: 고객사만 필터링
       if (type === 'CUSTOMER') {
-        // 필터 적용하지 않음
+        countQuery = countQuery.eq('company_type', '고객사');
+      } else if (type === 'SUPPLIER') {
+        // SUPPLIER 타입의 경우: 공급사와 협력사 포함
+        countQuery = countQuery.in('company_type', ['공급사', '협력사']);
       } else {
         if (type.includes(',')) {
           // Multiple types
