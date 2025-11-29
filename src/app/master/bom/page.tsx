@@ -371,13 +371,8 @@ export default function BOMPage() {
         )).sort() as string[];
         setCategories(uniqueCategories);
         
-        // 소재유형 목록 추출 (중복 제거)
-        const uniqueMaterialTypes = Array.from(new Set(
-          itemsList
-            .map((item: any) => item.material_type || item.inventory_type)
-            .filter((type: string) => type && type.trim() !== '')
-        )).sort() as string[];
-        setMaterialTypes(uniqueMaterialTypes);
+        // 소재유형 목록은 BOM 데이터에서 추출하므로 여기서는 제거
+        // (BOM 데이터가 로드되면 자동으로 업데이트됨)
       }
     } catch (error) {
       console.error('Failed to fetch items:', error);
@@ -671,21 +666,31 @@ export default function BOMPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedParentItem, showActiveOnly, priceMonth, filters.category, filters.materialType, filters.customerId, filters.supplierId, filters.vehicleType]);
 
-  // BOM 데이터에서 차종 목록, 레벨, 품목 타입 추출
+  // BOM 데이터에서 차종 목록, 레벨, 품목 타입, 소재유형 추출
   useEffect(() => {
     if (bomData.length > 0) {
       const vehicles = new Set<string>();
       const levelSet = new Set<number>();
       const itemTypeSet = new Set<string>();
+      const materialTypeSet = new Set<string>();
       bomData.forEach(item => {
         if (item.parent_car_model) vehicles.add(item.parent_car_model);
         if (item.child_car_model) vehicles.add(item.child_car_model);
         if (item.level) levelSet.add(item.level);
         if (item.item_type) itemTypeSet.add(item.item_type);
+        // 소재유형 추출 (parent와 child 모두에서)
+        if (item.parent_inventory_type) materialTypeSet.add(item.parent_inventory_type);
+        if (item.child_inventory_type) materialTypeSet.add(item.child_inventory_type);
+        // 백업: parent/child 객체에서도 확인
+        if ((item.parent as any)?.inventory_type) materialTypeSet.add((item.parent as any).inventory_type);
+        if ((item.parent as any)?.material_type) materialTypeSet.add((item.parent as any).material_type);
+        if ((item.child as any)?.inventory_type) materialTypeSet.add((item.child as any).inventory_type);
+        if ((item.child as any)?.material_type) materialTypeSet.add((item.child as any).material_type);
       });
       setVehicleTypes(Array.from(vehicles).filter(v => v && v.trim() !== '').sort());
       setLevels(Array.from(levelSet).sort((a, b) => a - b));
       setItemTypes(Array.from(itemTypeSet).filter(t => t && t.trim() !== '').sort());
+      setMaterialTypes(Array.from(materialTypeSet).filter(t => t && t.trim() !== '').sort());
     }
   }, [bomData]);
 

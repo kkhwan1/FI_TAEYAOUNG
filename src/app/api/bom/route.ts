@@ -492,9 +492,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 중복 입력 허용: 같은 품목 조합도 여러 번 입력 가능
-
-    // Create BOM entry
+    // Create BOM entry (중복 입력 허용)
     const { data: bomEntry, error } = (await supabase
       .from('bom')
       .insert({

@@ -1,0 +1,167 @@
+{
+  "base_url": "http://localhost:5000",
+  "test_pages": [
+    {
+      "name": "로그인",
+      "url": "http://localhost:5000/login",
+      "expected_elements": [
+        "로그인",
+        "아이디",
+        "비밀번호"
+      ]
+    },
+    {
+      "name": "메인 대시보드",
+      "url": "http://localhost:5000/",
+      "expected_elements": [
+        "대시보드",
+        "태창 ERP"
+      ]
+    },
+    {
+      "name": "품목 관리",
+      "url": "http://localhost:5000/master/items",
+      "expected_elements": [
+        "품목",
+        "관리"
+      ]
+    },
+    {
+      "name": "거래처 관리",
+      "url": "http://localhost:5000/master/companies",
+      "expected_elements": [
+        "거래처",
+        "관리"
+      ]
+    },
+    {
+      "name": "BOM 관리",
+      "url": "http://localhost:5000/master/bom",
+      "expected_elements": [
+        "BOM",
+        "관리"
+      ]
+    },
+    {
+      "name": "월별 단가 관리",
+      "url": "http://localhost:5000/price-management",
+      "expected_elements": [
+        "단가",
+        "관리"
+      ]
+    },
+    {
+      "name": "입고 관리",
+      "url": "http://localhost:5000/inventory?tab=receiving",
+      "expected_elements": [
+        "입고",
+        "관리"
+      ]
+    },
+    {
+      "name": "생산 관리",
+      "url": "http://localhost:5000/inventory?tab=production",
+      "expected_elements": [
+        "생산",
+        "관리"
+      ]
+    },
+    {
+      "name": "출고 관리",
+      "url": "http://localhost:5000/inventory?tab=shipping",
+      "expected_elements": [
+        "출고",
+        "관리"
+      ]
+    },
+    {
+      "name": "재고 현황",
+      "url": "http://localhost:5000/stock",
+      "expected_elements": [
+        "재고",
+        "현황"
+      ]
+    },
+    {
+      "name": "재고 이력",
+      "url": "http://localhost:5000/stock/history",
+      "expected_elements": [
+        "재고",
+        "이력"
+      ]
+    },
+    {
+      "name": "재고 보고서",
+      "url": "http://localhost:5000/stock/reports",
+      "expected_elements": [
+        "재고",
+        "보고서"
+      ]
+    },
+    {
+      "name": "공정 작업",
+      "url": "http://localhost:5000/process",
+      "expected_elements": [
+        "공정",
+        "작업"
+      ]
+    },
+    {
+      "name": "추적성 조회",
+      "url": "http://localhost:5000/traceability",
+      "expected_elements": [
+        "추적성",
+        "조회"
+      ]
+    },
+    {
+      "name": "매출 관리",
+      "url": "http://localhost:5000/sales",
+      "expected_elements": [
+        "매출",
+        "관리"
+      ]
+    },
+    {
+      "name": "매입 관리",
+      "url": "http://localhost:5000/purchases",
+      "expected_elements": [
+        "매입",
+        "관리"
+      ]
+    },
+    {
+      "name": "수금 관리",
+      "url": "http://localhost:5000/collections",
+      "expected_elements": [
+        "수금",
+        "관리"
+      ]
+    },
+    {
+      "name": "지급 관리",
+      "url": "http://localhost:5000/payments",
+      "expected_elements": [
+        "지급",
+        "관리"
+      ]
+    },
+    {
+      "name": "회계 요약",
+      "url": "http://localhost:5000/accounting/summary",
+      "expected_elements": [
+        "회계",
+        "요약"
+      ]
+    },
+    {
+      "name": "계약 관리",
+      "url": "http://localhost:5000/contracts",
+      "expected_elements": [
+        "계약",
+        "관리"
+      ]
+    }
+  ],
+  "created_at": "2025-11-30T05:38:28.537859"
+}
