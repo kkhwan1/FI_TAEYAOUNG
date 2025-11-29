@@ -28,7 +28,8 @@ import {
   Calendar,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  RotateCcw
 } from 'lucide-react';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/contexts/ToastContext';
@@ -450,6 +451,14 @@ export default function ProcessPage() {
     }
   };
 
+  // 필터 초기화
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setFilterType('');
+    setStartDate('');
+    setEndDate('');
+  };
+
   // 필터링 및 정렬된 작업 목록
   const filteredOperations = useMemo(() => {
     let filtered = [...operations];
@@ -776,7 +785,15 @@ export default function ProcessPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+              title="필터 초기화"
+            >
+              <RotateCcw className="w-4 h-4" />
+              필터 초기화
+            </button>
             <button
               onClick={handleAdd}
               className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-xs font-medium whitespace-nowrap"

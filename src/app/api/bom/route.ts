@@ -32,10 +32,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const vehicleType = searchParams.get('vehicle_type'); // 차종 필터
     const priceMonth = searchParams.get('price_month') ||
       new Date().toISOString().slice(0, 7) + '-01';
-    // limit이 명시적으로 전달되지 않았거나 0이면 모든 데이터를 가져오기 위해 매우 큰 값 사용
-    const limitParam = searchParams.get('limit');
-    const limit = limitParam ? parseInt(limitParam) : 10000; // 기본값을 10000으로 증가
-    const offset = parseInt(searchParams.get('offset') || '0');
+
+    // 페이지네이션 최적화: 기본 100, 최소 1, 최대 500
+    const limitParam = Number(searchParams.get('limit') ?? 100);
+    const limit = Math.min(Math.max(limitParam, 1), 500);
+    const offset = Number(searchParams.get('offset') ?? 0);
 
     const supabase = getSupabaseClient();
 
@@ -93,6 +94,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (childItemId) query = query.eq('child_item_id', parseInt(childItemId));
     if (levelNo) query = query.eq('level_no', parseInt(levelNo));
 
+    // Track 2C: Server-side coil filter
+    if (coilOnly) {
+      query = query.eq('child.inventory_type', '코일');
+    }
+
+    // Server-side supplier filter
+    if (supplierId) {
+      query = query.eq('child_supplier_id', parseInt(supplierId));
+    }
+
+    // Server-side vehicle type filter
+    if (vehicleType) {
+      query = query.or(`parent.vehicle_model.eq.${vehicleType},child.vehicle_model.eq.${vehicleType}`);
+    }
+
     query = query.range(offset, offset + limit - 1);
 
     const { data: bomEntries, error } = await query;
@@ -106,28 +122,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
-    // Track 2C: Filter to coil materials only if coil_only=true
-    let filteredEntries = bomEntries || [];
-    if (coilOnly) {
-      filteredEntries = filteredEntries.filter((entry: any) =>
-        entry.child?.inventory_type === '코일'
-      );
-    }
-
-    // 공급처 필터 (child item의 supplier via bom.child_supplier_id)
-    if (supplierId) {
-      filteredEntries = filteredEntries.filter((entry: any) =>
-        entry.child_supplier?.company_id === parseInt(supplierId)
-      );
-    }
-
-    // 차종 필터
-    if (vehicleType) {
-      filteredEntries = filteredEntries.filter((entry: any) =>
-        entry.parent?.vehicle_model === vehicleType ||
-        entry.child?.vehicle_model === vehicleType
-      );
-    }
+    // All filtering is now done server-side via SQL queries
+    const filteredEntries = bomEntries || [];
 
     // Step 1: 코일 스펙 정보 일괄 조회 (N+1 문제 방지)
     // Deduplicate child IDs to reduce payload and DB workload
@@ -160,60 +156,67 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Step 2: 월별 단가 및 재료비 계산
-    const entriesWithPrice = await Promise.all(
-      filteredEntries.map(async (item: any) => {
-        // 월별 단가 조회 (없으면 items.price 사용)
-        // price_month는 DATE 형식이므로 'YYYY-MM-01' 형식 사용
-        const { data: priceData } = await supabase
-          .from('item_price_history')
-          .select('unit_price')
-          .eq('item_id', item.child_item_id)
-          .eq('price_month', priceMonth) // priceMonth는 이미 'YYYY-MM-01' 형식
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(); // single() 대신 maybeSingle() 사용하여 에러 방지
+    // Step 2: 월별 단가 일괄 조회 (N+1 문제 방지)
+    const priceHistoryMap = new Map<number, number>();
+    if (filteredEntries.length > 0) {
+      const { data: priceRows, error: priceError } = await supabase
+        .from('item_price_history')
+        .select('item_id, unit_price')
+        .eq('price_month', priceMonth)
+        .in('item_id', childItemIds);
 
-        const unitPrice = priceData?.unit_price || item.child?.price || 0;
-        const materialCost = item.quantity_required * unitPrice;
+      if (priceError) {
+        console.error('[BOM API] Price history query error:', priceError);
+        // 에러가 발생해도 계속 진행 (가격 정보가 없는 경우도 있음)
+      } else if (priceRows) {
+        priceRows.forEach((row: any) => {
+          priceHistoryMap.set(row.item_id, row.unit_price);
+        });
+      }
+    }
 
-        // 코일 스펙 정보 추가 (T4: 코일 연계 뱃지 표시용)
-        const coilSpec = coilSpecsMap.get(item.child_item_id);
+    // Step 3: 재료비 계산 (배치 조회된 단가 사용)
+    const entriesWithPrice = filteredEntries.map((item: any) => {
+      // 월별 단가 조회 (없으면 items.price 사용)
+      const unitPrice = priceHistoryMap.get(item.child_item_id) ?? item.child?.price ?? 0;
+      const materialCost = item.quantity_required * unitPrice;
 
-        return {
-          ...item,
-          bom_id: item.bom_id,
-          parent_item_id: item.parent_item_id,
-          child_item_id: item.child_item_id,
-          parent_code: item.parent?.item_code,
-          parent_name: item.parent?.item_name,
-          parent_vehicle: item.parent?.vehicle_model || null,
-          child_code: item.child?.item_code,
-          child_name: item.child?.item_name,
-          child_vehicle: item.child?.vehicle_model || null,
-          quantity_required: item.quantity_required,
-          level_no: item.level_no || 1,
-          unit: item.child?.unit || 'EA',
-          unit_price: unitPrice,
-          material_cost: materialCost,
-          item_type: item.child?.category === '원자재' || item.child?.category === '부자재' 
-            ? 'external_purchase' 
-            : 'internal_production',
-          // T4: 코일 스펙 정보 추가
-          material_grade: coilSpec?.material_grade,
-          weight_per_piece: coilSpec?.weight_per_piece,
-          // customer와 child_supplier 정보 명시적으로 포함
-          customer: item.customer || null,
-          child_supplier: item.child_supplier || null,
-          // 모품목 마감 정보 및 자품목 구매 정보
-          parent_closing_quantity: item.parent_closing_quantity || null,
-          parent_closing_amount: item.parent_closing_amount || null,
-          child_purchase_quantity: item.child_purchase_quantity || null,
-          child_purchase_amount: item.child_purchase_amount || null,
-          is_active: true
-        };
-      })
-    );
+      // 코일 스펙 정보 추가 (T4: 코일 연계 뱃지 표시용)
+      const coilSpec = coilSpecsMap.get(item.child_item_id);
+
+      return {
+        ...item,
+        bom_id: item.bom_id,
+        parent_item_id: item.parent_item_id,
+        child_item_id: item.child_item_id,
+        parent_code: item.parent?.item_code,
+        parent_name: item.parent?.item_name,
+        parent_vehicle: item.parent?.vehicle_model || null,
+        child_code: item.child?.item_code,
+        child_name: item.child?.item_name,
+        child_vehicle: item.child?.vehicle_model || null,
+        quantity_required: item.quantity_required,
+        level_no: item.level_no || 1,
+        unit: item.child?.unit || 'EA',
+        unit_price: unitPrice,
+        material_cost: materialCost,
+        item_type: item.child?.category === '원자재' || item.child?.category === '부자재'
+          ? 'external_purchase'
+          : 'internal_production',
+        // T4: 코일 스펙 정보 추가
+        material_grade: coilSpec?.material_grade,
+        weight_per_piece: coilSpec?.weight_per_piece,
+        // customer와 child_supplier 정보 명시적으로 포함
+        customer: item.customer || null,
+        child_supplier: item.child_supplier || null,
+        // 모품목 마감 정보 및 자품목 구매 정보
+        parent_closing_quantity: item.parent_closing_quantity || null,
+        parent_closing_amount: item.parent_closing_amount || null,
+        child_purchase_quantity: item.child_purchase_quantity || null,
+        child_purchase_amount: item.child_purchase_amount || null,
+        is_active: true
+      };
+    });
 
     // Step 3: 배치 스크랩 수익 계산 (N+1 문제 해결)
     const itemQuantities = entriesWithPrice.map(item => ({
@@ -261,11 +264,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
 
-    // Apply same filters for count (including customer filter)
+    // Apply same filters for count (including all server-side filters)
     countQuery = applyCompanyFilter(countQuery, 'bom', customerId, 'customer');
     if (parentItemId) countQuery = countQuery.eq('parent_item_id', parseInt(parentItemId));
     if (childItemId) countQuery = countQuery.eq('child_item_id', parseInt(childItemId));
     if (levelNo) countQuery = countQuery.eq('level_no', parseInt(levelNo));
+
+    // Apply server-side filters to count query
+    if (coilOnly) {
+      countQuery = countQuery.eq('child.inventory_type', '코일');
+    }
+    if (supplierId) {
+      countQuery = countQuery.eq('child_supplier_id', parseInt(supplierId));
+    }
+    if (vehicleType) {
+      countQuery = countQuery.or(`parent.vehicle_model.eq.${vehicleType},child.vehicle_model.eq.${vehicleType}`);
+    }
 
     const { count: totalCount, error: countError } = await countQuery;
 
@@ -273,9 +287,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error('Count query failed:', countError);
     }
 
-    // When coil_only is active, use filtered entries length as total
-    // since DB count doesn't reflect post-fetch coil filter
-    const finalTotal = coilOnly ? filteredEntries.length : (totalCount || 0);
+    const finalTotal = totalCount || 0;
 
     return NextResponse.json({
       success: true,

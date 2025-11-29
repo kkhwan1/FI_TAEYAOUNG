@@ -4,7 +4,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Search, Edit2, Trash2, Building2, File, Download, X, Calendar, Save, XCircle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { FileText, Plus, Search, Edit2, Trash2, Building2, File, Download, X, Calendar, Save, XCircle, ArrowUp, ArrowDown, ArrowUpDown, RotateCcw } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/Modal';
 import CompanySelect from '@/components/CompanySelect';
@@ -106,6 +106,12 @@ export default function ContractsPage() {
   useEffect(() => {
     fetchContracts();
   }, [searchTerm, selectedType]);
+
+  // 필터 초기화
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedType('');
+  };
 
   const fetchContracts = async () => {
     setLoading(true);
@@ -483,6 +489,15 @@ export default function ContractsPage() {
               ))}
             </select>
           </div>
+
+          <button
+            onClick={handleResetFilters}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2 whitespace-nowrap text-sm"
+            title="필터 초기화"
+          >
+            <RotateCcw className="w-4 h-4" />
+            필터 초기화
+          </button>
 
           <button
             onClick={handleAddContract}

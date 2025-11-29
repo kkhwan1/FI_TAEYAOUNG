@@ -17,7 +17,8 @@ import {
   ChevronRight,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  RotateCcw
 } from 'lucide-react';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/contexts/ToastContext';
@@ -118,6 +119,14 @@ export default function InvoicesPage() {
   useEffect(() => {
     fetchInvoices();
   }, [searchTerm, filterStatus, startDate, endDate]);
+
+  // 필터 초기화
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('');
+    setStartDate('');
+    setEndDate('');
+  };
 
   // 계산서 추가
   const handleAdd = () => {
@@ -451,7 +460,15 @@ export default function InvoicesPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+              title="필터 초기화"
+            >
+              <RotateCcw className="w-4 h-4" />
+              필터 초기화
+            </button>
             <button
               onClick={handleAdd}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

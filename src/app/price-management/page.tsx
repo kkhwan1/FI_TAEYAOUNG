@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, RotateCcw } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 
 interface PriceHistoryItem {
@@ -459,6 +459,16 @@ export default function PriceManagementPage() {
     setEditPrice('');
   };
 
+  // 필터 초기화
+  const handleResetFilters = () => {
+    setFilters({
+      showUnsavedOnly: false,
+      category: '',
+      search: ''
+    });
+    setCurrentPage(1);
+  };
+
   // Save edited price
   const handleSavePrice = async (item: PriceHistoryItem) => {
     const newPrice = parseFloat(editPrice);
@@ -740,6 +750,18 @@ export default function PriceManagementPage() {
                 }}
                 className="px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground"
               />
+            </div>
+
+            {/* 필터 초기화 버튼 */}
+            <div className="flex items-end">
+              <button
+                onClick={handleResetFilters}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+                title="필터 초기화"
+              >
+                <RotateCcw className="w-4 h-4" />
+                필터 초기화
+              </button>
             </div>
 
             {/* 일괄 저장 버튼 */}

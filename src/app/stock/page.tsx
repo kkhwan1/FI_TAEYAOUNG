@@ -12,7 +12,8 @@ import {
   Settings,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  RotateCcw
 } from 'lucide-react';
 import StockAdjustmentForm from '@/components/StockAdjustmentForm';
 import { StockExportButton } from '@/components/ExcelExportButton';
@@ -127,6 +128,22 @@ export default function StockPage() {
     } else {
       setSortField(field);
       setSortOrderStock('asc');
+    }
+  };
+
+  // 필터 초기화 (탭별)
+  const handleResetFilters = () => {
+    if (activeTab === 'current') {
+      setSearchTerm('');
+      setStockFilter('all');
+      setCategoryFilter('all');
+      setCompanyFilter('ALL');
+    } else if (activeTab === 'history') {
+      setHistorySearchTerm('');
+      setCompanyFilter('ALL');
+    } else if (activeTab === 'adjustment') {
+      setAdjustmentSearchTerm('');
+      setCompanyFilter('ALL');
     }
   };
 
@@ -810,6 +827,19 @@ export default function StockPage() {
                   <option value="30000">30초</option>
                 </select>
               </div>
+
+              {/* 필터 초기화 버튼 */}
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+                  title="필터 초기화"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  초기화
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1164,6 +1194,19 @@ export default function StockPage() {
                   label="거래처"
                 />
               </div>
+
+              {/* 필터 초기화 버튼 */}
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+                  title="필터 초기화"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  초기화
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1394,6 +1437,19 @@ export default function StockPage() {
                         showLabel={true}
                         label="거래처"
                       />
+                    </div>
+
+                    {/* 필터 초기화 버튼 */}
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+                        title="필터 초기화"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        초기화
+                      </button>
                     </div>
                   </div>
 

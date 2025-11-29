@@ -20,7 +20,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  Search
+  Search,
+  RotateCcw
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import ReceivingForm from '@/components/ReceivingForm';
@@ -129,6 +130,13 @@ function InventoryContent() {
       setSortColumn(column);
       setSortOrder('desc');
     }
+  };
+
+  // 필터 초기화
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedClassification(null);
+    setSelectedCompany('ALL');
   };
 
   const activeTabInfo = tabs.find(tab => tab.id === activeTab)!;
@@ -1060,6 +1068,19 @@ function InventoryContent() {
                 width="auto"
                 testId="inventory-company-filter"
               />
+              
+              {/* 필터 초기화 버튼 */}
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+                  title="필터 초기화"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  초기화
+                </button>
+              </div>
             </div>
 
             {/* TASK-003: Comprehensive Search Filter UI */}

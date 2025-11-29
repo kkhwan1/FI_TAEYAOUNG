@@ -23,7 +23,14 @@
       "Bash(cat:*)",
       "Skill(codex)",
       "Bash(find:*)",
-      "Bash(timeout 10 bash -c 'while ! netstat -ano | findstr \"\":3000.*LISTENING\"\" > /dev/null 2>&1; do sleep 1; done; echo \"\"Server is ready\"\"')"
+      "Bash(timeout 10 bash -c 'while ! netstat -ano | findstr \"\":3000.*LISTENING\"\" > /dev/null 2>&1; do sleep 1; done; echo \"\"Server is ready\"\"')",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx next build:*)",
+      "Bash(npm run build:*)",
+      "Bash(node scripts/apply-bom-indexes.js:*)",
+      "Bash(node scripts/apply-bom-indexes-pg.js:*)"
     ],
     "deny": [],
     "ask": []
