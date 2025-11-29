@@ -23,6 +23,8 @@ export interface BOMNode {
   level: number;
   path?: string;
   accumulated_quantity?: number;
+  yield_rate?: number;
+  actual_quantity?: number;
   notes?: string;
   children?: BOMNode[];
 }
@@ -82,9 +84,10 @@ export async function explodeBom(
         i.item_name,
         i.spec,
         i.unit,
+        COALESCE(i.yield_rate, 100) as yield_rate,
         COALESCE(
-          (SELECT unit_price FROM item_price_history 
-           WHERE item_id = b.child_item_id 
+          (SELECT unit_price FROM item_price_history
+           WHERE item_id = b.child_item_id
            AND price_month = '${currentMonth}'
            ORDER BY created_at DESC LIMIT 1),
           i.price,
@@ -107,19 +110,23 @@ export async function explodeBom(
       bom_id: number;
       parent_item_id: number;
       child_item_id: number;
-      quantity: number;
+      quantity_required: number;
       unit: string | null;
       notes: string | null;
       item_code: string;
       item_name: string;
       spec: string | null;
+      yield_rate: number;
       unit_price: number | null;
     }> | undefined;
 
     const nodes: BOMNode[] = [];
 
     for (const row of rows || []) {
-      const accumulatedQuantity = row.quantity * parentQuantity;
+      // 수율 적용: 수율이 100% 미만이면 더 많은 자재 필요
+      const yieldRate = row.yield_rate || 100;
+      const actualQuantity = calculateActualQuantityWithYield(row.quantity_required, yieldRate);
+      const accumulatedQuantity = actualQuantity * parentQuantity;
 
       const node: BOMNode = {
         bom_id: row.bom_id,
@@ -128,7 +135,7 @@ export async function explodeBom(
         item_code: row.item_code,
         item_name: row.item_name,
         spec: row.spec || undefined,
-        quantity: row.quantity,
+        quantity: row.quantity_required,
         unit: row.unit || 'EA',
         unit_price: row.unit_price || 0,
         total_price: (row.unit_price || 0) * accumulatedQuantity,
@@ -137,7 +144,7 @@ export async function explodeBom(
         notes: row.notes || undefined
       };
 
-      // 재귀적으로 하위 BOM 조회
+      // 재귀적으로 하위 BOM 조회 (수율 적용된 수량 전달)
       const children = await explodeBom(
         conn,
         row.child_item_id,

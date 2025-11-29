@@ -54,6 +54,8 @@ interface ItemFormValues {
   inventory_type?: InventoryType;
   warehouse_zone?: string;
   quality_status?: QualityStatus;
+  // 프레스 공정 타입 (블랭킹/성형 구분)
+  press_process_type?: 'BLANKING' | 'STAMPING' | null;
 }
 
 const ITEM_CATEGORIES: { value: ItemCategory; label: string }[] = [
@@ -74,6 +76,12 @@ const MATERIAL_TYPES: { value: string; label: string }[] = [
   { value: 'COIL', label: 'COIL' },
   { value: 'SHEET', label: 'SHEET' },
   { value: 'OTHER', label: '기타 (OTHER)' }
+];
+
+// 프레스 공정 타입 옵션
+const PRESS_PROCESS_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'BLANKING', label: '블랭킹 (400~600톤)' },
+  { value: 'STAMPING', label: '성형 (1000~1600톤)' }
 ];
 
 import { UNIT_OPTIONS } from '@/constants/units';
@@ -149,7 +157,8 @@ export default function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
       price: toFormValue(item.price ?? (item as any)?.unit_price),
       location: item.location ?? '',
       description: item.description ?? '',
-      coating_status: (item as any)?.coating_status ?? 'no_coating'
+      coating_status: (item as any)?.coating_status ?? 'no_coating',
+      press_process_type: (item as any)?.press_process_type ?? null
     };
 
     setFormData(initialValues);
@@ -196,9 +205,15 @@ export default function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
   ) => {
     const { name, value } = event.target;
 
+    // press_process_type 필드의 타입 안전성 보장
+    let processedValue: string | null = value;
+    if (name === 'press_process_type') {
+      processedValue = value === '' ? null : (value === 'BLANKING' || value === 'STAMPING' ? value : null);
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'press_process_type' ? processedValue : value
     }));
 
     if (errors[name]) {
@@ -443,6 +458,14 @@ export default function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
             onChange={handleInputChange}
             options={COATING_STATUS_OPTIONS}
           />
+          <FormSelect
+            label="프레스 공정 타입"
+            name="press_process_type"
+            value={formData.press_process_type ?? ''}
+            onChange={handleInputChange}
+            options={PRESS_PROCESS_TYPE_OPTIONS}
+            placeholder="공정 선택 (선택사항)"
+          />
           {/* Phase 3 - Inventory Classification */}
           <FormSelect
             label="재고 분류"
@@ -635,6 +658,7 @@ function buildSubmitPayload(formData: ItemFormValues): Record<string, unknown> {
     location: formData.location.trim() || null,
     description: formData.description.trim() || null,
     coating_status: formData.coating_status,
+    press_process_type: formData.press_process_type || null,
     inventory_type: formData.inventory_type || null,
     warehouse_zone: formData.warehouse_zone?.trim() || null,
     quality_status: formData.quality_status || null

@@ -189,6 +189,14 @@ export async function PATCH(
 /**
  * DELETE /api/companies/[id]
  * Soft delete a company (set is_active = false)
+ *
+ * Query Parameters:
+ * - force=true: 참조가 있어도 강제 삭제
+ *
+ * 참조 테이블 확인:
+ * - BOM (customer_id)
+ * - Items (customer_id)
+ * - inventory_transactions (customer_id)
  */
 export async function DELETE(
   request: NextRequest,
@@ -196,6 +204,8 @@ export async function DELETE(
 ): Promise<NextResponse> {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const forceDelete = searchParams.get('force') === 'true';
 
     const companyId = parseInt(id);
     const supabase = getSupabaseClient();
@@ -209,6 +219,49 @@ export async function DELETE(
 
     if (fetchError || !existingCompany) {
       return handleNotFoundError('회사', id);
+    }
+
+    // 참조 무결성 검사 (force=true가 아닐 때만)
+    if (!forceDelete) {
+      const references: string[] = [];
+
+      // BOM 참조 확인
+      const { count: bomCount } = await supabase
+        .from('bom')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_id', companyId) as any;
+      if (bomCount && bomCount > 0) {
+        references.push(`BOM ${bomCount}건`);
+      }
+
+      // Items 참조 확인
+      const { count: itemsCount } = await supabase
+        .from('items')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_id', companyId) as any;
+      if (itemsCount && itemsCount > 0) {
+        references.push(`품목 ${itemsCount}건`);
+      }
+
+      // inventory_transactions 참조 확인
+      const { count: txCount } = await supabase
+        .from('inventory_transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_id', companyId) as any;
+      if (txCount && txCount > 0) {
+        references.push(`재고거래 ${txCount}건`);
+      }
+
+      // 참조가 있으면 경고 반환
+      if (references.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: '참조 데이터가 존재합니다',
+          message: `이 회사를 참조하는 데이터가 있습니다: ${references.join(', ')}. 강제 삭제하려면 ?force=true 파라미터를 사용하세요.`,
+          references: references,
+          company_name: existingCompany.company_name
+        }, { status: 409 });
+      }
     }
 
     // Soft delete by setting is_active to false
@@ -225,8 +278,14 @@ export async function DELETE(
     }
 
     return createSuccessResponse(
-      { deleted_id: id, company_name: existingCompany.company_name },
-      '회사가 성공적으로 삭제되었습니다.'
+      {
+        deleted_id: id,
+        company_name: existingCompany.company_name,
+        force_deleted: forceDelete
+      },
+      forceDelete
+        ? '회사가 강제 삭제되었습니다. (참조 데이터는 유지됨)'
+        : '회사가 성공적으로 삭제되었습니다.'
     );
 
   } catch (error) {

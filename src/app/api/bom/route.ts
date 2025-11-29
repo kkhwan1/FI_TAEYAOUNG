@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/db-unified';
-import { calculateBatchScrapRevenue } from '@/lib/bom';
+import { calculateBatchScrapRevenue, calculateActualQuantityWithYield } from '@/lib/bom';
 import { extractCompanyId, applyCompanyFilter } from '@/lib/filters';
 import type { Database } from '@/types/supabase';
 
@@ -69,7 +69,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           thickness,
           width,
           height,
-          material
+          material,
+          yield_rate
         ),
         customer:companies!bom_customer_id_fkey (
           company_id,
@@ -177,11 +178,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Step 3: 재료비 계산 (배치 조회된 단가 사용)
+    // Step 3: 재료비 계산 (배치 조회된 단가 사용 + 수율 적용)
     const entriesWithPrice = filteredEntries.map((item: any) => {
       // 월별 단가 조회 (없으면 items.price 사용)
       const unitPrice = priceHistoryMap.get(item.child_item_id) ?? item.child?.price ?? 0;
-      const materialCost = item.quantity_required * unitPrice;
+
+      // 수율 적용: 수율이 100% 미만이면 더 많은 자재 필요
+      // 예: 수율 90%이면 100개 만들려면 111.11개 필요
+      const yieldRate = item.child?.yield_rate ?? 100;
+      const actualQuantityRequired = calculateActualQuantityWithYield(item.quantity_required, yieldRate);
+      const materialCost = actualQuantityRequired * unitPrice;
 
       // 코일 스펙 정보 추가 (T4: 코일 연계 뱃지 표시용)
       const coilSpec = coilSpecsMap.get(item.child_item_id);
@@ -198,6 +204,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         child_name: item.child?.item_name,
         child_vehicle: item.child?.vehicle_model || null,
         quantity_required: item.quantity_required,
+        // 수율 정보 추가 (이슈 1-1 해결)
+        yield_rate: yieldRate,
+        actual_quantity_required: actualQuantityRequired,
         level_no: item.level_no || 1,
         unit: item.child?.unit || 'EA',
         unit_price: unitPrice,
@@ -220,10 +229,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       };
     });
 
-    // Step 3: 배치 스크랩 수익 계산 (N+1 문제 해결)
+    // Step 3: 배치 스크랩 수익 계산 (N+1 문제 해결) - 수율 적용된 실제 소요량 사용
     const itemQuantities = entriesWithPrice.map(item => ({
       item_id: item.child_item_id,
-      quantity: item.quantity_required
+      quantity: item.actual_quantity_required
     }));
     
     const scrapRevenueMap = await calculateBatchScrapRevenue(supabase, itemQuantities);

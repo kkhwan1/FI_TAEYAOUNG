@@ -1027,6 +1027,7 @@ export default function BOMPage() {
           return next;
         });
         fetchBOMData();
+        fetchCustomers(); // 납품처 목록 동기화
       } catch (err) {
         console.error('Failed to delete BOM item:', err);
         throw err;
@@ -1098,6 +1099,7 @@ export default function BOMPage() {
 
       setSelectedIds(new Set());
       fetchBOMData();
+      fetchCustomers(); // 납품처 목록 동기화
     } catch (err) {
       error('삭제 실패', '일괄 삭제 중 오류가 발생했습니다.');
       console.error('Bulk delete error:', err);
@@ -1207,6 +1209,7 @@ export default function BOMPage() {
         setShowAddModal(false);
         setEditingBOM(null);
         fetchBOMData();
+        fetchCustomers(); // 납품처 목록 동기화
       } else {
         const { extractErrorMessage } = await import('@/lib/fetch-utils');
         error('저장 실패', extractErrorMessage(result.error) || '저장에 실패했습니다.');
@@ -1269,6 +1272,7 @@ export default function BOMPage() {
         if (!fail_count || fail_count === 0) {
           success('대량 등록 완료', result.message || `${success_count}개 BOM이 등록되었습니다.`);
           fetchBOMData();
+          fetchCustomers(); // 납품처 목록 동기화
         } else {
           // Partial success - show warning
           warning(
@@ -1277,6 +1281,7 @@ export default function BOMPage() {
           );
           if (success_count > 0) {
             fetchBOMData();
+            fetchCustomers(); // 납품처 목록 동기화
           }
         }
 

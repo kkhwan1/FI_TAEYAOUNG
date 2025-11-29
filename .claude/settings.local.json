@@ -56,7 +56,16 @@
       "Bash(\"/c/Users/USER/claude_code/FITaeYoungERP/2_품목관리_페이지_체크_보고서.md\" )",
       "Bash(\"/c/Users/USER/claude_code/FITaeYoungERP/TV2.md\" )",
       "Bash(\"/c/Users/USER/claude_code/FITaeYoungERP/TW.md\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(node test-press-process-type.js:*)",
+      "Bash(node -e:*)",
+      "Bash(node scripts/analyze-press-items.js:*)",
+      "Bash(dir /b \"c:\\Users\\USER\\claude_code\\FITaeYoungERP\\scripts\")",
+      "Bash(npx tsx:*)",
+      "Bash(if not exist scripts mkdir scripts)",
+      "Bash(node scripts/verify-stamping-classification.js:*)",
+      "Bash(node scripts/test-press-process-e2e.js:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

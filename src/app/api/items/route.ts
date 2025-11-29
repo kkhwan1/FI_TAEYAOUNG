@@ -35,6 +35,7 @@ type NormalizedItemPayload = {
   inventory_type: string; // Required field in DB (defaults to '원재료')
   warehouse_zone: string | null;
   quality_status: string | null; // Optional field in DB
+  press_process_type: 'BLANKING' | 'STAMPING' | null;
 };
 
 const DEFAULT_LIMIT = 20;
@@ -169,6 +170,11 @@ function buildNormalizedPayload(body: Record<string, unknown>): NormalizedItemPa
     inventory_type: normalizeString(body.inventory_type) ?? '원재료', // 기본값: 원재료
     warehouse_zone: normalizeString(body.warehouse_zone),
     quality_status: normalizeString(body.quality_status),
+    press_process_type: (() => {
+      const raw = normalizeString(body.press_process_type);
+      if (raw === 'BLANKING' || raw === 'STAMPING') return raw;
+      return null;
+    })(),
   };
 
   normalized.mm_weight = computeMmWeight({
@@ -463,7 +469,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const supabase = getSupabaseClient();
     const now = new Date().toISOString();
 
-    const payload: ItemInsert = {
+    // press_process_type은 DB에 존재하지만 Supabase 자동생성 타입에 아직 반영되지 않음
+    const payload = {
       item_code: normalized.item_code,
       item_name: normalized.item_name,
       category: normalized.category as NonNullable<ItemInsert['category']>,
@@ -486,10 +493,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       inventory_type: normalized.inventory_type, // Already has default value
       warehouse_zone: normalized.warehouse_zone,
       quality_status: normalized.quality_status,
+      press_process_type: normalized.press_process_type,
       is_active: true,
       created_at: now,
       updated_at: now,
-    };
+    } as ItemInsert & { press_process_type?: 'BLANKING' | 'STAMPING' | null };
 
     const { data, error } = await supabase
       .from('items')
@@ -558,7 +566,8 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       normalized.description === null &&
       normalized.inventory_type === null &&
       normalized.warehouse_zone === null &&
-      normalized.quality_status === null
+      normalized.quality_status === null &&
+      normalized.press_process_type === null
     ) {
       throw new APIError('수정할 값이 없습니다.', 400);
     }
@@ -566,7 +575,8 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     const supabase = getSupabaseClient();
     const now = new Date().toISOString();
 
-    const payload: ItemUpdate = {
+    // press_process_type은 DB에 존재하지만 Supabase 자동생성 타입에 아직 반영되지 않음
+    const payload = {
       item_code: normalized.item_code ?? undefined,
       item_name: normalized.item_name ?? undefined,
       category: normalized.category ?? undefined,
@@ -589,8 +599,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       inventory_type: normalized.inventory_type ?? undefined,
       warehouse_zone: normalized.warehouse_zone ?? undefined,
       quality_status: normalized.quality_status ?? undefined,
+      press_process_type: normalized.press_process_type === null ? null : (normalized.press_process_type ?? undefined),
       updated_at: now,
-    };
+    } as ItemUpdate & { press_process_type?: 'BLANKING' | 'STAMPING' | null };
 
     const { data, error } = await supabase
       .from('items')

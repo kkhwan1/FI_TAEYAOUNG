@@ -612,8 +612,20 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     return formData.items.reduce((total, item) => total + item.total_amount, 0);
   };
 
+  const hasInsufficientStock = () => {
+    return formData.items.some(item => !item.sufficient_stock);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* 월별 단가 안내 배너 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-start gap-2">
+        <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+        <div className="flex-1 text-sm text-blue-800 dark:text-blue-200">
+          <span className="font-medium">월별 단가 자동 적용:</span> 출고 예정일을 기준으로 해당 월의 단가가 자동으로 적용됩니다.
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 출고일자 */}
         <div>
@@ -986,8 +998,12 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
                           className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         {item.isMonthlyPriceApplied && (
-                          <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded whitespace-nowrap">
-                            월별
+                          <span
+                            className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded whitespace-nowrap flex items-center gap-0.5"
+                            title="출고 예정일 기준 월별 단가가 자동으로 적용되었습니다"
+                          >
+                            <Calendar className="w-3 h-3" />
+                            월별단가
                           </span>
                         )}
                       </div>
