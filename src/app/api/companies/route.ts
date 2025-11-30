@@ -56,30 +56,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Apply filters safely - map English to Korean for database query
     if (type) {
       // CUSTOMER 타입의 경우:
-      // 1. company_type='고객사'인 회사 (기본 고객사)
-      // 2. BOM 테이블의 customer_id로 연결된 회사들 (BOM에서 고객사로 사용 중인 경우)
+      // 이 ERP에서는 모든 거래처가 '공급사'로 등록되어 있고,
+      // 동일 회사가 입고(공급업체) 및 출고(고객/납품처)로 사용됨
+      // 따라서 CUSTOMER 요청 시에도 공급사를 포함하여 반환
       if (type === 'CUSTOMER') {
-        // BOM 테이블에서 customer_id로 사용되는 회사들 조회
-        const { data: customerData, error: customerError } = await supabase
-          .from('bom')
-          .select('customer_id')
-          .not('customer_id', 'is', null);
-
-        if (customerError) {
-          throw new Error(`Customer lookup failed: ${customerError.message}`);
-        }
-
-        // 중복 제거하여 customer_id 목록 생성
-        const bomCustomerIds = [...new Set((customerData || []).map((b: any) => b.customer_id))];
-
-        // company_type='고객사' 또는 BOM에서 사용 중인 회사 모두 포함
-        if (bomCustomerIds.length > 0) {
-          // OR 조건: company_type='고객사' 또는 BOM customer_id에 포함된 회사
-          query = query.or(`company_type.eq.고객사,company_id.in.(${bomCustomerIds.join(',')})`);
-        } else {
-          // BOM 고객사가 없는 경우 company_type='고객사'만 조회
-          query = query.eq('company_type', '고객사');
-        }
+        // 고객사 + 공급사 + 협력사 모두 포함 (실질적으로 모든 활성 회사)
+        query = query.in('company_type', ['고객사', '공급사', '협력사']);
       } else if (type === 'SUPPLIER') {
         // SUPPLIER 타입의 경우: 공급사와 협력사 포함
         query = query.in('company_type', ['공급사', '협력사']);
@@ -130,25 +112,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Apply same filters for count - handle multiple types
     if (type) {
-      // CUSTOMER 타입의 경우: BOM 테이블의 customer_id로 연결된 회사들을 고객사로 인식
+      // CUSTOMER 타입의 경우: 데이터 쿼리와 동일한 로직 적용
+      // 이 ERP에서는 모든 거래처가 '공급사'로 등록되어 있고,
+      // 동일 회사가 입고(공급업체) 및 출고(고객/납품처)로 사용됨
       if (type === 'CUSTOMER') {
-        // BOM 테이블에서 customer_id로 사용되는 회사들 조회 (이미 위에서 조회했으므로 재사용)
-        const { data: customerData, error: customerError } = await supabase
-          .from('bom')
-          .select('customer_id')
-          .not('customer_id', 'is', null);
-
-        if (customerError) {
-          throw new Error(`Customer count lookup failed: ${customerError.message}`);
-        }
-
-        const customerIds = [...new Set((customerData || []).map((b: any) => b.customer_id))];
-
-        if (customerIds.length > 0) {
-          countQuery = countQuery.in('company_id', customerIds);
-        } else {
-          countQuery = countQuery.eq('company_id', -1);
-        }
+        // 고객사 + 공급사 + 협력사 모두 포함 (실질적으로 모든 활성 회사)
+        countQuery = countQuery.in('company_type', ['고객사', '공급사', '협력사']);
       } else if (type === 'SUPPLIER') {
         // SUPPLIER 타입의 경우: 공급사와 협력사 포함
         countQuery = countQuery.in('company_type', ['공급사', '협력사']);

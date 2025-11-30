@@ -238,6 +238,8 @@ export default function BOMPage() {
   const fixedItemTypes: string[] = ['internal_production', 'external_purchase'];
   // 소재유형 목록 (items에서 추출)
   const [materialTypes, setMaterialTypes] = useState<string[]>([]);
+  // 소재유형 고정 옵션 (완제품, 반제품, 원재료, 코일, 부품, 소재)
+  const fixedMaterialTypes: string[] = ['완제품', '반제품', '원재료', '코일', '부품', '소재'];
 
   // 모품목 상세정보 모달 상태
   const [selectedParentDetail, setSelectedParentDetail] = useState<BOM | null>(null);
@@ -690,7 +692,10 @@ export default function BOMPage() {
       setVehicleTypes(Array.from(vehicles).filter(v => v && v.trim() !== '').sort());
       setLevels(Array.from(levelSet).sort((a, b) => a - b));
       setItemTypes(Array.from(itemTypeSet).filter(t => t && t.trim() !== '').sort());
-      setMaterialTypes(Array.from(materialTypeSet).filter(t => t && t.trim() !== '').sort());
+      // 소재유형: 고정 옵션 + 동적 추출 병합
+      const dynamicTypes = Array.from(materialTypeSet).filter(t => t && t.trim() !== '');
+      const allMaterialTypes = [...new Set([...fixedMaterialTypes, ...dynamicTypes])].sort();
+      setMaterialTypes(allMaterialTypes);
     }
   }, [bomData]);
 

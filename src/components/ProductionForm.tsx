@@ -61,7 +61,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
   
   // 공정 구분 상태 (프레스, 용접, 도장)
   const [processTypes, setProcessTypes] = useState<('프레스' | '용접' | '도장')[]>(['프레스', '용접']); // 기본값: 프레스, 용접
-  const [pressCapacity, setPressCapacity] = useState<number | undefined>(undefined);
+  // 프레스 용량 다중 선택 (블랭킹: 400, 600톤 / 프레스: 1000, 1600톤)
+  const [selectedCapacities, setSelectedCapacities] = useState<Set<number>>(new Set());
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
@@ -71,8 +72,10 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
   const [selectedCustomerItemIds, setSelectedCustomerItemIds] = useState<Set<number>>(new Set());
   const [loadingCustomerItems, setLoadingCustomerItems] = useState(false);
   const [customerItemsSearch, setCustomerItemsSearch] = useState('');
-  // 고객별 품목 목록에서 수정된 단위 저장 (itemId -> unit)
+  // 고객별 품목 목록에서 수정된 단위 저장 (itemId -> unit) - 더 이상 사용하지 않음
   const [customerItemUnits, setCustomerItemUnits] = useState<Map<number, string>>(new Map());
+  // 고객별 품목 목록에서 수량 입력 저장 (itemId -> quantity)
+  const [customerItemQuantities, setCustomerItemQuantities] = useState<Map<number, number>>(new Map());
 
   // New hooks for BOM checking with debounce
   const { data: bomCheckData, loading: bomLoading, error: bomError, checkBom } = useBomCheck();
@@ -402,7 +405,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           use_bom: formData.use_bom,
           created_by: formData.created_by || 1,
           process_types: processTypes.length > 0 ? processTypes : undefined,
-          press_capacity: pressCapacity || undefined,
+          selected_capacities: selectedCapacities.size > 0 ? Array.from(selectedCapacities) : undefined,
           company_id: customerId || undefined
         };
 
@@ -432,7 +435,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             created_by: 1
           });
           setProcessTypes(['프레스', '용접']); // 기본값으로 리셋
-          setPressCapacity(undefined);
+          setSelectedCapacities(new Set());
           setCustomerId(null);
 
           // Close modal - parent component will refresh stock info
@@ -462,9 +465,14 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         use_bom: formData.use_bom,
         scrap_quantity: formData.scrap_quantity,
         created_by: 1, // Default user ID
-        process_types: processTypes.length > 0 ? processTypes : undefined,
-        press_capacity: pressCapacity || undefined
+        process_types: processTypes.length > 0 ? processTypes : undefined
       };
+
+      // 프레스 용량 배열 추가
+      const apiDataWithCapacities = submissionData as any;
+      if (selectedCapacities.size > 0) {
+        apiDataWithCapacities.selected_capacities = Array.from(selectedCapacities);
+      }
 
       // Convert reference_no to reference_number for API compatibility
       const apiData = submissionData as any;
@@ -513,7 +521,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         });
         setSelectedProduct(null);
         setProcessTypes(['프레스', '용접']); // 기본값으로 리셋
-        setPressCapacity(undefined);
+        setSelectedCapacities(new Set());
         setCustomerId(null);
       } else {
         const errorMessage = (result as any)?.error || '생산 등록에 실패했습니다.';
@@ -656,27 +664,103 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
           </div>
         </div>
 
-        {/* 프레스 용량 선택 (프레스 선택 시에만 표시) */}
+        {/* 프레스 용량 선택 (프레스 선택 시에만 표시) - 4개 체크박스로 병렬 선택 가능 */}
         {processTypes.includes('프레스') && (
-          <div>
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              프레스 용량
+              프레스 용량 (복수 선택 가능)
             </label>
-            <Select
-              value={pressCapacity?.toString() || ''}
-              onValueChange={(value) => setPressCapacity(parseInt(value))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="프레스 용량 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="400">400톤</SelectItem>
-                <SelectItem value="600">600톤</SelectItem>
-                <SelectItem value="800">800톤</SelectItem>
-                <SelectItem value="1000">1000톤</SelectItem>
-                <SelectItem value="1600">1600톤</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-6">
+              {/* 블랭킹 그룹 */}
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">블랭킹</span>
+                <div className="flex gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="capacity_400"
+                      checked={selectedCapacities.has(400)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedCapacities);
+                        if (checked) {
+                          newSet.add(400);
+                        } else {
+                          newSet.delete(400);
+                        }
+                        setSelectedCapacities(newSet);
+                      }}
+                    />
+                    <label htmlFor="capacity_400" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      400톤
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="capacity_600"
+                      checked={selectedCapacities.has(600)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedCapacities);
+                        if (checked) {
+                          newSet.add(600);
+                        } else {
+                          newSet.delete(600);
+                        }
+                        setSelectedCapacities(newSet);
+                      }}
+                    />
+                    <label htmlFor="capacity_600" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      600톤
+                    </label>
+                  </div>
+                </div>
+              </div>
+              {/* 프레스 그룹 */}
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">프레스</span>
+                <div className="flex gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="capacity_1000"
+                      checked={selectedCapacities.has(1000)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedCapacities);
+                        if (checked) {
+                          newSet.add(1000);
+                        } else {
+                          newSet.delete(1000);
+                        }
+                        setSelectedCapacities(newSet);
+                      }}
+                    />
+                    <label htmlFor="capacity_1000" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      1000톤
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="capacity_1600"
+                      checked={selectedCapacities.has(1600)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedCapacities);
+                        if (checked) {
+                          newSet.add(1600);
+                        } else {
+                          newSet.delete(1600);
+                        }
+                        setSelectedCapacities(newSet);
+                      }}
+                    />
+                    <label htmlFor="capacity_1600" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      1600톤
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {selectedCapacities.size > 0 && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                선택: {Array.from(selectedCapacities).sort((a, b) => a - b).map(c => `${c}톤`).join(', ')}
+              </p>
+            )}
           </div>
         )}
 
@@ -763,6 +847,9 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[200px]">
                       품명
                     </th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-24">
+                      수량
+                    </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-20">
                       단위
                     </th>
@@ -813,17 +900,22 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                         </td>
                         <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                           <input
-                            type="text"
-                            value={customerItemUnits.get(itemId) || item.unit || ''}
+                            type="number"
+                            min="0"
+                            value={customerItemQuantities.get(itemId) || ''}
                             onChange={(e) => {
-                              const newUnits = new Map(customerItemUnits);
-                              newUnits.set(itemId, e.target.value);
-                              setCustomerItemUnits(newUnits);
+                              const newQuantities = new Map(customerItemQuantities);
+                              const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                              newQuantities.set(itemId, value);
+                              setCustomerItemQuantities(newQuantities);
                             }}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="단위"
+                            className="w-full px-2 py-1 text-sm text-right border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="수량"
                             disabled={isAlreadyAdded}
                           />
+                        </td>
+                        <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          {item.unit || '-'}
                         </td>
                         <td className="px-3 py-2 text-sm text-right text-gray-900 dark:text-white">
                           {(item.price || item.unit_price) ? `₩${(item.price || item.unit_price || 0).toLocaleString()}` : '-'}

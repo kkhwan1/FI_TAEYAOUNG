@@ -31,6 +31,8 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
   const [selectedSupplierItemIds, setSelectedSupplierItemIds] = useState<Set<number>>(new Set());
   const [loadingSupplierItems, setLoadingSupplierItems] = useState(false);
   const [supplierItemsSearch, setSupplierItemsSearch] = useState('');
+  // 공급업체별 품목 목록에서 수량 입력 저장 (itemId -> quantity)
+  const [supplierItemQuantities, setSupplierItemQuantities] = useState<Map<number, number>>(new Map());
 
   // Load initial data when editing
   useEffect(() => {
@@ -546,6 +548,9 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[200px]">
                         품명
                       </th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-20">
+                        수량
+                      </th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-20">
                         단위
                       </th>
@@ -587,6 +592,22 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
                             {isAlreadyAdded && (
                               <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(이미 추가됨)</span>
                             )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={supplierItemQuantities.get(itemId) || ''}
+                              onChange={(e) => {
+                                const newQuantities = new Map(supplierItemQuantities);
+                                const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                newQuantities.set(itemId, value);
+                                setSupplierItemQuantities(newQuantities);
+                              }}
+                              className="w-full px-2 py-1 text-sm text-right border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="수량"
+                              disabled={isAlreadyAdded}
+                            />
                           </td>
                           <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
                             {item.unit || '-'}

@@ -55,7 +55,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           thickness,
           width,
           height,
-          material
+          material,
+          inventory_type
         ),
         child:items!bom_child_item_id_fkey (
           item_code,
