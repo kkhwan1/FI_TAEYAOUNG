@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
+
+// Secure JWT configuration
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'fallback-secret-change-in-production';
+const TOKEN_EXPIRY = '24h';
 
 
 export async function POST(request: NextRequest) {
@@ -49,13 +54,19 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
-    // JWT 토큰 생성 (간단한 버전)
-    const token = Buffer.from(JSON.stringify({
-      userId: user.user_id,
-      username: user.username,
-      role: user.role,
-      exp: Date.now() + 24 * 60 * 60 * 1000 // 24시간
-    })).toString('base64');
+    // Secure JWT token generation with cryptographic signing
+    const token = jwt.sign(
+      {
+        userId: user.user_id,
+        username: user.username,
+        role: user.role
+      },
+      JWT_SECRET,
+      {
+        expiresIn: TOKEN_EXPIRY,
+        algorithm: 'HS256'
+      }
+    );
 
     const userResponse = {
       username: user.username,

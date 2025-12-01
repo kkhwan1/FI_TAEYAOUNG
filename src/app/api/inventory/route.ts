@@ -7,6 +7,46 @@ import { mcp__supabase__execute_sql } from '@/lib/supabase-mcp';
 
 export const dynamic = 'force-dynamic';
 
+// SQL Injection prevention utilities
+function sanitizeSqlString(input: string | null | undefined): string {
+  if (input === null || input === undefined) return '';
+  // Escape single quotes by doubling them (standard SQL escaping)
+  // Also remove or escape potentially dangerous characters
+  return String(input)
+    .replace(/'/g, "''")           // Escape single quotes
+    .replace(/\\/g, '\\\\')        // Escape backslashes
+    .replace(/\x00/g, '')          // Remove null bytes
+    .replace(/--/g, '')            // Remove SQL comment markers
+    .replace(/;/g, '')             // Remove semicolons
+    .substring(0, 1000);           // Limit length
+}
+
+function validateNumericId(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const num = parseInt(String(value), 10);
+  if (isNaN(num) || num <= 0 || num > 2147483647) return null;
+  return num;
+}
+
+function validateDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  // Validate YYYY-MM-DD format
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateStr)) return null;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  return dateStr;
+}
+
+function validateQuantity(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const num = parseFloat(String(value));
+  if (isNaN(num) || !isFinite(num)) return null;
+  // Allow reasonable quantity range
+  if (Math.abs(num) > 999999999) return null;
+  return num;
+}
+
 
 export const GET = createValidatedRoute(
   async (request: NextRequest) => {
@@ -29,12 +69,7 @@ export const GET = createValidatedRoute(
     // Use Supabase Admin client to bypass RLS (uses SERVICE_ROLE_KEY)
     const supabase = supabaseAdmin;
 
-    // Debug: Check if SERVICE_ROLE_KEY is loaded and client configuration
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    console.log('DEBUG - SERVICE_ROLE_KEY loaded:', serviceRoleKey ? `YES (${serviceRoleKey.substring(0, 20)}...)` : 'NO');
-    console.log('DEBUG - supabaseAdmin client auth header:', (supabase as any).auth?.mfaApi?.headers);
-    console.log('DEBUG - Request type parameter:', type);
-    console.log('DEBUG - URL-decoded type:', type ? decodeURIComponent(type) : 'null');
+    // Service role key verification (removed debug logs for production)
 
     // Fetch transactions without JOIN to avoid RLS issues
     let query = supabase
@@ -44,7 +79,6 @@ export const GET = createValidatedRoute(
     // Apply filters safely
     if (type) {
       query = query.eq('transaction_type', type as '입고' | '출고' | '생산입고' | '생산출고' | '이동' | '조정' | '폐기' | '재고조정');
-      console.log('DEBUG - Applied type filter:', type);
     }
 
     if (itemId) {
@@ -65,7 +99,6 @@ export const GET = createValidatedRoute(
 
     // Apply ordering and pagination
     const offset = paginationParams.offset;
-    console.log('DEBUG - Pagination:', { page: paginationParams.page, limit: paginationParams.limit, offset, range: [offset, offset + paginationParams.limit - 1] });
 
     query = query
       .order('transaction_date', { ascending: false })
@@ -73,8 +106,6 @@ export const GET = createValidatedRoute(
       .range(offset, offset + paginationParams.limit - 1);
 
     const { data: transactions, error } = await query;
-
-    console.log('DEBUG - transactions query result:', { transactions, error, count: transactions?.length });
 
     if (error) {
       throw new Error(`Database query failed: ${error.message}`);
@@ -215,7 +246,7 @@ export const POST = createValidatedRoute(
       );
     }
 
-    // Validate transaction type
+    // Validate transaction type (whitelist)
     const validTypes = ['입고', '출고', '생산입고', '생산출고', '이동', '조정', '폐기', '재고조정'];
     if (!validTypes.includes(transaction_type)) {
       return NextResponse.json(
@@ -224,12 +255,63 @@ export const POST = createValidatedRoute(
       );
     }
 
+    // Validate and sanitize all inputs to prevent SQL injection
+    const validatedItemId = validateNumericId(item_id);
+    if (validatedItemId === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid item_id: must be a positive integer' },
+        { status: 400 }
+      );
+    }
+
+    const validatedQuantity = validateQuantity(quantity);
+    if (validatedQuantity === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid quantity: must be a valid number' },
+        { status: 400 }
+      );
+    }
+
+    const validatedCompanyId = company_id ? validateNumericId(company_id) : null;
+    if (company_id && validatedCompanyId === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid company_id: must be a positive integer' },
+        { status: 400 }
+      );
+    }
+
+    const validatedWarehouseId = warehouse_id ? validateNumericId(warehouse_id) : null;
+    if (warehouse_id && validatedWarehouseId === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid warehouse_id: must be a positive integer' },
+        { status: 400 }
+      );
+    }
+
+    const validatedUnitPrice = unit_price ? validateQuantity(unit_price) : 0;
+    if (unit_price && validatedUnitPrice === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid unit_price: must be a valid number' },
+        { status: 400 }
+      );
+    }
+
+    // Validate dates
+    const validatedTransactionDate = validateDate(transaction_date) || new Date().toISOString().split('T')[0];
+    const validatedExpiryDate = expiry_date ? validateDate(expiry_date) : null;
+
+    // Sanitize string inputs
+    const sanitizedReferenceId = sanitizeSqlString(reference_id);
+    const sanitizedNote = sanitizeSqlString(note);
+    const sanitizedLocation = sanitizeSqlString(location);
+    const sanitizedLotNumber = sanitizeSqlString(lot_number);
+
     const projectId = process.env.SUPABASE_PROJECT_ID || '';
 
-    // Check if item exists and get current stock
+    // Check if item exists and get current stock - using validated numeric ID
     const itemResult = await mcp__supabase__execute_sql({
       project_id: projectId,
-      query: `SELECT item_id, item_code, item_name, current_stock FROM items WHERE item_id = ${item_id}`
+      query: `SELECT item_id, item_code, item_name, current_stock FROM items WHERE item_id = ${validatedItemId}`
     });
 
     if (!itemResult.rows || itemResult.rows.length === 0) {
@@ -242,37 +324,36 @@ export const POST = createValidatedRoute(
     const currentItem = itemResult.rows[0];
     const currentStock = Number(currentItem.current_stock) || 0;
 
-    // 출고 시 재고 부족 체크
-    if (transaction_type === '출고' && currentStock < Math.abs(quantity)) {
+    // 출고 시 재고 부족 체크 - using validated quantity
+    if (transaction_type === '출고' && currentStock < Math.abs(validatedQuantity)) {
       return NextResponse.json(
         {
           success: false,
-          error: `재고 부족: ${currentItem.item_code} (필요: ${Math.abs(quantity)}, 현재: ${currentStock})`
+          error: `재고 부족: ${currentItem.item_code} (필요: ${Math.abs(validatedQuantity)}, 현재: ${currentStock})`
         },
         { status: 400 }
       );
     }
 
-    // 회사 ID가 제공된 경우 존재 여부 확인
-    if (company_id) {
+    // 회사 ID가 제공된 경우 존재 여부 확인 - using validated numeric ID
+    if (validatedCompanyId) {
       const companyResult = await mcp__supabase__execute_sql({
         project_id: projectId,
-        query: `SELECT company_id FROM companies WHERE company_id = ${company_id}`
+        query: `SELECT company_id FROM companies WHERE company_id = ${validatedCompanyId}`
       });
 
       if (!companyResult.rows || companyResult.rows.length === 0) {
         return NextResponse.json(
-          { success: false, error: `회사 ID ${company_id}를 찾을 수 없습니다` },
+          { success: false, error: `회사 ID ${validatedCompanyId}를 찾을 수 없습니다` },
           { status: 404 }
         );
       }
     }
 
-    // Calculate amounts
-    const unitPrice = unit_price || 0;
-    const taxResult = calculateTax({ 
-      quantity: Math.abs(quantity), 
-      unitPrice: unitPrice,
+    // Calculate amounts using validated values
+    const taxResult = calculateTax({
+      quantity: Math.abs(validatedQuantity),
+      unitPrice: validatedUnitPrice || 0,
       taxRate: 0.1 // 10% tax rate
     });
     const totalAmount = taxResult.subtotalAmount;
@@ -282,12 +363,12 @@ export const POST = createValidatedRoute(
     // Calculate new stock
     let newStock = currentStock;
     if (['입고', '생산입고'].includes(transaction_type)) {
-      newStock += Math.abs(quantity);
+      newStock += Math.abs(validatedQuantity);
     } else if (['출고', '생산출고', '폐기'].includes(transaction_type)) {
-      newStock -= Math.abs(quantity);
+      newStock -= Math.abs(validatedQuantity);
     }
 
-    // Create inventory transaction
+    // Create inventory transaction with validated/sanitized values to prevent SQL injection
     const transactionResult = await mcp__supabase__execute_sql({
       project_id: projectId,
       query: `
@@ -311,23 +392,23 @@ export const POST = createValidatedRoute(
           notes,
           created_at
         ) VALUES (
-          '${transaction_date || new Date().toISOString().split('T')[0]}',
+          '${validatedTransactionDate}',
           '${transaction_type}',
-          ${item_id},
-          ${company_id || 'NULL'},
-          ${quantity},
-          ${unitPrice},
+          ${validatedItemId},
+          ${validatedCompanyId !== null ? validatedCompanyId : 'NULL'},
+          ${validatedQuantity},
+          ${validatedUnitPrice || 0},
           ${totalAmount},
           ${taxAmount},
           ${grandTotal},
-          '${reference_id || ''}',
-          '${reference_id || ''}',
-          ${warehouse_id || 'NULL'},
-          '${location || ''}',
-          '${lot_number || ''}',
-          ${expiry_date ? `'${expiry_date}'` : 'NULL'},
+          '${sanitizedReferenceId}',
+          '${sanitizedReferenceId}',
+          ${validatedWarehouseId !== null ? validatedWarehouseId : 'NULL'},
+          '${sanitizedLocation}',
+          '${sanitizedLotNumber}',
+          ${validatedExpiryDate ? `'${validatedExpiryDate}'` : 'NULL'},
           '완료',
-          '${note || ''}',
+          '${sanitizedNote}',
           NOW()
         )
         RETURNING transaction_id
@@ -343,14 +424,14 @@ export const POST = createValidatedRoute(
 
     const transactionId = transactionResult.rows[0].transaction_id;
 
-    // Update item stock
+    // Update item stock - using validated values to prevent SQL injection
     await mcp__supabase__execute_sql({
       project_id: projectId,
       query: `
-        UPDATE items 
+        UPDATE items
         SET current_stock = ${newStock},
             updated_at = NOW()
-        WHERE item_id = ${item_id}
+        WHERE item_id = ${validatedItemId}
       `
     });
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import MainLayout from "@/components/layout/MainLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { FontSizeProvider } from "@/contexts/FontSizeContext";
 import { UserProvider } from "@/contexts/UserContext";
@@ -45,7 +46,9 @@ export default function RootLayout({
                 <ModalProvider>
                   <FontSizeProvider>
                     <ToastProvider>
-                      <MainLayout>{children}</MainLayout>
+                      <ErrorBoundary>
+                        <MainLayout>{children}</MainLayout>
+                      </ErrorBoundary>
                     </ToastProvider>
                   </FontSizeProvider>
                 </ModalProvider>

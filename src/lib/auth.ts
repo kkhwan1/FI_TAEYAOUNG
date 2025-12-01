@@ -2,8 +2,18 @@ import { getSupabaseClient } from '@/lib/db-unified';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
+import jwt from 'jsonwebtoken';
+
+// Secure JWT configuration
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'fallback-secret-change-in-production';
 
 export type UserRole = 'ceo' | 'admin' | 'manager' | 'user' | 'viewer' | 'operator' | 'accountant';
+
+interface TokenPayload {
+  userId: number;
+  username: string;
+  role: string;
+}
 
 export interface User {
   user_id: number;
@@ -20,19 +30,46 @@ export interface User {
 }
 
 /**
- * 현재 로그인한 사용자 정보 조회 (세션 기반)
+ * Verify JWT token and extract payload
+ */
+function verifyToken(token: string): TokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: ['HS256']
+    }) as TokenPayload;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 현재 로그인한 사용자 정보 조회 (JWT 기반 + 세션 폴백)
  */
 export async function getCurrentUser(request?: NextRequest): Promise<User | null> {
   try {
-    // API 라우트에서는 request 객체 사용, 서버 컴포넌트에서는 cookies() 사용
-    const userId = request 
-      ? request.cookies.get('user_id')?.value 
-      : (await cookies()).get('user_id')?.value;  // await 추가
+    // First try JWT token verification
+    const authToken = request
+      ? request.cookies.get('auth_token')?.value
+      : (await cookies()).get('auth_token')?.value;
 
-    console.log('[getCurrentUser] userId from cookie:', userId);
+    let userId: string | undefined;
+
+    if (authToken) {
+      const payload = verifyToken(authToken);
+      if (payload) {
+        userId = payload.userId.toString();
+      }
+    }
+
+    // Fallback to user_id cookie for backward compatibility
+    if (!userId) {
+      userId = request
+        ? request.cookies.get('user_id')?.value
+        : (await cookies()).get('user_id')?.value;
+    }
 
     if (!userId) {
-      console.log('[getCurrentUser] No userId found in cookie');
       return null;
     }
 
@@ -44,20 +81,12 @@ export async function getCurrentUser(request?: NextRequest): Promise<User | null
       .eq('is_active', true)
       .single();
 
-    if (error) {
-      console.error('[getCurrentUser] Database error:', error);
+    if (error || !data) {
       return null;
     }
 
-    if (!data) {
-      console.log('[getCurrentUser] No user data found');
-      return null;
-    }
-
-    console.log('[getCurrentUser] User found:', data.username);
     return data as User;
-  } catch (err) {
-    console.error('[getCurrentUser] Exception:', err);
+  } catch {
     return null;
   }
 }

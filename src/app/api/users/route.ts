@@ -10,24 +10,21 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('[GET /api/users] Starting...');
     const { allowed, error, user } = await checkPermission('manager', request);
-    console.log('[GET /api/users] checkPermission result:', { allowed, error, user: user?.username });
-    
+
     if (!allowed) {
-      console.log('[GET /api/users] Permission denied:', error);
       return Response.json({ success: false, error }, { status: 403 });
     }
-
-    console.log('[GET /api/users] User authenticated:', user?.username);
 
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
 
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '20')), 100); // Cap at 100
     const role = searchParams.get('role');
-    const search = searchParams.get('search');
+    const rawSearch = searchParams.get('search');
+    // Sanitize search input - remove special characters that could affect queries
+    const search = rawSearch ? rawSearch.replace(/[%_'"\\]/g, '').substring(0, 100) : null;
     const isActive = searchParams.get('is_active');
 
     let query = supabase
@@ -56,7 +53,6 @@ export async function GET(request: NextRequest) {
       return Response.json(errorResponse, { status: 500 });
     }
 
-    console.log('[GET /api/users] Success:', { count: data?.length, totalCount: count });
     return Response.json({
       success: true,
       data: data,

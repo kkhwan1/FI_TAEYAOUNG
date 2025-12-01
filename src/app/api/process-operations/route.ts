@@ -29,11 +29,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[DEBUG] GET /api/process-operations called');
     const supabase = getSupabaseClient();
-    console.log('[DEBUG] Supabase client created');
     const { searchParams } = new URL(request.url);
-    console.log('[DEBUG] Search params:', Object.fromEntries(searchParams.entries()));
 
     // Parse query parameters
     const operation_type = searchParams.get('operation_type');
@@ -44,8 +41,8 @@ export async function GET(request: NextRequest) {
     const start_date = searchParams.get('start_date');
     const end_date = searchParams.get('end_date');
     const search = searchParams.get('search');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '50')), 200); // Cap at 200
     const sortBy = (searchParams.get('sortBy') || 'created_at') as 'created_at' | 'started_at' | 'completed_at';
     const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
 

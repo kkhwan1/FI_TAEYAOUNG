@@ -106,9 +106,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       query = query.eq('child_supplier_id', parseInt(supplierId));
     }
 
-    // Server-side vehicle type filter
+    // Server-side vehicle type filter with input sanitization
     if (vehicleType) {
-      query = query.or(`parent.vehicle_model.eq.${vehicleType},child.vehicle_model.eq.${vehicleType}`);
+      // Sanitize to prevent PostgREST filter injection
+      const sanitizedVehicleType = vehicleType.replace(/[,()'"\\]/g, '').substring(0, 50);
+      if (sanitizedVehicleType) {
+        query = query.or(`parent.vehicle_model.eq.${sanitizedVehicleType},child.vehicle_model.eq.${sanitizedVehicleType}`);
+      }
     }
 
     query = query.range(offset, offset + limit - 1);
