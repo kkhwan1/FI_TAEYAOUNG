@@ -14,6 +14,7 @@ interface CompanySelectProps {
   disabled?: boolean;
   required?: boolean;
   error?: string;
+  allowedCompanyNames?: string[];  // 특정 거래처만 표시할 때 사용
 }
 
 export default function CompanySelect({
@@ -23,7 +24,8 @@ export default function CompanySelect({
   placeholder = "거래처를 선택하세요",
   disabled = false,
   required = false,
-  error
+  error,
+  allowedCompanyNames
 }: CompanySelectProps) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
@@ -152,11 +154,19 @@ export default function CompanySelect({
     }
   };
 
-  const filteredCompanies = companies.filter(company =>
-    company.company_name.toLowerCase().includes(search.toLowerCase()) ||
-    (company.business_number && company.business_number.includes(search)) ||
-    (company.representative && company.representative.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredCompanies = companies.filter(company => {
+    // 검색어 필터
+    const matchesSearch = company.company_name.toLowerCase().includes(search.toLowerCase()) ||
+      (company.business_number && company.business_number.includes(search)) ||
+      (company.representative && company.representative.toLowerCase().includes(search.toLowerCase()));
+
+    // allowedCompanyNames가 설정되어 있으면 해당 거래처만 표시
+    const matchesAllowed = !allowedCompanyNames || allowedCompanyNames.some(name =>
+      company.company_name.includes(name) || name.includes(company.company_name)
+    );
+
+    return matchesSearch && matchesAllowed;
+  });
 
   return (
     <div className="relative" ref={dropdownRef}>

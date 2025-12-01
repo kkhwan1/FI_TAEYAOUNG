@@ -240,20 +240,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
-    // STEP 4: Update stock AFTER successful transaction insert
-    const { error: updateError } = await supabase
-      .from('items')
-      .update({ current_stock: new_stock })
-      .eq('item_id', item_id);
-
-    if (updateError) {
-      console.error('Stock update error:', updateError);
-      return NextResponse.json({
-        success: false,
-        error: '재고 업데이트 중 오류가 발생했습니다.',
-        details: updateError.message
-      }, { status: 500 });
-    }
+    // NOTE: 재고 업데이트는 DB 트리거 `update_stock_on_transaction`에서 자동 처리
+    // API에서 수동 업데이트 시 이중 반영되므로 제거됨 (2025-11-30)
+    // 출고: 트리거가 자동으로 current_stock 감소
 
     const duration = Date.now() - startTime;
     metricsCollector.trackRequest(endpoint, duration, false);

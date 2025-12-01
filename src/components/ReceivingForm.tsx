@@ -133,12 +133,12 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
     }
 
     const itemId = item.item_id || item.id;
-    
+
     // 예정일이 있으면 해당 월의 단가를 조회, 없으면 현재 품목 단가 사용
     const targetDate = formData.transaction_date || '';
     let unitPrice = item.unit_price || item.price || 0;
     let isMonthly = false;
-    
+
     if (targetDate && itemId) {
       const monthlyPrice = await fetchMonthlyPrice(itemId, targetDate);
       if (monthlyPrice > 0) {
@@ -147,12 +147,15 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
       }
     }
 
+    // 사용자가 입력한 수량 사용, 없으면 기본값 1
+    const inputQuantity = supplierItemQuantities.get(itemId) || 1;
+
     const newItem: ReceivingItem = {
       item_id: itemId,
       item_code: item.item_code || '',
       item_name: item.item_name || item.name || '',
       unit: item.unit || '',
-      quantity: 1,
+      quantity: inputQuantity,
       unit_price: unitPrice,
       isMonthlyPriceApplied: isMonthly
     };
@@ -441,6 +444,7 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
             companyType="SUPPLIER"
             placeholder="공급업체를 선택하세요"
             error={errors.company_id}
+            allowedCompanyNames={['풍기광주', '풍기서산', '대우공업', '대우포승', '대우당진', '호원오토', '인알파코리아', '다인']}
           />
         </div>
 

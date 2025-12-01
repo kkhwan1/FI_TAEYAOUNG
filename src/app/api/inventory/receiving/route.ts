@@ -33,15 +33,26 @@ export async function GET(): Promise<NextResponse> {
     const itemIds = [...new Set(transactions?.map(t => t.item_id) || [])];
     const companyIds = [...new Set(transactions?.map(t => t.company_id).filter(Boolean) || [])];
 
-    const { data: items } = await supabase
-      .from('items')
-      .select('item_id, item_code, item_name, spec, unit')
-      .in('item_id', itemIds);
+    // NOTE: Supabase .in() 쿼리는 빈 배열 전달 시 오류 발생
+    // 빈 배열 가드 추가 (2025-11-30)
+    let items: Array<{ item_id: number; item_code: string; item_name: string; spec: string | null; unit: string }> | null = null;
+    let companies: Array<{ company_id: number; company_name: string }> | null = null;
 
-    const { data: companies } = await supabase
-      .from('companies')
-      .select('company_id, company_name')
-      .in('company_id', companyIds);
+    if (itemIds.length > 0) {
+      const { data } = await supabase
+        .from('items')
+        .select('item_id, item_code, item_name, spec, unit')
+        .in('item_id', itemIds);
+      items = data;
+    }
+
+    if (companyIds.length > 0) {
+      const { data } = await supabase
+        .from('companies')
+        .select('company_id, company_name')
+        .in('company_id', companyIds);
+      companies = data;
+    }
 
     // Combine data
     const enrichedTransactions = transactions?.map(transaction => ({
@@ -173,45 +184,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
-    // Update stock
-    const { data: itemData, error: stockError } = await supabase
-      .from('items')
-      .select('current_stock')
-      .eq('item_id', item_id)
-      .single();
-
-    if (stockError) {
-      console.error('Stock query error:', stockError);
-      return NextResponse.json({
-        success: false,
-        error: '재고 조회 중 오류가 발생했습니다.',
-        details: stockError.message
-      }, { status: 500 });
-    }
-
-    const new_stock = (itemData?.current_stock || 0) + quantity;
-
-    const { error: updateError } = await supabase
-      .from('items')
-      .update({ current_stock: new_stock })
-      .eq('item_id', item_id);
-
-    if (updateError) {
-      console.error('Stock update error:', updateError);
-      return NextResponse.json({
-        success: false,
-        error: '재고 업데이트 중 오류가 발생했습니다.',
-        details: updateError.message
-      }, { status: 500 });
-    }
+    // NOTE: 재고 업데이트는 DB 트리거 `update_stock_on_transaction`에서 자동 처리
+    // API에서 수동 업데이트 시 이중 반영되므로 제거됨 (2025-11-30)
+    // 입고: 트리거가 자동으로 current_stock 증가
 
     const data = [{
       transaction_id: transactionData.transaction_id,
       item_id,
       quantity,
       unit_price,
-      total_amount,
-      current_stock: new_stock
+      total_amount
     }];
 
     const duration = Date.now() - startTime;

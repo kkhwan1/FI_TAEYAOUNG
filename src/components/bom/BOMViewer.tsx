@@ -173,15 +173,21 @@ export const BOMViewer: React.FC<BOMViewerProps> = ({
         // API 응답 필드명을 BOMViewer가 기대하는 형식으로 변환
         // API: parent_code, child_code, level_no
         // BOMViewer: parent_item_code, child_item_code, level
-        const normalizedData = rawData.map((entry: any) => ({
-          ...entry,
-          parent_item_code: entry.parent_code || entry.parent_item_code,
-          parent_item_name: entry.parent_name || entry.parent_item_name,
-          child_item_code: entry.child_code || entry.child_item_code,
-          child_item_name: entry.child_name || entry.child_item_name,
-          level: entry.level_no || entry.level || 1,
-          bom_id: entry.bom_id || entry.id
-        }));
+        const normalizedData = rawData.map((entry: any) => {
+          const childCode = entry.child_code || entry.child_item_code || '';
+          const childName = entry.child_name || entry.child_item_name || '';
+          const parentCode = entry.parent_code || entry.parent_item_code || '';
+          const parentName = entry.parent_name || entry.parent_item_name || '';
+          return {
+            ...entry,
+            parent_item_code: parentCode,
+            parent_item_name: parentName || parentCode || '(품명 없음)',
+            child_item_code: childCode,
+            child_item_name: childName || childCode || '(품명 없음)',
+            level: entry.level_no || entry.level || 1,
+            bom_id: entry.bom_id || entry.id
+          };
+        });
         
         setBOMData(normalizedData);
       } else {

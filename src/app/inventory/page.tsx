@@ -622,7 +622,9 @@ function InventoryContent() {
             use_bom: productionData.use_bom,
             created_by: productionData.created_by || 1,
             process_types: (productionData as any).process_types,
-            press_capacity: (productionData as any).press_capacity,
+            selected_capacities: Array.isArray((productionData as any).selected_capacities) && (productionData as any).selected_capacities.length > 0
+              ? (productionData as any).selected_capacities
+              : undefined,
             company_id: (productionData as any).company_id
           };
 
@@ -674,10 +676,12 @@ function InventoryContent() {
             use_bom: productionData.use_bom !== undefined ? productionData.use_bom : true,
             created_by: productionData.created_by || 1,
             process_types: (productionData as any).process_types,
-            press_capacity: (productionData as any).press_capacity,
+            selected_capacities: Array.isArray((productionData as any).selected_capacities) && (productionData as any).selected_capacities.length > 0
+              ? (productionData as any).selected_capacities
+              : undefined,
             company_id: (productionData as any).company_id
           };
-          
+
           // Remove undefined/null fields
           Object.keys(requestBody).forEach(key => {
             if (requestBody[key] === undefined || requestBody[key] === null || requestBody[key] === '') {

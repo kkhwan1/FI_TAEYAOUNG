@@ -289,12 +289,14 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
       const itemId = item.item_id || item.id;
       // 수정된 단위가 있으면 사용, 없으면 원본 단위 사용
       const unit = customerItemUnits.get(itemId) || item.unit || 'EA';
+      // 사용자가 입력한 수량 사용, 없으면 기본값 1
+      const inputQuantity = customerItemQuantities.get(itemId) || 1;
       return {
         product_item_id: itemId,
         item_id: itemId,
         item_code: item.item_code || '',
         item_name: item.item_name || '',
-        quantity: 1, // 기본 수량 1
+        quantity: inputQuantity,
         unit_price: item.unit_price || item.price || 0,
         unit: unit,
         reference_no: '',
@@ -619,7 +621,6 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                     setProcessTypes([...processTypes, '프레스']);
                   } else {
                     setProcessTypes(processTypes.filter(p => p !== '프레스'));
-                    setPressCapacity(undefined);
                     // 고객사는 유지 (프레스 해제 시에도 고객사 품목 필터링 유지)
                     // setCustomerId(null);
                   }
@@ -774,6 +775,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             onChange={handleCustomerChange}
             companyType="CUSTOMER"
             placeholder="고객사를 선택하세요"
+            allowedCompanyNames={['풍기광주', '풍기서산', '대우공업', '대우포승', '대우당진', '호원오토', '인알파코리아', '다인']}
           />
         </div>
 

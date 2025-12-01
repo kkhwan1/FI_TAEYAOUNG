@@ -375,51 +375,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const transaction = data[0];
     const transactionId = transaction.transaction_id;
 
-    // Update product stock for 생산입고 transactions
-    if (transaction_type === '생산입고') {
-      // Get current stock first
-      const { data: currentItem, error: getItemError } = await supabase
-        .from('items')
-        .select('current_stock')
-        .eq('item_id', item_id)
-        .single();
-
-      if (!getItemError && currentItem) {
-        const newStock = (currentItem.current_stock || 0) + quantity;
-
-        const { error: stockError } = await supabase
-          .from('items')
-          .update({ current_stock: newStock })
-          .eq('item_id', item_id);
-
-        if (stockError) {
-          console.error('Stock update error:', stockError);
-        }
-      }
-    }
-
-    // Update product stock for 생산출고 transactions
-    if (transaction_type === '생산출고') {
-      // Get current stock first
-      const { data: currentItem, error: getItemError } = await supabase
-        .from('items')
-        .select('current_stock')
-        .eq('item_id', item_id)
-        .single();
-
-      if (!getItemError && currentItem) {
-        const newStock = (currentItem.current_stock || 0) - quantity;
-
-        const { error: stockError } = await supabase
-          .from('items')
-          .update({ current_stock: newStock })
-          .eq('item_id', item_id);
-
-        if (stockError) {
-          console.error('Stock update error:', stockError);
-        }
-      }
-    }
+    // NOTE: 재고 업데이트는 DB 트리거 `update_stock_on_transaction`에서 자동 처리
+    // API에서 수동 업데이트 시 이중 반영되므로 제거됨 (2025-11-30)
+    // 생산입고: 트리거가 완제품 재고 증가 + trg_auto_deduct_bom이 BOM 자재 자동 차감
+    // 생산출고: 트리거가 완제품 재고 감소
 
     // Fetch auto-generated BOM deduction logs with child item details
     const { data: deductionLogs, error: deductionError } = await supabase

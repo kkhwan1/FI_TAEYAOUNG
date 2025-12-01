@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic';
  * Get items associated with a customer (parent items from BOM)
  * Query parameters:
  * - customer_id: Customer company ID (required)
+ * - process_type: Filter by press process type (BLANKING/STAMPING)
+ * - press_capacity: Filter by press capacity (400-600=BLANKING, 1000-1600=STAMPING)
  * - limit: Number of records to return (default: 1000)
  * - offset: Pagination offset (default: 0)
  */
@@ -15,7 +17,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customer_id');
-    const pressCapacity = searchParams.get('press_capacity'); // 프레스 용량 파라미터 추가
+    const pressCapacity = searchParams.get('press_capacity'); // 프레스 용량 파라미터
+    const processType = searchParams.get('process_type'); // 공정 타입 파라미터 (BLANKING/STAMPING)
+    const processTypes = searchParams.get('process_types'); // 복수 공정 타입 파라미터 (BLANKING,STAMPING)
     const limit = parseInt(searchParams.get('limit') || '1000');
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -39,9 +43,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const validLimit = Math.max(1, Math.min(limit, 10000)); // 1~10000 사이로 제한
     const validOffset = Math.max(0, offset);
 
-    // 프레스 용량에 따른 공정 타입 결정
+    // 프레스 용량 또는 공정 타입에 따른 필터링
     let pressProcessType: 'BLANKING' | 'STAMPING' | null = null;
-    if (pressCapacity) {
+    let pressProcessTypeList: string[] = []; // 복수 공정 타입 지원
+
+    // 1. process_types 파라미터 (복수) - 프론트엔드에서 사용
+    if (processTypes) {
+      pressProcessTypeList = processTypes.split(',').map(t => t.trim().toUpperCase()).filter(t => t === 'BLANKING' || t === 'STAMPING');
+    }
+    // 2. process_type 파라미터 (단수) - 직접 지정
+    else if (processType) {
+      const upperProcessType = processType.toUpperCase();
+      if (upperProcessType === 'BLANKING' || upperProcessType === 'STAMPING') {
+        pressProcessType = upperProcessType as 'BLANKING' | 'STAMPING';
+      }
+    }
+    // 3. press_capacity로 공정 타입 결정 (fallback)
+    else if (pressCapacity) {
       const capacity = parseInt(pressCapacity);
       if (capacity >= 400 && capacity <= 600) {
         // 블랭킹: 400~600톤
@@ -105,7 +123,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .eq('is_active', true);
 
     // 프레스 용량에 따른 필터링 적용
-    if (pressProcessType) {
+    if (pressProcessTypeList.length > 0) {
+      // 복수 공정 타입 필터링 (IN 연산)
+      itemsQuery = itemsQuery.in('press_process_type', pressProcessTypeList);
+    } else if (pressProcessType) {
+      // 단일 공정 타입 필터링
       itemsQuery = itemsQuery.eq('press_process_type', pressProcessType);
     }
 

@@ -92,7 +92,7 @@ function TreeNode({ node, children, allNodes, expandedNodes, onToggleExpand }: T
         {/* Item name + T4: 코일 연계 뱃지 */}
         <div className="flex-1 min-w-[200px] flex items-center gap-2">
           <span className={`${getFontSizeClasses('table')} text-gray-700 dark:text-gray-300`}>
-            {node.child_item_name}
+            {node.child_item_name || node.child_item_code || '(품명 없음)'}
           </span>
           {isCoilLinked && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
