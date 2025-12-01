@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, Calendar, Building2, Plus, X, CheckCircle, Search, CheckSquare, Square } from 'lucide-react';
+import { Save, Loader2, Calendar, Building2, Plus, X, CheckCircle, Search, CheckSquare, Square, Package, Weight } from 'lucide-react';
 import {
   CompanyForComponent as Company,
   ItemForComponent as Item,
@@ -13,8 +13,13 @@ import {
 import ItemSelect from '@/components/ItemSelect';
 import CompanySelect from '@/components/CompanySelect';
 import { useToast } from '@/contexts/ToastContext';
+import CoilReceivingForm from '@/components/CoilReceivingForm';
+
+type ReceivingTabType = 'submaterial' | 'rawmaterial';
 
 export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit }: ReceivingFormProps) {
+  // Tab State
+  const [activeTab, setActiveTab] = useState<ReceivingTabType>('submaterial');
   const { error: showError } = useToast();
   const [formData, setFormData] = useState<ReceivingFormData>({
     transaction_date: new Date().toISOString().split('T')[0],
@@ -409,7 +414,78 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
     return formData.items.reduce((total, item) => total + (item.quantity * item.unit_price), 0);
   };
 
+  // Handle Coil Form Submit - convert to generic ReceivingFormData format
+  const handleCoilSubmit = async (coilData: any) => {
+    // Transform coil data to match the expected format for the receiving API
+    const receivingData: ReceivingFormData = {
+      transaction_date: coilData.transaction_date,
+      company_id: coilData.company_id,
+      items: coilData.items.map((item: any) => ({
+        item_id: item.item_id,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        unit: item.unit || 'kg',
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price,
+        // Additional weight fields will be handled by the API
+        weight: item.weight,
+        weight_unit: item.weight_unit,
+        thickness: item.thickness,
+        width: item.width,
+        material_type: item.material_type,
+      })),
+      reference_no: coilData.reference_no,
+      created_by: coilData.created_by,
+    };
+
+    await onSubmit(receivingData);
+  };
+
   return (
+    <div className="space-y-6">
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('submaterial')}
+            className={`
+              flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'submaterial'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}
+            `}
+          >
+            <Package className="w-4 h-4" />
+            부자재 입고
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('rawmaterial')}
+            className={`
+              flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
+              ${activeTab === 'rawmaterial'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}
+            `}
+          >
+            <Weight className="w-4 h-4" />
+            원자재 입고 (코일/시트)
+          </button>
+        </nav>
+      </div>
+
+      {/* Coil Receiving Form (Raw Material Tab) */}
+      {activeTab === 'rawmaterial' && (
+        <CoilReceivingForm
+          onSubmit={handleCoilSubmit}
+          onCancel={onCancel}
+          isLoading={loading}
+        />
+      )}
+
+      {/* Sub-material Receiving Form (Original Form) */}
+      {activeTab === 'submaterial' && (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 입고 예정일 */}
@@ -444,7 +520,6 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
             companyType="SUPPLIER"
             placeholder="공급업체를 선택하세요"
             error={errors.company_id}
-            allowedCompanyNames={['풍기광주', '풍기서산', '대우공업', '대우포승', '대우당진', '호원오토', '인알파코리아', '다인']}
           />
         </div>
 
@@ -921,5 +996,7 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
         </button>
       </div>
     </form>
+      )}
+    </div>
   );
 }

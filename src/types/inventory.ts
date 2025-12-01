@@ -108,6 +108,9 @@ export interface StockInfo {
   unit_price?: number;
   location?: string;
   last_updated?: string;
+  // 중량 관리 필드
+  is_weight_managed?: boolean;
+  current_weight?: number | null;
 }
 
 // BOM (Bill of Materials) interfaces
@@ -148,6 +151,30 @@ export interface ReceivingItem {
   expiry_date?: string;
   to_location?: string;
   isMonthlyPriceApplied?: boolean;
+}
+
+// 원소재(코일/시트) 입고용 인터페이스
+export interface CoilReceivingItem extends ReceivingItem {
+  material_type: 'coil' | 'sheet';
+  thickness: number;      // mm (두께)
+  width: number;          // mm (폭)
+  weight: number;         // kg (중량)
+  weight_unit: 'kg' | 'ton';
+  spec?: string;          // 자동생성: "1.5 x 630"
+  material?: string;      // 재질: SPCC, SPHC, SAPH 등
+}
+
+// 중량 관리 품목 인터페이스
+export interface WeightManagedItem {
+  item_id: number;
+  item_code: string;
+  item_name: string;
+  is_weight_managed: boolean;
+  current_weight: number;
+  weight_unit: 'kg' | 'ton';
+  thickness?: number;
+  width?: number;
+  specific_gravity?: number;
 }
 
 export interface ReceivingFormData {

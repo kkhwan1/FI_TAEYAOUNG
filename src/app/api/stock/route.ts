@@ -33,6 +33,9 @@ interface CurrentStock {
   inventory_type?: InventoryType | null;
   warehouse_zone?: string | null;
   quality_status?: QualityStatus | null;
+  // Phase 4 - 중량 관리 필드
+  is_weight_managed?: boolean;
+  current_weight?: number | null;
 }
 
 export const GET = createValidatedRoute(
@@ -50,7 +53,7 @@ export const GET = createValidatedRoute(
     // 규격 및 모든 숫자 필드 포함
     let query = supabase
       .from('items')
-      .select('item_id, item_code, item_name, spec, category, unit, current_stock, safety_stock, price, thickness, width, height, specific_gravity, mm_weight, daily_requirement, blank_size, material, vehicle_model, item_type, material_type, is_active, inventory_type, warehouse_zone, quality_status, supplier_id')
+      .select('item_id, item_code, item_name, spec, category, unit, current_stock, safety_stock, price, thickness, width, height, specific_gravity, mm_weight, daily_requirement, blank_size, material, vehicle_model, item_type, material_type, is_active, inventory_type, warehouse_zone, quality_status, supplier_id, is_weight_managed, current_weight')
       .eq('is_active', true);
 
     // Apply filters
@@ -201,7 +204,10 @@ export const GET = createValidatedRoute(
         // Phase 3 - Classification fields
         inventory_type: item.inventory_type || null,
         warehouse_zone: item.warehouse_zone || null,
-        quality_status: item.quality_status || null
+        quality_status: item.quality_status || null,
+        // Phase 4 - 중량 관리 필드
+        is_weight_managed: item.is_weight_managed || false,
+        current_weight: item.current_weight !== null && item.current_weight !== undefined ? Number(item.current_weight) : null
       };
     });
 

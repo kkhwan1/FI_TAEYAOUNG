@@ -121,7 +121,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       arrival_date,
       lot_no,
       expiry_date,
-      to_location
+      to_location,
+      // 원소재(코일) 중량 관련 필드
+      weight,
+      weight_unit = 'kg',
+      thickness,
+      width,
+      material_type
     } = body;
 
     // 필수 필드 검증
@@ -155,6 +161,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Calculate total amount
     const total_amount = quantity * unit_price;
 
+    // 중량 관리 품목인지 확인
+    const { data: itemData } = await supabase
+      .from('items')
+      .select('is_weight_managed, current_weight')
+      .eq('item_id', item_id)
+      .single();
+
+    const isWeightManaged = itemData?.is_weight_managed || false;
+
+    // 중량 정규화 (ton → kg)
+    let normalizedWeight = weight;
+    if (weight && weight_unit === 'ton') {
+      normalizedWeight = weight * 1000;
+    }
+
     // KOREAN ENCODING FIX: Use direct INSERT instead of RPC to preserve UTF-8
     // Insert transaction
     const { data: transactionData, error: transactionError } = await supabase
@@ -170,7 +191,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         transaction_date,
         arrival_date: arrival_date || null,
         notes,
-        status: '완료'
+        status: '완료',
+        // 중량 관련 필드 (원소재 입고용)
+        weight: normalizedWeight || null,
+        weight_unit: weight ? 'kg' : null  // 정규화 후 항상 kg
       })
       .select('transaction_id')
       .single();
@@ -188,12 +212,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // API에서 수동 업데이트 시 이중 반영되므로 제거됨 (2025-11-30)
     // 입고: 트리거가 자동으로 current_stock 증가
 
+    // 중량 관리 품목인 경우 current_weight 업데이트
+    if (isWeightManaged && normalizedWeight) {
+      const currentWeight = itemData?.current_weight || 0;
+      const newWeight = currentWeight + normalizedWeight;
+
+      const { error: weightUpdateError } = await supabase
+        .from('items')
+        .update({ current_weight: newWeight })
+        .eq('item_id', item_id);
+
+      if (weightUpdateError) {
+        console.error('Weight update error:', weightUpdateError);
+        // 중량 업데이트 실패해도 트랜잭션은 성공으로 처리 (로깅만)
+        logger.warn('Weight update failed but transaction succeeded', {
+          item_id,
+          weight: normalizedWeight,
+          error: weightUpdateError.message
+        });
+      }
+    }
+
     const data = [{
       transaction_id: transactionData.transaction_id,
       item_id,
       quantity,
       unit_price,
-      total_amount
+      total_amount,
+      // 중량 관련 응답 추가
+      weight: normalizedWeight || null,
+      weight_unit: weight ? 'kg' : null,
+      is_weight_managed: isWeightManaged
     }];
 
     const duration = Date.now() - startTime;

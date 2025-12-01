@@ -69,7 +69,7 @@ export default function FinancialStatementsPage() {
 
   useEffect(() => {
     loadFinancialData();
-  }, []);
+  }, [startDate, endDate]);
 
   // Export to Excel
   const exportToExcel = async (reportType: 'balance-sheet' | 'cash-flow') => {

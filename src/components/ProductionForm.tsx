@@ -173,15 +173,39 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     }
   };
 
-  // 고객별 품목 조회 함수 (공정구분 필터링 포함)
-  const fetchItemsByCustomer = async (customerId: number, processTypes?: ('프레스' | '용접' | '도장')[]) => {
+  // 고객별 품목 조회 함수 (공정구분 및 프레스 용량 필터링 포함)
+  const fetchItemsByCustomer = async (
+    customerId: number,
+    processTypes?: ('프레스' | '용접' | '도장')[],
+    capacities?: Set<number>
+  ) => {
     setLoadingCustomerItems(true);
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
       let url = `/api/items/by-customer?customer_id=${customerId}&limit=1000`;
-      
-      // 공정구분 파라미터 추가
-      if (processTypes && processTypes.length > 0) {
+
+      // 프레스 용량에서 press_process_type 파라미터 생성 (BLANKING/STAMPING)
+      if (capacities && capacities.size > 0) {
+        const pressProcessTypes: string[] = [];
+        const capacityArr = Array.from(capacities);
+
+        // 400, 600 → BLANKING
+        if (capacityArr.some(c => c === 400 || c === 600)) {
+          pressProcessTypes.push('BLANKING');
+        }
+        // 1000, 1600 → STAMPING
+        if (capacityArr.some(c => c === 1000 || c === 1600)) {
+          pressProcessTypes.push('STAMPING');
+        }
+
+        if (pressProcessTypes.length > 0) {
+          url += `&process_types=${pressProcessTypes.join(',')}`;
+        }
+      }
+      // 공정구분 파라미터는 이미 용량으로 필터링된 경우 추가하지 않음
+      else if (processTypes && processTypes.length > 0) {
+        // 프레스가 선택되면 용량 기반 필터링을 사용하므로 여기서는 용접/도장만 처리
+        // 단, 프레스만 선택되고 용량 미선택 시에는 모든 프레스 품목 표시
         url += `&process_types=${processTypes.join(',')}`;
       }
       
@@ -215,21 +239,21 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     setCustomerId(numValue);
     setSelectedCustomerItemIds(new Set()); // 선택 초기화
 
-    // 고객 선택 시 관련 품목 목록 조회 (공정구분 필터링 포함)
+    // 고객 선택 시 관련 품목 목록 조회 (공정구분 및 프레스 용량 필터링 포함)
     if (numValue) {
-      await fetchItemsByCustomer(numValue, processTypes);
+      await fetchItemsByCustomer(numValue, processTypes, selectedCapacities);
     } else {
       setCustomerItems([]);
     }
   };
 
-  // 공정구분 변경 시 품목 목록 갱신 (의존성 배열 수정)
+  // 공정구분 또는 프레스 용량 변경 시 품목 목록 갱신
   useEffect(() => {
     if (customerId) {
-      fetchItemsByCustomer(customerId, processTypes);
+      fetchItemsByCustomer(customerId, processTypes, selectedCapacities);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [processTypes]);
+  }, [processTypes, selectedCapacities]);
 
   // 품목 선택/해제 핸들러
   const handleCustomerItemToggle = (itemId: number) => {
@@ -309,7 +333,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     // 선택 초기화 및 목록 갱신
     setSelectedCustomerItemIds(new Set());
     if (customerId) {
-      await fetchItemsByCustomer(customerId);
+      await fetchItemsByCustomer(customerId, processTypes, selectedCapacities);
     }
 
     showSuccess(`${newItems.length}개 품목이 배치 모드에 추가되었습니다.`);
@@ -775,7 +799,8 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
             onChange={handleCustomerChange}
             companyType="CUSTOMER"
             placeholder="고객사를 선택하세요"
-            allowedCompanyNames={['풍기광주', '풍기서산', '대우공업', '대우포승', '대우당진', '호원오토', '인알파코리아', '다인']}
+            deliveryOnly={true}
+            hideDeliveryPrefix={true}
           />
         </div>
 
@@ -1216,7 +1241,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                               
                               // 품목 제거 시 고객별 품목 목록 갱신 (제거된 품목을 다시 목록에 표시)
                               if (customerId) {
-                                await fetchItemsByCustomer(customerId);
+                                await fetchItemsByCustomer(customerId, processTypes, selectedCapacities);
                               }
                             }}
                             className="px-2 py-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-sm font-medium"

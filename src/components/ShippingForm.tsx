@@ -665,7 +665,8 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
             placeholder="고객사를 선택하세요"
             required={false}
             error={errors.customer_id}
-            allowedCompanyNames={['풍기광주', '풍기서산', '대우공업', '대우포승', '대우당진', '호원오토', '인알파코리아', '다인']}
+            deliveryOnly={true}
+            hideDeliveryPrefix={true}
           />
         </div>
 

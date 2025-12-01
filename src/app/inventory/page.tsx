@@ -48,6 +48,7 @@ import {
 } from '@/lib/constants/inventoryTypes';
 import { useCompanyFilter } from '@/contexts/CompanyFilterContext';
 import { CompanyFilterSelect } from '@/components/filters';
+import { autoFormatWeight } from '@/lib/weight-utils';
 import { useToast } from '@/contexts/ToastContext';
 
 // Search params를 사용하는 내부 컴포넌트
@@ -267,9 +268,12 @@ function InventoryContent() {
   // 실시간 자동 업데이트 (5초마다)
   useEffect(() => {
     fetchStockInfo(); // 초기 로드
-    
+
     const interval = setInterval(() => {
-      fetchStockInfo();
+      // Only refresh when the tab is visible
+      if (document.visibilityState === 'visible') {
+        fetchStockInfo();
+      }
     }, 5000); // 5초마다 업데이트
 
     return () => clearInterval(interval);
@@ -1147,6 +1151,14 @@ function InventoryContent() {
                             {item.unit}
                           </span>
                         </div>
+                        {/* 중량 관리 품목일 경우 중량 표시 */}
+                        {(item as any).is_weight_managed && (item as any).current_weight !== null && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="text-xs px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded">
+                              ⚖️ {autoFormatWeight((item as any).current_weight || 0)}
+                            </span>
+                          </div>
+                        )}
                         {item.min_stock_level && (
                           <p className="text-xs text-gray-400 mt-0.5">
                             최소: {item.min_stock_level.toLocaleString()} {item.unit}

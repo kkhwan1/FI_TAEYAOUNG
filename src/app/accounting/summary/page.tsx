@@ -87,7 +87,12 @@ export default function AccountingSummaryPage() {
       try {
         const queryParams = new URLSearchParams({
           month: selectedMonth,
-          ...(selectedCategory && { category: selectedCategory })
+          ...(selectedCategory && { category: selectedCategory }),
+          ...(searchTerm && { search: searchTerm }),
+          ...(startDate && { startDate }),
+          ...(endDate && { endDate }),
+          ...(minAmount && { minAmount }),
+          ...(maxAmount && { maxAmount })
         });
 
         const { safeFetchJson } = await import('@/lib/fetch-utils');
@@ -118,9 +123,9 @@ export default function AccountingSummaryPage() {
         setLoading(false);
       }
     }, 100);
-    
+
     return () => clearTimeout(timeoutId);
-  }, [selectedMonth, selectedCategory, showToast]);
+  }, [selectedMonth, selectedCategory, searchTerm, startDate, endDate, minAmount, maxAmount, showToast]);
 
   // Handle Excel export
   async function handleExport() {
@@ -128,7 +133,12 @@ export default function AccountingSummaryPage() {
     try {
       const queryParams = new URLSearchParams({
         month: selectedMonth,
-        ...(selectedCategory && { category: selectedCategory })
+        ...(selectedCategory && { category: selectedCategory }),
+        ...(searchTerm && { search: searchTerm }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate }),
+        ...(minAmount && { minAmount }),
+        ...(maxAmount && { maxAmount })
       });
 
       const response = await fetch(

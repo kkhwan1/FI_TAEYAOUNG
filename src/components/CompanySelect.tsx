@@ -15,6 +15,8 @@ interface CompanySelectProps {
   required?: boolean;
   error?: string;
   allowedCompanyNames?: string[];  // 특정 거래처만 표시할 때 사용
+  deliveryOnly?: boolean;  // 납품처((납품처) prefix)만 필터링
+  hideDeliveryPrefix?: boolean;  // 화면 표시 시 "(납품처)" prefix 제거
 }
 
 export default function CompanySelect({
@@ -25,7 +27,9 @@ export default function CompanySelect({
   disabled = false,
   required = false,
   error,
-  allowedCompanyNames
+  allowedCompanyNames,
+  deliveryOnly = false,
+  hideDeliveryPrefix = false
 }: CompanySelectProps) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
@@ -154,9 +158,20 @@ export default function CompanySelect({
     }
   };
 
+  // 거래처명에서 "(납품처)" prefix 제거하는 헬퍼 함수
+  const removeDeliveryPrefix = (name: string): string => {
+    return name.replace(/^\(납품처\)\s*/i, '');
+  };
+
+  // 납품처 여부 확인 헬퍼 함수
+  const isDeliveryCompany = (name: string): boolean => {
+    return name.startsWith('(납품처)');
+  };
+
   const filteredCompanies = companies.filter(company => {
-    // 검색어 필터
-    const matchesSearch = company.company_name.toLowerCase().includes(search.toLowerCase()) ||
+    // 검색어 필터 (prefix 제거 후 검색)
+    const displayName = hideDeliveryPrefix ? removeDeliveryPrefix(company.company_name) : company.company_name;
+    const matchesSearch = displayName.toLowerCase().includes(search.toLowerCase()) ||
       (company.business_number && company.business_number.includes(search)) ||
       (company.representative && company.representative.toLowerCase().includes(search.toLowerCase()));
 
@@ -165,7 +180,10 @@ export default function CompanySelect({
       company.company_name.includes(name) || name.includes(company.company_name)
     );
 
-    return matchesSearch && matchesAllowed;
+    // deliveryOnly가 true이면 납품처만 표시
+    const matchesDelivery = !deliveryOnly || isDeliveryCompany(company.company_name);
+
+    return matchesSearch && matchesAllowed && matchesDelivery;
   });
 
   return (
@@ -192,7 +210,11 @@ export default function CompanySelect({
           {selectedCompany ? (
             <div className="flex items-center justify-between">
               <div className="truncate">
-                <span className="font-medium">{selectedCompany.company_name}</span>
+                <span className="font-medium">
+                  {hideDeliveryPrefix
+                    ? removeDeliveryPrefix(selectedCompany.company_name)
+                    : selectedCompany.company_name}
+                </span>
                 {selectedCompany.business_number && (
                   <span className="text-sm text-gray-500 ml-2">
                     ({selectedCompany.business_number})
@@ -208,7 +230,7 @@ export default function CompanySelect({
                 className="ml-2 text-gray-400 hover:text-gray-600"
                 disabled={disabled}
               >
-                
+
               </button>
             </div>
           ) : (
@@ -266,48 +288,52 @@ export default function CompanySelect({
                   </div>
                 )}
                 {filteredCompanies.length > 0 ? (
-                  filteredCompanies.map((company) => (
-                <div
-                  key={company.company_id}
-                  className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleSelect(company);
-                  }}
-                >
-                  <div className="font-medium text-gray-900 dark:text-white">{company.company_name}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                    {company.business_number && (
-                      <span>사업자: {company.business_number}</span>
-                    )}
-                    {company.representative && (
-                      <span>대표자: {company.representative}</span>
-                    )}
-                    {company.phone && (
-                      <span>전화: {company.phone}</span>
-                    )}
-                  </div>
-                  {(company.company_type || companyType) && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      <span className={`
-                        px-2 py-0.5 rounded-full text-xs
-                        ${companyType === 'CUSTOMER'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                          : companyType === 'SUPPLIER'
-                          ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                        }
-                      `}>
-                        {companyType === 'CUSTOMER' ? '납품처' :
-                         companyType === 'SUPPLIER' ? '공급업체' :
-                         company.company_type === '공급사' ? '공급업체' :
-                         company.company_type === '고객사' ? '고객사' : '기타'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                  ))
+                  filteredCompanies.map((company) => {
+                    const displayName = hideDeliveryPrefix
+                      ? removeDeliveryPrefix(company.company_name)
+                      : company.company_name;
+                    const isDelivery = isDeliveryCompany(company.company_name);
+
+                    return (
+                      <div
+                        key={company.company_id}
+                        className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSelect(company);
+                        }}
+                      >
+                        <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          {displayName}
+                          {isDelivery ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                              납품처
+                            </span>
+                          ) : company.company_type === '공급사' ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                              공급처
+                            </span>
+                          ) : company.company_type === '고객사' ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              고객사
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                          {company.business_number && (
+                            <span>사업자: {company.business_number}</span>
+                          )}
+                          {company.representative && (
+                            <span>대표자: {company.representative}</span>
+                          )}
+                          {company.phone && (
+                            <span>전화: {company.phone}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="p-3 text-center text-gray-500 dark:text-gray-400">
                     {search ? '검색 결과가 없습니다.' : '등록된 거래처가 없습니다.'}

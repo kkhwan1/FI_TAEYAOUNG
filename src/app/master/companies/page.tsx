@@ -373,23 +373,12 @@ export default function CompaniesPage() {
     }
   };
 
-  // 공급사 필터링용 - 5개 업체만 표시
-  const ALLOWED_SUPPLIERS = ['대우당진', '대우포승', '인알파코리아', '풍기서산', '호원오토'];
-
   const filteredCompanies = companies
     .filter(company => {
       // 검색어 필터
       const matchesSearch = company.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         company.business_registration_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         company.contact_person?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // 공급사 타입인 경우 5개 업체만 표시
-      if (selectedType === 'SUPPLIER') {
-        const isAllowedSupplier = ALLOWED_SUPPLIERS.some(name =>
-          company.company_name.includes(name) || name.includes(company.company_name)
-        );
-        return matchesSearch && isAllowedSupplier;
-      }
 
       return matchesSearch;
     })

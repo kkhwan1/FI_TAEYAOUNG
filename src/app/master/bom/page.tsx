@@ -506,7 +506,7 @@ export default function BOMPage() {
 
       const { safeFetchJson } = await import('@/lib/fetch-utils');
       const data = await safeFetchJson(url, {}, {
-        timeout: 30000, // 30초 타임아웃 (대량 데이터 처리)
+        timeout: 10000, // 10초 타임아웃 (대량 데이터 처리)
         maxRetries: 3,
         retryDelay: 1000
       });
@@ -1364,7 +1364,7 @@ export default function BOMPage() {
     try {
       const { safeFetch } = await import('@/lib/fetch-utils');
       const response = await safeFetch('/api/download/template/bom', {}, {
-        timeout: 30000,
+        timeout: 10000,
         maxRetries: 2,
         retryDelay: 1000
       });
