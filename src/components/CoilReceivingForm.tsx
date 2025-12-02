@@ -3,8 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Calendar, Package, Weight, Ruler, Save, X, Calculator, RefreshCw } from 'lucide-react';
-import { CoilReceivingItem, WeightManagedItem, Company } from '@/types/inventory';
+import { CoilReceivingItem, ItemForComponent as Item } from '@/types/inventory';
 import { formatSpec, normalizeWeightToKg, autoFormatWeight } from '@/lib/weight-utils';
+import CompanySelect from '@/components/CompanySelect';
+import ItemSelect from '@/components/ItemSelect';
+import { Database } from '@/types/supabase';
+
+type Company = Database['public']['Tables']['companies']['Row'];
 
 interface CoilReceivingFormProps {
   onSubmit: (data: CoilReceivingFormData) => Promise<void>;
@@ -23,13 +28,12 @@ interface CoilReceivingFormData {
 export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = false }: CoilReceivingFormProps) {
   // Form State
   const [transactionDate, setTransactionDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [weightManagedItems, setWeightManagedItems] = useState<WeightManagedItem[]>([]);
   const [referenceNo, setReferenceNo] = useState('');
 
   // Item Input State
-  const [selectedItem, setSelectedItem] = useState<WeightManagedItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [thickness, setThickness] = useState<string>('');
   const [width, setWidth] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
@@ -37,61 +41,22 @@ export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = fals
   const [unitPrice, setUnitPrice] = useState<string>('');
   const [material, setMaterial] = useState<string>('');
 
-  // Loading states
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
-  const [isLoadingItems, setIsLoadingItems] = useState(false);
-
-  // Fetch suppliers on mount
-  useEffect(() => {
-    fetchCompanies();
-    fetchWeightManagedItems();
-  }, []);
-
-  const fetchCompanies = async () => {
-    setIsLoadingCompanies(true);
-    try {
-      const response = await fetch('/api/companies?type=SUPPLIER');
-      const result = await response.json();
-      if (result.success && result.data) {
-        // Transform API response to match expected format
-        const transformed = result.data.map((c: any) => ({
-          id: c.company_id,
-          name: c.company_name,
-          type: c.company_type
-        }));
-        setCompanies(transformed);
-      }
-    } catch (error) {
-      console.error('Failed to fetch companies:', error);
-    } finally {
-      setIsLoadingCompanies(false);
-    }
+  // Handle company selection
+  const handleCompanyChange = (companyId: number | null, company?: Company) => {
+    setSelectedCompanyId(companyId);
+    setSelectedCompany(company || null);
   };
 
-  const fetchWeightManagedItems = async () => {
-    setIsLoadingItems(true);
-    try {
-      const response = await fetch('/api/items?limit=1000');
-      const result = await response.json();
-      if (result.success && result.data) {
-        // Filter items where is_weight_managed = true
-        const filtered = result.data.filter((item: any) => item.is_weight_managed === true);
-        // Transform to match WeightManagedItem format
-        const transformed = filtered.map((item: any) => ({
-          item_id: item.item_id,
-          item_code: item.item_code,
-          item_name: item.item_name,
-          thickness: item.thickness,
-          width: item.width,
-          is_weight_managed: item.is_weight_managed,
-          current_weight: item.current_weight || 0
-        }));
-        setWeightManagedItems(transformed);
-      }
-    } catch (error) {
-      console.error('Failed to fetch weight managed items:', error);
-    } finally {
-      setIsLoadingItems(false);
+  // Handle item selection
+  const handleItemChange = (item: Item | null) => {
+    setSelectedItem(item);
+    if (item) {
+      // Set thickness and width from selected item if available
+      setThickness(item.thickness?.toString() || '');
+      setWidth(item.width?.toString() || '');
+    } else {
+      setThickness('');
+      setWidth('');
     }
   };
 
@@ -118,15 +83,15 @@ export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = fals
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedCompany || !selectedItem || !weight || !unitPrice) {
+    if (!selectedCompanyId || !selectedItem || !weight || !unitPrice) {
       alert('필수 항목을 모두 입력해주세요.');
       return;
     }
 
     const coilItem: CoilReceivingItem = {
-      item_id: selectedItem.item_id,
-      item_code: selectedItem.item_code,
-      item_name: selectedItem.item_name,
+      item_id: selectedItem.item_id!,
+      item_code: selectedItem.item_code || '',
+      item_name: selectedItem.item_name || '',
       unit: 'kg',
       quantity: 1, // Coils are typically counted as 1 unit
       unit_price: parseFloat(unitPrice),
@@ -141,7 +106,7 @@ export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = fals
 
     const formData: CoilReceivingFormData = {
       transaction_date: transactionDate,
-      company_id: selectedCompany.id,
+      company_id: selectedCompanyId,
       items: [coilItem],
       reference_no: referenceNo || undefined,
       created_by: 1, // TODO: Get from auth context
@@ -195,23 +160,13 @@ export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = fals
           <label className="block text-sm font-medium text-gray-700 mb-1">
             공급업체 *
           </label>
-          <select
-            value={selectedCompany?.id || ''}
-            onChange={(e) => {
-              const company = companies.find(c => c.id === parseInt(e.target.value));
-              setSelectedCompany(company || null);
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+          <CompanySelect
+            value={selectedCompanyId}
+            onChange={handleCompanyChange}
+            companyType="SUPPLIER"
+            placeholder="공급업체를 선택하세요"
             required
-            disabled={isLoadingCompanies}
-          >
-            <option value="">공급업체 선택</option>
-            {companies.map((company) => (
-              <option key={company.id} value={company.id}>
-                {company.name}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {/* Reference Number */}
@@ -249,30 +204,16 @@ export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = fals
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Item Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              품목 *
-            </label>
-            <select
-              value={selectedItem?.item_id || ''}
-              onChange={(e) => {
-                const item = weightManagedItems.find(i => i.item_id === parseInt(e.target.value));
-                setSelectedItem(item || null);
-                if (item) {
-                  setThickness(item.thickness?.toString() || '');
-                  setWidth(item.width?.toString() || '');
-                }
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            <ItemSelect
+              value={selectedItem?.item_id}
+              onChange={handleItemChange}
+              label="품목"
+              placeholder="원자재 선택"
               required
-              disabled={isLoadingItems}
-            >
-              <option value="">원자재 선택</option>
-              {weightManagedItems.map((item) => (
-                <option key={item.item_id} value={item.item_id}>
-                  [{item.item_code}] {item.item_name}
-                </option>
-              ))}
-            </select>
+              showPrice={true}
+              isWeightManaged={true}
+              supplierId={selectedCompanyId}
+            />
           </div>
 
           {/* Material Type */}
@@ -436,7 +377,7 @@ export default function CoilReceivingForm({ onSubmit, onCancel, isLoading = fals
         <button
           type="submit"
           className="px-4 py-2 text-white bg-orange-600 rounded-md hover:bg-orange-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={isLoading || !selectedItem || !weight || !unitPrice}
+          disabled={isLoading || !selectedCompanyId || !selectedItem || !weight || !unitPrice}
         >
           <Save className="h-4 w-4" />
           {isLoading ? '저장 중...' : '입고 등록'}

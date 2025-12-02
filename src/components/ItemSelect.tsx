@@ -7,7 +7,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { ItemForComponent as Item } from '@/types/inventory';
-import type { ItemTypeCode } from '@/types/supabase';
 
 export interface ItemSelectProps {
   value?: number;
@@ -19,9 +18,10 @@ export interface ItemSelectProps {
   disabled?: boolean;
   className?: string;
   showPrice?: boolean;
-  itemType?: 'ALL' | ItemTypeCode;
+  itemType?: 'ALL' | string;
   supplierId?: number | null;
   customerId?: number | null;
+  isWeightManaged?: boolean; // Filter items by is_weight_managed flag
 }
 
 interface ApiSuccessResponse {
@@ -57,7 +57,8 @@ export default function ItemSelect({
   showPrice = true,
   itemType = 'ALL',
   supplierId,
-  customerId
+  customerId,
+  isWeightManaged
 }: ItemSelectProps) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -99,8 +100,9 @@ export default function ItemSelect({
         url += `&category=${encodeURIComponent(category)}`;
       }
 
-      // Filter by supplier if provided
-      if (supplierId) {
+      // Filter by supplier if provided (but NOT for weight-managed items like coils/sheets)
+      // Weight-managed items can be purchased from any supplier, so we don't filter by supplier
+      if (supplierId && !isWeightManaged) {
         url += `&company_id=${supplierId}`;
         }
       }
@@ -155,8 +157,21 @@ export default function ItemSelect({
             const isValid = item.item_id > 0;
             if (!isValid) {
               console.warn(`[ItemSelect] [${index}] 필터링된 품목 (item_id 없음):`, JSON.stringify(item, null, 2));
+              return false;
             }
-            return isValid;
+            
+            // isWeightManaged 필터링 적용
+            if (isWeightManaged !== undefined) {
+              const itemIsWeightManaged = item.is_weight_managed === true;
+              if (isWeightManaged && !itemIsWeightManaged) {
+                return false; // is_weight_managed=true만 원하는데 false인 경우 필터링
+              }
+              if (!isWeightManaged && itemIsWeightManaged) {
+                return false; // is_weight_managed=false만 원하는데 true인 경우 필터링
+              }
+            }
+            
+            return true;
           }); // 유효한 품목만 필터링
 
         console.log(`[ItemSelect] API 응답: customerId=${customerId}, items=${successData.data.items?.length || 0}, transformed=${transformedItems.length}`);
@@ -192,7 +207,7 @@ export default function ItemSelect({
     } finally {
       setLoading(false);
     }
-  }, [customerId, itemType, supplierId]);
+  }, [customerId, itemType, supplierId, isWeightManaged]);
 
   useEffect(() => {
     console.log(`[ItemSelect] useEffect triggered: customerId=${customerId}, itemType=${itemType}, supplierId=${supplierId}`);
@@ -232,8 +247,11 @@ export default function ItemSelect({
         }
         
         // customerId가 있고 items가 있으면 자동으로 드롭다운 열기
-        if (customerId && items.length > 0) {
-          console.log(`[ItemSelect] customerId=${customerId}, items=${items.length}개, 드롭다운 자동 열기`);
+        // 또는 supplierId와 isWeightManaged가 있으면 자동으로 드롭다운 열기 (원자재 입고용)
+        const shouldAutoOpen = (customerId && items.length > 0) ||
+                               (supplierId && isWeightManaged && items.length > 0);
+        if (shouldAutoOpen) {
+          console.log(`[ItemSelect] 자동 드롭다운 열기: customerId=${customerId}, supplierId=${supplierId}, isWeightManaged=${isWeightManaged}, items=${items.length}개`);
           // 입력 필드에 포커스 주기
           if (inputRef.current) {
             inputRef.current.focus();
@@ -252,7 +270,7 @@ export default function ItemSelect({
         setIsOpen(false);
       }
     }
-  }, [items, customerId, search, selectedItem]);
+  }, [items, customerId, supplierId, isWeightManaged, search, selectedItem]);
 
   // Handle search filtering (검색어 변경 시에만)
   useEffect(() => {
