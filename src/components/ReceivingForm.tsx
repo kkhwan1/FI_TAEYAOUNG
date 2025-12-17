@@ -14,6 +14,7 @@ import ItemSelect from '@/components/ItemSelect';
 import CompanySelect from '@/components/CompanySelect';
 import { useToast } from '@/contexts/ToastContext';
 import CoilReceivingForm from '@/components/CoilReceivingForm';
+import { ReceivingHistory } from '@/components/inventory';
 
 type ReceivingTabType = 'submaterial' | 'rawmaterial';
 
@@ -38,6 +39,8 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
   const [supplierItemsSearch, setSupplierItemsSearch] = useState('');
   // 공급업체별 품목 목록에서 수량 입력 저장 (itemId -> quantity)
   const [supplierItemQuantities, setSupplierItemQuantities] = useState<Map<number, number>>(new Map());
+  // P3: 금일 이력 그리드 새로고침 트리거
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   // Load initial data when editing
   useEffect(() => {
@@ -367,6 +370,8 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
         }
 
       await onSubmit(submissionData);
+      // P3: 등록 성공 시 이력 그리드 새로고침
+      setHistoryRefreshTrigger(prev => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -997,6 +1002,14 @@ export default function ReceivingForm({ onSubmit, onCancel, initialData, isEdit 
       </div>
     </form>
       )}
+
+      {/* P3: 금일 입고 이력 그리드 (폼 외부) */}
+      <div className="mt-6">
+        <ReceivingHistory
+          refreshTrigger={historyRefreshTrigger}
+          workDate={formData.transaction_date}
+        />
+      </div>
     </div>
   );
 }

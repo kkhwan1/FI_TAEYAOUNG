@@ -26,6 +26,7 @@ import { Database } from '@/types/supabase';
 import CompanySelect from '@/components/CompanySelect';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useToastNotification } from '@/hooks/useToast';
+import { ShippingHistory } from '@/components/inventory';
 
 // Company type from unified Supabase layer
 type Company = Database['public']['Tables']['companies']['Row'];
@@ -48,6 +49,8 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
   const [products, setProducts] = useState<Product[]>([]);
   const [stockCheckComplete, setStockCheckComplete] = useState(false);
   const [stockChecking, setStockChecking] = useState(false);
+  // P3: 금일 이력 그리드 새로고침 트리거
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
   const [addingProduct, setAddingProduct] = useState(false);
   const [customerItems, setCustomerItems] = useState<Item[]>([]);
   const [selectedCustomerItemIds, setSelectedCustomerItemIds] = useState<Set<number>>(new Set());
@@ -591,6 +594,8 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         }
 
       await onSubmit(submissionData);
+      // P3: 등록 성공 시 이력 그리드 새로고침
+      setHistoryRefreshTrigger(prev => prev + 1);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '출고 등록 중 오류가 발생했습니다.';
       toast.error('출고 등록 실패', errorMessage);
@@ -622,6 +627,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* 월별 단가 안내 배너 */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-start gap-2">
@@ -1143,5 +1149,14 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         </button>
       </div>
     </form>
+
+    {/* P3: 금일 출고 이력 그리드 (폼 외부) */}
+    <div className="mt-6">
+      <ShippingHistory
+        refreshTrigger={historyRefreshTrigger}
+        workDate={formData.transaction_date}
+      />
+    </div>
+    </>
   );
 }

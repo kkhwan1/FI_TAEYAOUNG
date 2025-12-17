@@ -3,7 +3,7 @@
 // Force dynamic rendering to avoid Static Generation errors with React hooks
 export const dynamic = 'force-dynamic';
 
-import { Suspense, useState, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Plus,
@@ -21,12 +21,14 @@ import {
   ArrowDown,
   ArrowUpDown,
   Search,
-  RotateCcw
+  RotateCcw,
+  Link2
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import ReceivingForm from '@/components/ReceivingForm';
 import ProductionForm from '@/components/ProductionForm';
 import ShippingForm from '@/components/ShippingForm';
+import { ProcessProductionTable } from '@/components/processProduction';
 import { TransactionsExportButton, StockExportButton } from '@/components/ExcelExportButton';
 import PrintButton from '@/components/PrintButton';
 import ExcelUploadModal from '@/components/upload/ExcelUploadModal';
@@ -93,6 +95,16 @@ function InventoryContent() {
   const { success: showSuccess, error: showError } = useToast();
   // TASK-001: Comprehensive search filter state
   const [searchTerm, setSearchTerm] = useState<string>('');
+  // 거래 유형 필터 state (생산 관리 탭 전용)
+  const [selectedTransactionType, setSelectedTransactionType] = useState<string>('ALL');
+  // 품목 상세 보기 state (더블클릭 시 활성화)
+  const [selectedItemDetail, setSelectedItemDetail] = useState<{
+    item_id: number | null;
+    item_code: string;
+    item_name: string;
+  } | null>(null);
+  // 금일 출고 이력 state (출고 탭 전용)
+  const [todayShippings, setTodayShippings] = useState<InventoryTransaction[]>([]);
 
   const tabs: InventoryTab[] = [
     {
@@ -138,7 +150,105 @@ function InventoryContent() {
     setSearchTerm('');
     setSelectedClassification(null);
     setSelectedCompany('ALL');
+    setSelectedTransactionType('ALL');
   };
+
+  // 품번/품명 더블클릭 핸들러 - 인라인 상세 보기 토글
+  const handleItemDoubleClick = (transaction: InventoryTransaction) => {
+    const itemId = transaction.item_id || (transaction as any).items?.item_id || null;
+    const itemCode = transaction.item_code || (transaction as any).items?.item_code || '';
+    const itemName = transaction.item_name || (transaction as any).items?.item_name || '';
+
+    // 같은 품목 클릭 시 토글 (닫기)
+    if (selectedItemDetail?.item_code === itemCode) {
+      setSelectedItemDetail(null);
+      return;
+    }
+
+    setSelectedItemDetail({
+      item_id: itemId,
+      item_code: itemCode,
+      item_name: itemName
+    });
+
+    // 인라인 상세가 표시되도록 약간 대기 후 스크롤 (필요시)
+    setTimeout(() => {
+      document.getElementById('item-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  };
+
+  // 선택된 품목의 거래 내역 필터링
+  const itemDetailTransactions = selectedItemDetail
+    ? transactions.filter(tx => {
+        const txItemCode = tx.item_code || (tx as any).items?.item_code;
+        return txItemCode === selectedItemDetail.item_code;
+      })
+    : [];
+
+  // 연관 품목 조회 - 같은 LOT(reference_number)에서 함께 처리된 다른 품목들
+  const relatedItems = useMemo(() => {
+    if (!selectedItemDetail || itemDetailTransactions.length === 0) return [];
+
+    // 선택된 품목의 거래에서 LOT 번호(reference_number) 수집
+    // API는 reference_number를 반환하지만 타입 정의는 reference_no 사용
+    const lotNumbers = new Set<string>();
+    itemDetailTransactions.forEach(tx => {
+      const refNo = (tx as any).reference_number || tx.reference_no;
+      if (refNo) {
+        lotNumbers.add(refNo);
+      }
+    });
+
+    if (lotNumbers.size === 0) return [];
+
+    // 같은 LOT을 가진 다른 품목들 찾기
+    const relatedTxs = transactions.filter(tx => {
+      const txItemCode = tx.item_code || (tx as any).items?.item_code;
+      const refNo = (tx as any).reference_number || tx.reference_no;
+      // 같은 LOT이면서 다른 품목인 경우
+      return refNo && lotNumbers.has(refNo) && txItemCode !== selectedItemDetail.item_code;
+    });
+
+    // 품목별로 그룹화하여 요약
+    const itemMap = new Map<string, {
+      item_code: string;
+      item_name: string;
+      transactions: typeof relatedTxs;
+      totalIn: number;
+      totalOut: number;
+      types: Set<string>;
+    }>();
+
+    relatedTxs.forEach(tx => {
+      const itemCode = tx.item_code || (tx as any).items?.item_code || '';
+      const itemName = tx.item_name || (tx as any).items?.item_name || '';
+      const txType = (tx as any).transaction_type || '';
+
+      if (!itemMap.has(itemCode)) {
+        itemMap.set(itemCode, {
+          item_code: itemCode,
+          item_name: itemName,
+          transactions: [],
+          totalIn: 0,
+          totalOut: 0,
+          types: new Set()
+        });
+      }
+
+      const item = itemMap.get(itemCode)!;
+      item.transactions.push(tx);
+      item.types.add(txType);
+
+      // 입고/산출은 +, 출고/투입은 -
+      if (['입고', '생산입고', '생산산출'].includes(txType)) {
+        item.totalIn += Math.abs(tx.quantity || 0);
+      } else if (['출고', '생산출고', '생산투입'].includes(txType)) {
+        item.totalOut += Math.abs(tx.quantity || 0);
+      }
+    });
+
+    return Array.from(itemMap.values());
+  }, [selectedItemDetail, itemDetailTransactions, transactions]);
 
   const activeTabInfo = tabs.find(tab => tab.id === activeTab)!;
 
@@ -265,6 +375,26 @@ function InventoryContent() {
     }
   };
 
+  // 금일 출고 이력 조회 (출고 탭 전용)
+  const fetchTodayShippings = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const { safeFetchJson } = await import('@/lib/fetch-utils');
+      const data = await safeFetchJson(`/api/inventory/shipping?date=${today}`, {}, {
+        timeout: 15000,
+        maxRetries: 2,
+        retryDelay: 1000
+      });
+
+      if (data.success) {
+        const shippingsData = data.data?.data || data.data?.transactions || data.data || [];
+        setTodayShippings(Array.isArray(shippingsData) ? shippingsData : []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch today shippings:', error);
+    }
+  };
+
   // 실시간 자동 업데이트 (5초마다)
   useEffect(() => {
     fetchStockInfo(); // 초기 로드
@@ -283,8 +413,19 @@ function InventoryContent() {
   useEffect(() => {
     if (refreshKey > 0) {
       fetchStockInfo();
+      // 출고 탭일 경우 금일 출고 이력도 새로고침
+      if (activeTab === 'shipping') {
+        fetchTodayShippings();
+      }
     }
-  }, [refreshKey]);
+  }, [refreshKey, activeTab]);
+
+  // 출고 탭으로 전환 시 금일 출고 이력 조회
+  useEffect(() => {
+    if (activeTab === 'shipping') {
+      fetchTodayShippings();
+    }
+  }, [activeTab]);
 
 
   const handleEdit = (transaction: InventoryTransaction) => {
@@ -597,7 +738,7 @@ function InventoryContent() {
         });
 
         await Promise.all(promises);
-        
+
         setShowModal(false);
         setRefreshKey(prev => prev + 1);
         // 즉시 재고 정보 및 거래 내역 새로고침
@@ -717,7 +858,6 @@ function InventoryContent() {
           setShowModal(false);
           setSelectedTransaction(null);
           setRefreshKey(prev => prev + 1);
-          
           // 즉시 재고 정보 및 거래 내역 새로고침
           await Promise.all([
             fetchStockInfo(),
@@ -745,23 +885,46 @@ function InventoryContent() {
     // 데이터 새로고침
     setRefreshKey(prev => prev + 1);
     await fetchData();
-    
+
     // 성공 메시지 표시
     showSuccess('엑셀 업로드가 완료되었습니다. 데이터가 반영되었습니다.');
   };
 
+  // 거래 유형별 색상 (재고 증가: 파란색/녹색, 재고 감소: 빨간색/주황색)
   const getTransactionTypeColor = (type: string) => {
     switch (type) {
+      // 재고 증가 (입고 계열) - 파란색/녹색
       case '입고':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
       case '생산입고':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      case '생산출고':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+      case '생산산출':
+        return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
+      // 재고 감소 (출고 계열) - 빨간색/주황색
       case '출고':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+      case '생산출고':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
+      case '생산투입':
+        return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
+  };
+
+  // 거래 유형별 아이콘 (재고 증가: ↑, 재고 감소: ↓)
+  const getTransactionTypeIcon = (type: string) => {
+    switch (type) {
+      case '입고':
+      case '생산입고':
+      case '생산산출':
+        return <ArrowUp className="w-3 h-3 inline mr-0.5" />;
+      case '출고':
+      case '생산출고':
+      case '생산투입':
+        return <ArrowDown className="w-3 h-3 inline mr-0.5" />;
+      default:
+        return null;
     }
   };
 
@@ -842,20 +1005,34 @@ function InventoryContent() {
           />
         );
       case 'production':
+        // 신규 등록: 공정별 생산등록 (4탭 UI)
+        // 수정 모드: 기존 ProductionForm 사용
+        if (selectedTransaction) {
+          return (
+            <ProductionForm
+              onSubmit={handleFormSubmit}
+              onCancel={handleCancel}
+              initialData={{
+                transaction_date: selectedTransaction.transaction_date || '',
+                product_item_id: selectedTransaction.item_id || 0,
+                quantity: selectedTransaction.quantity || 0,
+                reference_no: selectedTransaction.reference_no || '',
+                use_bom: true,
+                scrap_quantity: 0,
+                created_by: (selectedTransaction as any).created_by || 1
+              }}
+              isEdit={true}
+            />
+          );
+        }
+        // 신규 생산등록: 공정별 테이블만 표시 (P0-3: 하단 BOM 기반 완제품 생산 숨김)
         return (
-          <ProductionForm
-            onSubmit={handleFormSubmit}
-            onCancel={handleCancel}
-            initialData={selectedTransaction ? {
-              transaction_date: selectedTransaction.transaction_date || '',
-              product_item_id: selectedTransaction.item_id || 0,
-              quantity: selectedTransaction.quantity || 0,
-              reference_no: selectedTransaction.reference_no || '',
-              use_bom: true,
-              scrap_quantity: 0,
-              created_by: (selectedTransaction as any).created_by || 1
-            } : undefined}
-            isEdit={!!selectedTransaction}
+          <ProcessProductionTable
+            onSuccess={() => {
+              setShowModal(false);
+              fetchStockInfo();
+              fetchTransactions();
+            }}
           />
         );
       case 'shipping':
@@ -891,7 +1068,7 @@ function InventoryContent() {
     .filter((item) => selectedCompany === 'ALL' || (item as any).company_id === selectedCompany),
   [stockInfo, selectedClassification, selectedCompany]);
 
-  // Filter transactions: classification and search only (company filter is handled server-side)
+  // Filter transactions: classification, search, and transaction type
   const filteredTransactions = useMemo(() => transactions
     .filter((tx) => {
       if (!selectedClassification) return true;
@@ -907,8 +1084,13 @@ function InventoryContent() {
         (tx.item_code ?? '').toLowerCase().includes(searchLower) ||
         (tx.reference_no && tx.reference_no.toLowerCase().includes(searchLower))
       );
+    })
+    .filter((tx) => {
+      // 거래 유형 필터 (생산 관리 탭)
+      if (selectedTransactionType === 'ALL') return true;
+      return (tx as any).transaction_type === selectedTransactionType;
     }),
-  [transactions, selectedClassification, searchTerm]);
+  [transactions, selectedClassification, searchTerm, selectedTransactionType]);
 
   return (
     <div className="flex flex-col gap-3 sm:gap-6 p-3 sm:p-6 max-w-[2000px] mx-auto">
@@ -1076,7 +1258,28 @@ function InventoryContent() {
                 width="auto"
                 testId="inventory-company-filter"
               />
-              
+
+              {/* 거래 유형 필터 (생산 관리 탭 전용) */}
+              {activeTab === 'production' && (
+                <div className="flex-1">
+                  <label htmlFor="transaction-type-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    거래 유형
+                  </label>
+                  <select
+                    id="transaction-type-filter"
+                    value={selectedTransactionType}
+                    onChange={(e) => setSelectedTransactionType(e.target.value)}
+                    className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="ALL">전체 유형</option>
+                    <option value="생산산출">↑ 생산산출 (재고 증가)</option>
+                    <option value="생산투입">↓ 생산투입 (재고 감소)</option>
+                    <option value="생산입고">↑ 생산입고 (재고 증가)</option>
+                    <option value="생산출고">↓ 생산출고 (재고 감소)</option>
+                  </select>
+                </div>
+              )}
+
               {/* 필터 초기화 버튼 */}
               <div className="flex items-end">
                 <button
@@ -1215,6 +1418,131 @@ function InventoryContent() {
             >
               {deletingTransactionId === -1 ? '삭제 중...' : `선택 항목 삭제 (${selectedIds.size}개)`}
             </button>
+          </div>
+        )}
+
+        {/* 금일 입고 이력 (입고관리 탭만) */}
+        {activeTab === 'receiving' && (() => {
+          const today = new Date().toISOString().split('T')[0];
+          const todayReceiving = transactions.filter(t => {
+            const txDate = new Date(t.created_at || t.transaction_date).toISOString().split('T')[0];
+            return txDate === today;
+          });
+
+          if (todayReceiving.length > 0) {
+            return (
+              <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">금일 입고 이력</h3>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      ({today})
+                    </span>
+                    <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full">
+                      {todayReceiving.length}건
+                    </span>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                        <th className="px-4 py-2 text-center font-semibold">등록시간</th>
+                        <th className="px-4 py-2 text-left font-semibold">품목코드</th>
+                        <th className="px-4 py-2 text-left font-semibold">품명</th>
+                        <th className="px-4 py-2 text-right font-semibold">수량</th>
+                        <th className="px-4 py-2 text-left font-semibold">공급업체</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {todayReceiving.map((tx) => {
+                        const time = new Date(tx.created_at || tx.transaction_date).toLocaleTimeString('ko-KR', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                        return (
+                          <tr key={tx.transaction_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td className="px-4 py-2 text-center text-gray-600 dark:text-gray-400 font-mono">
+                              {time}
+                            </td>
+                            <td className="px-4 py-2 text-gray-900 dark:text-white font-medium">
+                              {tx.item_code}
+                            </td>
+                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                              {tx.item_name}
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-900 dark:text-white font-medium">
+                              {(tx.quantity || 0).toLocaleString()} <span className="text-gray-500 dark:text-gray-400 font-normal">{tx.unit}</span>
+                            </td>
+                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                              {tx.company_name || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {/* 금일 출고 이력 (출고관리 탭만) */}
+        {activeTab === 'shipping' && todayShippings.length > 0 && (
+          <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white">금일 출고 이력</h3>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  ({new Date().toISOString().split('T')[0]})
+                </span>
+                <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full">
+                  {todayShippings.length}건
+                </span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-100 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-center font-semibold">등록시간</th>
+                    <th className="px-4 py-2 text-left font-semibold">품목코드</th>
+                    <th className="px-4 py-2 text-left font-semibold">품명</th>
+                    <th className="px-4 py-2 text-right font-semibold">수량</th>
+                    <th className="px-4 py-2 text-left font-semibold">납품처</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {todayShippings.map((tx) => {
+                    const time = new Date(tx.created_at || tx.transaction_date).toLocaleTimeString('ko-KR', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                    return (
+                      <tr key={tx.transaction_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <td className="px-4 py-2 text-center text-gray-600 dark:text-gray-400 font-mono">
+                          {time}
+                        </td>
+                        <td className="px-4 py-2 text-gray-900 dark:text-white font-medium">
+                          {tx.item_code}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                          {tx.item_name}
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-900 dark:text-white font-medium">
+                          {(tx.quantity || 0).toLocaleString()} <span className="text-gray-500 dark:text-gray-400 font-normal">{tx.unit}</span>
+                        </td>
+                        <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                          {tx.company_name || (tx as any).companies?.company_name || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1423,10 +1751,15 @@ function InventoryContent() {
                         return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
                       }
                     })
-                    .map((transaction) => {
+                    .map((transaction, index, array) => {
                     const shortageTotal = (transaction as any).shortage_total || 0;
+                    const currentItemCode = transaction.item_code || (transaction as any).items?.item_code;
+                    // 선택된 품목의 첫 번째 occurrence인지 확인
+                    const isFirstOccurrenceOfSelectedItem = selectedItemDetail?.item_code === currentItemCode &&
+                      array.findIndex(t => (t.item_code || (t as any).items?.item_code) === currentItemCode) === index;
                     return (
-                      <tr key={transaction.transaction_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <React.Fragment key={transaction.transaction_id}>
+                      <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800 ${selectedItemDetail?.item_code === currentItemCode ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                         <td className="px-3 sm:px-6 py-4 text-center">
                           <input
                             type="checkbox"
@@ -1464,12 +1797,17 @@ function InventoryContent() {
                           </div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 overflow-hidden">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full truncate ${getTransactionTypeColor(transaction.transaction_type || '')}`}>
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full truncate ${getTransactionTypeColor(transaction.transaction_type || '')}`}>
+                            {getTransactionTypeIcon(transaction.transaction_type || '')}
                             {transaction.transaction_type || '-'}
                           </span>
                         </td>
-                        <td className="px-3 sm:px-6 py-4 overflow-hidden">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate" title={transaction.item_code || (transaction as any).items?.item_code || '-'}>
+                        <td
+                          className="px-3 sm:px-6 py-4 overflow-hidden cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          onDoubleClick={() => handleItemDoubleClick(transaction)}
+                          title="더블클릭하여 품목 상세 보기"
+                        >
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate hover:text-blue-600 dark:hover:text-blue-400" title={transaction.item_code || (transaction as any).items?.item_code || '-'}>
                             {transaction.item_code || (transaction as any).items?.item_code || '-'}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400 truncate" title={transaction.item_name || (transaction as any).items?.item_name || '-'}>
@@ -1543,6 +1881,215 @@ function InventoryContent() {
                           </div>
                         </td>
                       </tr>
+                      {/* 인라인 상세 정보 - 품번/품명 더블클릭 시 첫 번째 행 바로 아래에만 표시 */}
+                      {isFirstOccurrenceOfSelectedItem && (
+                        <tr id="item-detail-panel" className="bg-blue-50 dark:bg-blue-900/20">
+                          <td colSpan={10} className="p-0">
+                            <div className="border-l-4 border-blue-500">
+                              {/* 헤더 */}
+                              <div className="px-4 py-2 bg-blue-100 dark:bg-blue-800/50 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                  <span className="font-semibold text-blue-800 dark:text-blue-200">{selectedItemDetail.item_code}</span>
+                                  <span className="text-sm text-blue-600 dark:text-blue-300">{selectedItemDetail.item_name}</span>
+                                </div>
+                                <button
+                                  onClick={() => setSelectedItemDetail(null)}
+                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 px-2 py-1 text-sm rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+                                >
+                                  ✕ 닫기
+                                </button>
+                              </div>
+
+                              {/* 통계 요약 */}
+                              <div className="px-4 py-3 grid grid-cols-4 gap-3">
+                                <div className="bg-white dark:bg-gray-800 rounded px-3 py-2 shadow-sm">
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">총 거래</p>
+                                  <p className="text-lg font-bold text-gray-900 dark:text-white">{itemDetailTransactions.length}건</p>
+                                </div>
+                                <div className="bg-green-50 dark:bg-green-900/30 rounded px-3 py-2 shadow-sm">
+                                  <p className="text-xs text-green-600 dark:text-green-400">입고/산출 ↑</p>
+                                  <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                                    {itemDetailTransactions.filter(tx =>
+                                      ['입고', '생산입고', '생산산출'].includes((tx as any).transaction_type || '')
+                                    ).reduce((sum, tx) => sum + Math.abs(tx.quantity || 0), 0).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="bg-red-50 dark:bg-red-900/30 rounded px-3 py-2 shadow-sm">
+                                  <p className="text-xs text-red-600 dark:text-red-400">출고/투입 ↓</p>
+                                  <p className="text-lg font-bold text-red-700 dark:text-red-300">
+                                    {itemDetailTransactions.filter(tx =>
+                                      ['출고', '생산출고', '생산투입'].includes((tx as any).transaction_type || '')
+                                    ).reduce((sum, tx) => sum + Math.abs(tx.quantity || 0), 0).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="bg-blue-50 dark:bg-blue-900/30 rounded px-3 py-2 shadow-sm">
+                                  <p className="text-xs text-blue-600 dark:text-blue-400">최근 거래</p>
+                                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                                    {itemDetailTransactions.length > 0
+                                      ? new Date((itemDetailTransactions[0] as any).created_at || itemDetailTransactions[0].transaction_date || '').toLocaleDateString('ko-KR')
+                                      : '-'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* 거래 이력 테이블 */}
+                              <div className="px-4 pb-3">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900 rounded overflow-hidden shadow-sm">
+                                  <thead className="bg-gray-100 dark:bg-gray-800">
+                                    <tr>
+                                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400">거래일시</th>
+                                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400">구분</th>
+                                      <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400">수량</th>
+                                      <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400">단가</th>
+                                      <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400">금액</th>
+                                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400">참조번호</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                    {itemDetailTransactions.length === 0 ? (
+                                      <tr>
+                                        <td colSpan={6} className="px-3 py-4 text-center text-gray-500 text-sm">
+                                          거래 내역이 없습니다.
+                                        </td>
+                                      </tr>
+                                    ) : (
+                                      itemDetailTransactions
+                                        .sort((a, b) => {
+                                          const dateA = new Date((a as any).created_at || a.transaction_date || 0).getTime();
+                                          const dateB = new Date((b as any).created_at || b.transaction_date || 0).getTime();
+                                          return dateB - dateA;
+                                        })
+                                        .slice(0, 10)
+                                        .map((tx, idx) => (
+                                          <tr key={tx.transaction_id || idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                            <td className="px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300">
+                                              {(() => {
+                                                const date = (tx as any).created_at || tx.transaction_date;
+                                                return date ? new Date(date).toLocaleString('ko-KR', {
+                                                  month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+                                                }) : '-';
+                                              })()}
+                                            </td>
+                                            <td className="px-3 py-1.5">
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 text-xs rounded-full ${getTransactionTypeColor((tx as any).transaction_type || '')}`}>
+                                                {getTransactionTypeIcon((tx as any).transaction_type || '')}
+                                                {(tx as any).transaction_type || '-'}
+                                              </span>
+                                            </td>
+                                            <td className="px-3 py-1.5 text-xs text-right text-gray-700 dark:text-gray-300">
+                                              {(tx.quantity || 0).toLocaleString()}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-xs text-right text-gray-500 dark:text-gray-400">
+                                              ₩{((tx as any).unit_price || 0).toLocaleString()}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-xs text-right text-gray-700 dark:text-gray-300">
+                                              ₩{((tx as any).total_amount || 0).toLocaleString()}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                              {tx.reference_no || '-'}
+                                            </td>
+                                          </tr>
+                                        ))
+                                    )}
+                                  </tbody>
+                                </table>
+                                {itemDetailTransactions.length > 10 && (
+                                  <div className="text-center py-1 text-xs text-gray-500">
+                                    최근 10건 표시 (전체 {itemDetailTransactions.length}건)
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 연관 품목 섹션 - 같은 LOT에서 함께 처리된 다른 품목들 */}
+                              {relatedItems.length > 0 && (
+                                <div className="px-4 pb-3 mt-2">
+                                  <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                                    <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Link2 className="w-4 h-4 text-blue-500" />
+                                        연관 품목 ({relatedItems.length}개)
+                                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">- 같은 공정에서 함께 처리됨</span>
+                                      </h4>
+                                    </div>
+                                    <table className="w-full text-xs">
+                                      <thead className="bg-gray-50 dark:bg-gray-800">
+                                        <tr>
+                                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">품번</th>
+                                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">품명</th>
+                                          <th className="px-3 py-1.5 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">유형</th>
+                                          <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">입고</th>
+                                          <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">출고</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                        {relatedItems.slice(0, 10).map((item, idx) => (
+                                          <tr
+                                            key={idx}
+                                            className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                                            onClick={() => {
+                                              setSelectedItemDetail({
+                                                item_id: null,
+                                                item_code: item.item_code,
+                                                item_name: item.item_name
+                                              });
+                                            }}
+                                          >
+                                            <td className="px-3 py-1.5 font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                              {item.item_code}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300 truncate max-w-[200px]" title={item.item_name}>
+                                              {item.item_name}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-center">
+                                              <div className="flex flex-wrap gap-1 justify-center">
+                                                {Array.from(item.types).map((type, i) => (
+                                                  <span
+                                                    key={i}
+                                                    className={`px-1.5 py-0.5 rounded text-xs ${getTransactionTypeColor(type)}`}
+                                                  >
+                                                    {type}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right font-medium">
+                                              {item.totalIn > 0 ? (
+                                                <span className="text-green-600 dark:text-green-400 flex items-center justify-end gap-0.5">
+                                                  <ArrowUp className="w-3 h-3" />
+                                                  {item.totalIn.toLocaleString()}
+                                                </span>
+                                              ) : (
+                                                <span className="text-gray-400">-</span>
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right font-medium">
+                                              {item.totalOut > 0 ? (
+                                                <span className="text-red-600 dark:text-red-400 flex items-center justify-end gap-0.5">
+                                                  <ArrowDown className="w-3 h-3" />
+                                                  {item.totalOut.toLocaleString()}
+                                                </span>
+                                              ) : (
+                                                <span className="text-gray-400">-</span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                    {relatedItems.length > 10 && (
+                                      <div className="px-3 py-1.5 text-center text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                                        + {relatedItems.length - 10}개 더 있음
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -1557,15 +2104,15 @@ function InventoryContent() {
         isOpen={showModal}
         onClose={handleModalClose}
         title={
-          selectedTransaction 
+          selectedTransaction
             ? (activeTab === 'receiving' ? '입고 수정' :
                activeTab === 'production' ? '생산 수정' :
                '출고 수정')
             : (activeTab === 'receiving' ? '입고 등록' :
-               activeTab === 'production' ? '생산 등록' :
+               activeTab === 'production' ? '공정별 생산등록' :
                '출고 등록')
         }
-        size={activeTab === 'production' ? '2xl' : 'xl'}
+        size={activeTab === 'production' && !selectedTransaction ? '4xl' : (activeTab === 'production' ? '2xl' : 'xl')}
         maxHeight={activeTab === 'production' ? 'tall' : 'auto'}
       >
         {renderForm()}
