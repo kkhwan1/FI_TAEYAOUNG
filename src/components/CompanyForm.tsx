@@ -6,8 +6,9 @@ import { Save, Loader2 } from 'lucide-react';
 interface Company {
   company_id?: number;
   company_name: string;
-  company_type: 'CUSTOMER' | 'SUPPLIER';
+  company_type: 'CUSTOMER' | 'SUPPLIER' | 'PARTNER';
   business_number?: string;
+  remarks?: string;
   contact_person?: string;
   phone?: string;
   fax?: string;
@@ -66,6 +67,7 @@ export default function CompanyForm({ company, onSubmit, onCancel }: CompanyForm
     company_name: '',
     company_type: 'CUSTOMER',
     business_number: '',
+    remarks: '',
     contact_person: '',
     phone: '',
     fax: '',
@@ -117,6 +119,7 @@ export default function CompanyForm({ company, onSubmit, onCancel }: CompanyForm
         mobile: company.mobile ?? '',
         email: company.email ?? '',
         address: company.address ?? '',
+        remarks: company.remarks ?? '',
         notes: company.notes ?? '',
         company_category: company.company_category ?? '',
         business_info: {
@@ -339,6 +342,7 @@ export default function CompanyForm({ company, onSubmit, onCancel }: CompanyForm
           >
             <option value="CUSTOMER">고객사</option>
             <option value="SUPPLIER">공급사</option>
+            <option value="PARTNER">협력사</option>
           </select>
           {errors.company_type && (
             <p className="mt-1 text-sm text-red-500">{errors.company_type}</p>
@@ -556,12 +560,12 @@ export default function CompanyForm({ company, onSubmit, onCancel }: CompanyForm
           비고
         </label>
         <textarea
-          name="notes"
-          value={formData.notes || ''}
+          name="remarks"
+          value={formData.remarks || ''}
           onChange={handleChange}
           rows={3}
           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
-          placeholder="추가 메모 사항을 입력하세요"
+          placeholder="세금계산서, 사급 관계 등 메모 입력"
         />
       </div>
 

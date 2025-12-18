@@ -8,12 +8,14 @@ export const dynamic = 'force-dynamic';
 
 
 // Company type mapping between Korean (DB) and English (API)
-// 납품처(고객사)와 구매처(공급사)만 허용
+// 고객사, 공급사, 협력사 지원
 const companyTypeMap: Record<string, string> = {
   'CUSTOMER': '고객사',
   'SUPPLIER': '공급사',
+  'PARTNER': '협력사',
   '고객사': '고객사',
-  '공급사': '공급사'
+  '공급사': '공급사',
+  '협력사': '협력사'
 };
 
 /**
@@ -232,7 +234,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       company_category,
       business_info,
       notes,
-      payment_terms
+      payment_terms,
+      remarks
     } = body;
 
     // Get Supabase client from unified db layer
@@ -309,7 +312,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       company_category: company_category || null,
       business_info: business_info || null,
       payment_terms: payment_terms || null,
-      // notes field removed - does not exist in database schema
+      remarks: remarks || null,
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -448,7 +451,12 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (updateData.payment_terms !== undefined) {
       dbUpdateData.payment_terms = updateData.payment_terms;
     }
-    
+
+    // remarks 필드 처리
+    if (updateData.remarks !== undefined) {
+      dbUpdateData.remarks = updateData.remarks;
+    }
+
     // Do not include fields that don't exist in database
     // (mobile, notes are already excluded by not mapping them)
 

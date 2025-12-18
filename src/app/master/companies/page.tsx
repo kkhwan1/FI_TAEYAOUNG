@@ -61,16 +61,18 @@ const ExcelUploadModal = dynamicImport(() => import('@/components/upload/ExcelUp
 interface Company {
   company_id: number;
   company_name: string;
-  company_type: 'CUSTOMER' | 'SUPPLIER';
+  company_type: 'CUSTOMER' | 'SUPPLIER' | 'PARTNER';
   business_registration_no?: string;
   contact_person?: string;
   phone?: string;
+  fax?: string;
   mobile?: string;
   email?: string;
   address?: string;
   payment_terms?: number;
   contact_info?: string;
   notes?: string;
+  remarks?: string;
   is_active: boolean;
   company_category?: string;
   business_info?: {
@@ -102,10 +104,11 @@ export default function CompaniesPage() {
   const { success, error } = useToast();
   const { deleteWithToast, ConfirmDialog } = useConfirm();
 
-  // 납품처(고객사)와 구매처(공급사)만 허용
+  // 고객사, 공급사, 협력사 지원
   const companyTypes = [
     { value: 'CUSTOMER', label: '고객사' },
-    { value: 'SUPPLIER', label: '공급사' }
+    { value: 'SUPPLIER', label: '공급사' },
+    { value: 'PARTNER', label: '협력사' }
   ];
 
   // 인쇄용 컬럼 정의
@@ -791,7 +794,7 @@ export default function CompaniesPage() {
                     </td>
                     <td className="px-3 sm:px-6 py-4 overflow-hidden">
                       <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                        {(company as any).fax || '-'}
+                        {company.fax || '-'}
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 overflow-hidden">
