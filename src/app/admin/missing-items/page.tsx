@@ -182,7 +182,7 @@ export default function MissingItemsPage() {
       {addResult && (
         <div className="mb-6 p-4 bg-white rounded shadow">
           <h2 className="text-xl font-semibold mb-4">
-            추가 결과 {addResult.success ? '✅' : '❌'}
+            추가 결과 {addResult.success ? '(성공)' : '(실패)'}
           </h2>
           <div className="grid grid-cols-4 gap-4 mb-4">
             <div className="p-4 bg-blue-100 rounded">

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         users!created_by(username),
         companies(company_id, company_name)
       `)
-      .in('transaction_type', ['생산입고', '생산출고']);
+      .in('transaction_type', ['생산입고', '생산출고', '생산투입', '생산산출']);
 
     // Apply company filter if provided
     if (companyId) {

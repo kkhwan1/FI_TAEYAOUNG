@@ -73,7 +73,13 @@ type Item = {
   updated_at?: string;
 };
 
-const CATEGORY_OPTIONS: ItemCategory[] = ['원자재', '부자재', '반제품', '제품', '상품'];
+const CATEGORY_OPTIONS: { value: ItemCategory; label: string }[] = [
+  { value: '원자재', label: '원자재' },
+  { value: '부자재', label: '부자재' },
+  { value: '반제품', label: '반제품' },
+  { value: '완제품', label: '완제품' },
+  { value: '상품', label: '상품' }
+];
 const ITEM_TYPE_OPTIONS: { value: ItemTypeCode; label: string }[] = [
   { value: 'RAW', label: '원자재 (RAW)' },
   { value: 'SUB', label: '부자재 (SUB)' },
@@ -114,6 +120,12 @@ const formatCurrency = (value?: number | null) => {
 const formatItemTypeLabel = (itemType?: string | null) => {
   if (!itemType) return '-';
   return ITEM_TYPE_LABEL[itemType] ?? itemType;
+};
+
+const getCategoryLabel = (category?: ItemCategory | null): string => {
+  if (!category) return '-';
+  const found = CATEGORY_OPTIONS.find(opt => opt.value === category);
+  return found ? found.label : category;
 };
 
 export default function ItemsPage() {
@@ -594,8 +606,8 @@ export default function ItemsPage() {
             >
               <option value="">전체 분류</option>
               {CATEGORY_OPTIONS.map((category) => (
-                <option key={category} value={category}>
-                  {category}
+                <option key={category.value} value={category.value}>
+                  {category.label}
                 </option>
               ))}
             </select>
@@ -918,7 +930,7 @@ export default function ItemsPage() {
                     </td>
                     <td className="px-3 sm:px-6 py-4 overflow-hidden text-center">
                       <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                        {item.category ?? '-'}
+                        {getCategoryLabel(item.category)}
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 overflow-hidden text-center">

@@ -7,23 +7,40 @@ import { metricsCollector } from '@/lib/metrics';
 export const dynamic = 'force-dynamic';
 
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   const endpoint = '/api/inventory/receiving';
 
   try {
-    logger.info('Inventory receiving GET request', { endpoint });
+    // Extract query parameters
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('start_date');
+    const endDate = searchParams.get('end_date');
+    const limit = parseInt(searchParams.get('limit') || '100');
+
+    logger.info('Inventory receiving GET request', { endpoint, startDate, endDate, limit });
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Simple query to get receiving transactions
-    const { data: transactions, error } = await supabase
+    // Build query with date filters
+    let query = supabase
       .from('inventory_transactions')
       .select('*')
-      .eq('transaction_type', '입고')
+      .eq('transaction_type', '입고');
+
+    // Apply date filters if provided
+    if (startDate) {
+      query = query.gte('transaction_date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('transaction_date', endDate);
+    }
+
+    // Execute query with ordering and limit
+    const { data: transactions, error } = await query
       .order('transaction_date', { ascending: false })
-      .limit(100);
+      .limit(limit);
 
     if (error) {
       throw new Error(`Database query failed: ${error.message}`);
@@ -35,13 +52,13 @@ export async function GET(): Promise<NextResponse> {
 
     // NOTE: Supabase .in() 쿼리는 빈 배열 전달 시 오류 발생
     // 빈 배열 가드 추가 (2025-11-30)
-    let items: Array<{ item_id: number; item_code: string; item_name: string; spec: string | null; unit: string }> | null = null;
+    let items: Array<{ item_id: number; item_code: string; item_name: string; spec: string | null; unit: string; category: string | null }> | null = null;
     let companies: Array<{ company_id: number; company_name: string }> | null = null;
 
     if (itemIds.length > 0) {
       const { data } = await supabase
         .from('items')
-        .select('item_id, item_code, item_name, spec, unit')
+        .select('item_id, item_code, item_name, spec, unit, category')
         .in('item_id', itemIds);
       items = data;
     }
@@ -54,12 +71,24 @@ export async function GET(): Promise<NextResponse> {
       companies = data;
     }
 
-    // Combine data
-    const enrichedTransactions = transactions?.map(transaction => ({
-      ...transaction,
-      item: items?.find(item => item.item_id === transaction.item_id),
-      company: companies?.find(company => company.company_id === transaction.company_id)
-    })) || [];
+    // Combine data - flatten item and company fields for frontend compatibility
+    const enrichedTransactions = transactions?.map(transaction => {
+      const item = items?.find(i => i.item_id === transaction.item_id);
+      const company = companies?.find(c => c.company_id === transaction.company_id);
+      return {
+        ...transaction,
+        // Flattened fields for direct access
+        item_code: item?.item_code || null,
+        item_name: item?.item_name || null,
+        unit: item?.unit || null,
+        spec: item?.spec || null,
+        category: item?.category || null,
+        company_name: company?.company_name || null,
+        // Keep nested objects for backward compatibility
+        item,
+        company
+      };
+    }) || [];
 
     const duration = Date.now() - startTime;
     metricsCollector.trackRequest(endpoint, duration, false);

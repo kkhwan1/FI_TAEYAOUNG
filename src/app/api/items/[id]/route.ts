@@ -100,15 +100,21 @@ export async function PUT(
     const text = await request.text();
     const body = JSON.parse(text);
 
-    // 필수 필드 검사
-    const requiredFields = ['item_name', 'unit'];
-    const missingFields = requiredFields.filter(field => !body[field]);
+    // 부분 업데이트 모드 확인 (price만 업데이트하는 경우 등)
+    const isPartialUpdate = body.partial === true ||
+      (Object.keys(body).length === 1 && body.price !== undefined);
 
-    if (missingFields.length > 0) {
-      return handleValidationError(
-        missingFields.map(field => `${field}는 필수 입력 항목입니다`),
-        context
-      );
+    // 필수 필드 검사 (부분 업데이트가 아닌 경우에만)
+    if (!isPartialUpdate) {
+      const requiredFields = ['item_name', 'unit'];
+      const missingFields = requiredFields.filter(field => !body[field]);
+
+      if (missingFields.length > 0) {
+        return handleValidationError(
+          missingFields.map(field => `${field}는 필수 입력 항목입니다`),
+          context
+        );
+      }
     }
 
     // 아이템 존재 여부 확인

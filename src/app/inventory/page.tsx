@@ -29,6 +29,7 @@ import ReceivingForm from '@/components/ReceivingForm';
 import ProductionForm from '@/components/ProductionForm';
 import ShippingForm from '@/components/ShippingForm';
 import { ProcessProductionTable } from '@/components/processProduction';
+import { ReceivingTable } from '@/components/inventory';
 import { TransactionsExportButton, StockExportButton } from '@/components/ExcelExportButton';
 import PrintButton from '@/components/PrintButton';
 import ExcelUploadModal from '@/components/upload/ExcelUploadModal';
@@ -983,26 +984,33 @@ function InventoryContent() {
 
     switch (activeTab) {
       case 'receiving':
+        // 수정 모드: 기존 ReceivingForm 사용
+        if (selectedTransaction) {
+          return (
+            <ReceivingForm
+              onSubmit={handleFormSubmit}
+              onCancel={handleCancel}
+              initialData={{
+                transaction_date: selectedTransaction.transaction_date || '',
+                items: [{
+                  item_id: selectedTransaction.item_id || 0,
+                  item_code: (selectedTransaction as any).item_code || '',
+                  item_name: (selectedTransaction as any).item_name || '',
+                  unit: (selectedTransaction as any).unit || 'EA',
+                  quantity: selectedTransaction.quantity || 0,
+                  unit_price: selectedTransaction.unit_price || 0
+                }],
+                company_id: (selectedTransaction as any).company_id || undefined,
+                reference_no: selectedTransaction.reference_no || '',
+                created_by: (selectedTransaction as any).created_by || 1
+              }}
+              isEdit={true}
+            />
+          );
+        }
+        // 신규 입고등록: 입고 유형별 테이블 표시 (코일/시트/부자재/시중구매)
         return (
-          <ReceivingForm
-            onSubmit={handleFormSubmit}
-            onCancel={handleCancel}
-            initialData={selectedTransaction ? {
-              transaction_date: selectedTransaction.transaction_date || '',
-              items: [{
-                item_id: selectedTransaction.item_id || 0,
-                item_code: (selectedTransaction as any).item_code || '',
-                item_name: (selectedTransaction as any).item_name || '',
-                unit: (selectedTransaction as any).unit || 'EA',
-                quantity: selectedTransaction.quantity || 0,
-                unit_price: selectedTransaction.unit_price || 0
-              }],
-              company_id: (selectedTransaction as any).company_id || undefined,
-              reference_no: selectedTransaction.reference_no || '',
-              created_by: (selectedTransaction as any).created_by || 1
-            } : undefined}
-            isEdit={!!selectedTransaction}
-          />
+          <ReceivingTable />
         );
       case 'production':
         // 신규 등록: 공정별 생산등록 (4탭 UI)

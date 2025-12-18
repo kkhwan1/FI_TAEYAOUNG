@@ -320,7 +320,7 @@ export default function CompanySelect({
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                        <div className="text-sm text-gray-900 dark:text-gray-200 flex items-center gap-2">
                           {company.business_number && (
                             <span>사업자: {company.business_number}</span>
                           )}

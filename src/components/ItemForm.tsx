@@ -62,7 +62,7 @@ const ITEM_CATEGORIES: { value: ItemCategory; label: string }[] = [
   { value: '원자재' as ItemCategory, label: '원자재' },
   { value: '부자재' as ItemCategory, label: '부자재' },
   { value: '반제품' as ItemCategory, label: '반제품' },
-  { value: '제품' as ItemCategory, label: '완제품' },
+  { value: '완제품' as ItemCategory, label: '완제품' },
   { value: '상품' as ItemCategory, label: '상품' }
 ];
 

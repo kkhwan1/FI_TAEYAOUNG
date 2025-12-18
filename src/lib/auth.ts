@@ -48,6 +48,29 @@ function verifyToken(token: string): TokenPayload | null {
  */
 export async function getCurrentUser(request?: NextRequest): Promise<User | null> {
   try {
+    // Development mode: bypass authentication
+    if (process.env.BYPASS_AUTH === 'true') {
+      const devUserId = process.env.DEV_USER_ID || '1';
+      const supabase = getSupabaseClient();
+      const { data } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', parseInt(devUserId))
+        .single();
+
+      if (data) {
+        return data as User;
+      }
+      // If no user found in DB, return a mock admin user for development
+      return {
+        user_id: parseInt(devUserId),
+        username: 'dev_admin',
+        name: '개발 관리자',
+        role: 'admin' as UserRole,
+        is_active: true
+      };
+    }
+
     // First try JWT token verification
     const authToken = request
       ? request.cookies.get('auth_token')?.value
