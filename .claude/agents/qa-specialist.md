@@ -11,7 +11,7 @@ trigger_keywords:
   - "버그"
   - "QA"
   - "검증"
-  - "playwright"
+  - "devtools"
   - "jest"
   - "커버리지"
   - "회귀"
@@ -20,7 +20,7 @@ auto_activate: true
 confidence_threshold: 0.75
 
 mcp_servers:
-  - "playwright"
+  - "chrome-devtools"
   - "sequential"
 
 priority_tools:
@@ -53,7 +53,7 @@ E2E 테스트는 위 Supabase 프로젝트의 데이터베이스를 사용합니
 
 ### 2. E2E 테스트
 
-- Playwright 자동화
+- devtool mcp 자동화
 - 크로스 브라우저 테스트
 - 시각적 회귀 테스트
 
@@ -100,26 +100,49 @@ npm run test:e2e:ui
 
 ---
 
-## Playwright MCP 활용
+## Chrome DevTools MCP 활용
 
 ```typescript
+// 페이지 목록 조회
+mcp__chrome-devtools__list_pages()
+
+// 페이지 선택
+mcp__chrome-devtools__select_page({ pageIdx: 0 })
+
 // 페이지 이동
-mcp__playwright__playwright_navigate({ url: 'http://localhost:5000/dashboard' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:5000/dashboard' })
+
+// 스냅샷 (a11y 트리 기반)
+mcp__chrome-devtools__take_snapshot()
 
 // 스크린샷
-mcp__playwright__playwright_screenshot({ name: 'dashboard', fullPage: true })
+mcp__chrome-devtools__take_screenshot({ fullPage: true })
 
-// 요소 클릭
-mcp__playwright__playwright_click({ selector: 'button[type="submit"]' })
+// 요소 클릭 (uid 사용)
+mcp__chrome-devtools__click({ uid: 'submit-btn' })
 
 // 입력
-mcp__playwright__playwright_fill({ selector: 'input[name="item_code"]', value: 'TEST001' })
+mcp__chrome-devtools__fill({ uid: 'item_code', value: 'TEST001' })
 
-// 텍스트 확인
-mcp__playwright__playwright_get_visible_text()
+// 폼 한번에 입력
+mcp__chrome-devtools__fill_form({
+  elements: [
+    { uid: 'item_code', value: 'TEST001' },
+    { uid: 'quantity', value: '100' }
+  ]
+})
 
-// 콘솔 로그
-mcp__playwright__playwright_console_logs({ type: 'error' })
+// 콘솔 로그 확인
+mcp__chrome-devtools__list_console_messages({ types: ['error', 'warning'] })
+
+// 네트워크 요청 확인
+mcp__chrome-devtools__list_network_requests({ resourceTypes: ['fetch', 'xhr'] })
+
+// JavaScript 실행
+mcp__chrome-devtools__evaluate_script({ function: '() => document.title' })
+
+// 키보드 입력
+mcp__chrome-devtools__press_key({ key: 'Enter' })
 ```
 
 ---
