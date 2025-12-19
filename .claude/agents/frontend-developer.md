@@ -26,7 +26,7 @@ confidence_threshold: 0.75
 
 mcp_servers:
   - "context7"
-  - "playwright"
+  - "chrome-devtools"
 
 priority_tools:
   - "Read"

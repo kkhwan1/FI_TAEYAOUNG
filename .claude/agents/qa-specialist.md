@@ -77,7 +77,7 @@ E2E 테스트는 위 Supabase 프로젝트의 데이터베이스를 사용합니
 tests/
 ├── unit/           # Jest 단위 테스트
 ├── api/            # API 테스트
-├── e2e/            # Playwright E2E
+├── e2e/            # E2E 테스트 (DevTools MCP)
 │   └── all-pages.spec.ts
 └── fixtures/       # 테스트 데이터
 ```

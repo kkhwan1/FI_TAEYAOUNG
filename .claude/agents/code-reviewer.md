@@ -15,6 +15,7 @@ trigger_keywords:
   - "개선"
   - "코드 분석"
   - "성능"
+  - "codex"
 
 auto_activate: true
 confidence_threshold: 0.75
@@ -23,10 +24,14 @@ mcp_servers:
   - "sequential"
   - "context7"
 
+skills:
+  - "codex"
+
 priority_tools:
   - "Read"
   - "Grep"
   - "Glob"
+  - "Skill"
 ---
 
 # 코드 리뷰어
@@ -163,6 +168,52 @@ npm run lint
 # 빌드 테스트
 npm run build
 ```
+
+---
+
+## Codex (GPT 5.2) 심층 코드 검토
+
+복잡한 코드 분석이나 아키텍처 리뷰가 필요한 경우 Codex skill을 활용합니다.
+
+### 활용 시나리오
+
+| 시나리오 | 설명 |
+|---------|------|
+| 심층 분석 | 복잡한 비즈니스 로직, 아키텍처 결정 검토 |
+| 버그 탐지 | 잠재적 버그, 엣지 케이스 분석 |
+| 리팩토링 | 대규모 리팩토링 전략 수립 |
+| 보안 감사 | 보안 취약점 심층 분석 |
+
+### Codex 호출 방법
+
+```bash
+# Codex skill 실행
+/codex
+
+# 또는 Skill tool 사용
+Skill({ skill: "codex" })
+```
+
+### 검토 요청 예시
+
+```markdown
+다음 파일의 코드 품질을 심층 분석해주세요:
+- src/lib/bom.ts (BOM 전개 로직)
+- src/lib/transactionManager.ts (트랜잭션 관리)
+
+분석 관점:
+1. 잠재적 버그 및 엣지 케이스
+2. 성능 병목 가능성
+3. 타입 안정성
+4. 에러 핸들링 완전성
+```
+
+### Codex 활용 우선순위
+
+1. **Critical**: 대형 컴포넌트 (75KB+ ProductionForm.tsx)
+2. **High**: 핵심 비즈니스 로직 (bom.ts, transactionManager.ts)
+3. **Medium**: API 라우트 (170개+)
+4. **Low**: 유틸리티 함수
 
 ---
 
