@@ -56,6 +56,14 @@ interface ItemFormValues {
   quality_status?: QualityStatus;
   // 프레스 공정 타입 (블랭킹/성형 구분)
   press_process_type?: 'BLANKING' | 'STAMPING' | null;
+  // 기본 공급업체
+  supplier_id?: number | null;
+}
+
+interface Company {
+  company_id: number;
+  company_name: string;
+  company_type?: string;
 }
 
 const ITEM_CATEGORIES: { value: ItemCategory; label: string }[] = [
@@ -124,7 +132,46 @@ export default function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [mmWeightDirty, setMmWeightDirty] = useState(false);
+  const [suppliers, setSuppliers] = useState<Company[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
   const toast = useToastNotification();
+
+  // 공급업체 목록 조회
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      setSuppliersLoading(true);
+      try {
+        const response = await fetch('/api/companies?type=SUPPLIER&limit=500');
+
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          console.error('API 응답 파싱 실패');
+          setSuppliers([]);
+          return;
+        }
+
+        // API 응답 구조: { success: true, data: { data: [...], meta: {...} } }
+        if (result.success) {
+          const companiesData = result.data?.data || result.data;
+          if (Array.isArray(companiesData)) {
+            setSuppliers(companiesData);
+          } else {
+            setSuppliers([]);
+          }
+        } else {
+          setSuppliers([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch suppliers:', err);
+        setSuppliers([]);
+      } finally {
+        setSuppliersLoading(false);
+      }
+    };
+    fetchSuppliers();
+  }, []);
 
   useEffect(() => {
     if (!item) {
@@ -158,7 +205,8 @@ export default function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
       location: item.location ?? '',
       description: item.description ?? '',
       coating_status: (item as any)?.coating_status ?? 'no_coating',
-      press_process_type: (item as any)?.press_process_type ?? null
+      press_process_type: (item as any)?.press_process_type ?? null,
+      supplier_id: (item as any)?.supplier_id ?? null
     };
 
     setFormData(initialValues);
@@ -330,6 +378,32 @@ export default function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
             error={errors.spec}
             placeholder="예: 0.8T x 1200"
           />
+          {/* 기본 공급업체 선택 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              기본 공급업체
+            </label>
+            <select
+              name="supplier_id"
+              value={formData.supplier_id ?? ''}
+              onChange={(e) => {
+                const value = e.target.value ? Number(e.target.value) : null;
+                setFormData(prev => ({ ...prev, supplier_id: value }));
+              }}
+              disabled={suppliersLoading}
+              className="w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700"
+            >
+              <option value="">공급업체 선택 (선택사항)</option>
+              {suppliers.map(supplier => (
+                <option key={supplier.company_id} value={supplier.company_id}>
+                  {supplier.company_name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              입고 시 이 공급업체를 선택하면 해당 품목이 표시됩니다.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -661,7 +735,8 @@ function buildSubmitPayload(formData: ItemFormValues): Record<string, unknown> {
     press_process_type: formData.press_process_type || null,
     inventory_type: formData.inventory_type || null,
     warehouse_zone: formData.warehouse_zone?.trim() || null,
-    quality_status: formData.quality_status || null
+    quality_status: formData.quality_status || null,
+    supplier_id: formData.supplier_id || null
   };
 }
 

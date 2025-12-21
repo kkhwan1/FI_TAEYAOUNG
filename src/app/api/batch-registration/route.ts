@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/db-unified';
+import { safeJsonParse } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,10 @@ export async function POST(request: NextRequest) {
   try {
     // 한글 깨짐 방지: request.text() + JSON.parse() 패턴 사용
     const text = await request.text();
-    const data = JSON.parse(text);
+    const { data, error: parseError } = safeJsonParse<any>(text);
+    if (parseError || !data) {
+      return NextResponse.json({ success: false, error: '잘못된 요청 형식입니다' }, { status: 400 });
+    }
 
     const {
       batch_date,

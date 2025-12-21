@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/db-unified';
 import { calculateBatchScrapRevenue, calculateActualQuantityWithYield } from '@/lib/bom';
 import { extractCompanyId, applyCompanyFilter } from '@/lib/filters';
+import { safeParseInt } from '@/lib/api-utils';
 import type { Database } from '@/types/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -92,9 +93,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     query = applyCompanyFilter(query, 'bom', customerId, 'customer');
 
     // 기존 필터 적용
-    if (parentItemId) query = query.eq('parent_item_id', parseInt(parentItemId));
-    if (childItemId) query = query.eq('child_item_id', parseInt(childItemId));
-    if (levelNo) query = query.eq('level_no', parseInt(levelNo));
+    if (parentItemId) query = query.eq('parent_item_id', safeParseInt(parentItemId));
+    if (childItemId) query = query.eq('child_item_id', safeParseInt(childItemId));
+    if (levelNo) query = query.eq('level_no', safeParseInt(levelNo));
 
     // Track 2C: Server-side coil filter
     if (coilOnly) {
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Server-side supplier filter
     if (supplierId) {
-      query = query.eq('child_supplier_id', parseInt(supplierId));
+      query = query.eq('child_supplier_id', safeParseInt(supplierId));
     }
 
     // Server-side vehicle type filter with input sanitization
@@ -282,16 +283,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Apply same filters for count (including all server-side filters)
     countQuery = applyCompanyFilter(countQuery, 'bom', customerId, 'customer');
-    if (parentItemId) countQuery = countQuery.eq('parent_item_id', parseInt(parentItemId));
-    if (childItemId) countQuery = countQuery.eq('child_item_id', parseInt(childItemId));
-    if (levelNo) countQuery = countQuery.eq('level_no', parseInt(levelNo));
+    if (parentItemId) countQuery = countQuery.eq('parent_item_id', safeParseInt(parentItemId));
+    if (childItemId) countQuery = countQuery.eq('child_item_id', safeParseInt(childItemId));
+    if (levelNo) countQuery = countQuery.eq('level_no', safeParseInt(levelNo));
 
     // Apply server-side filters to count query
     if (coilOnly) {
       countQuery = countQuery.eq('child.inventory_type', '코일');
     }
     if (supplierId) {
-      countQuery = countQuery.eq('child_supplier_id', parseInt(supplierId));
+      countQuery = countQuery.eq('child_supplier_id', safeParseInt(supplierId));
     }
     if (vehicleType) {
       countQuery = countQuery.or(`parent.vehicle_model.eq.${vehicleType},child.vehicle_model.eq.${vehicleType}`);
@@ -824,7 +825,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     }
 
     // Check if BOM entry exists
-    const bomId = parseInt(id);
+    const bomId = safeParseInt(id);
     const { data: existingBom, error: checkError } = await supabase
       .from('bom')
       .select('bom_id')

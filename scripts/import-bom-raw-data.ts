@@ -157,7 +157,8 @@ if (require.main === module) {
     });
 }
 
-export { parseExcelData, parseNumber, ParsedBOMRow };
+export { parseExcelData, parseNumber };
+export type { ParsedBOMRow };
 
 
 

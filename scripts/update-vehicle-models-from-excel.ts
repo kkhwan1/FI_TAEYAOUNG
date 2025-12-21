@@ -31,6 +31,8 @@ interface ExcelRow {
   품명_구매?: string; // 자식 품목 품명
   'U/S'?: string | number;
   구매처명?: string;
+  // 동적 키 접근을 위한 인덱스 시그니처
+  [key: string]: string | number | null | undefined;
 }
 
 interface VehicleModelUpdate {
@@ -72,10 +74,10 @@ async function extractVehicleModelsFromExcel(
       const 차종_1 = row['차종_1'] || row['차종'];
       const 품번 = row['품번'];
       const 품명 = row['품명'];
-      const 구매처카테고리 = row[''] || row['__EMPTY'];
-      const 구매처명 = row['구매처'];
-      const 품번_구매 = row['품번_1'] || row['품번'];
-      const 품명_구매 = row['품명_1'] || row['품명'];
+      const 구매처카테고리 = row[''] || row['__EMPTY'] || '';
+      const 구매처명 = row['구매처명'];
+      const 품번_구매 = row['품번_구매'] || row['품번'];
+      const 품명_구매 = row['품명_구매'] || row['품명'];
       const US = row['U/S'];
 
       // 상위 품목 (납품처가 있는 행)

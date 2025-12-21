@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { checkPermission } from '@/lib/auth';
 import { validateContract } from '@/lib/contractValidation';
 import { createSuccessResponse, handleSupabaseError, getSupabaseClient } from '@/lib/db-unified';
+import { safeParseInt } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,8 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseClient();
   const { searchParams } = new URL(request.url);
 
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const page = safeParseInt(searchParams.get('page'), 1);
+  const limit = safeParseInt(searchParams.get('limit'), 20);
   const contractType = searchParams.get('contract_type');
   const status = searchParams.get('status');
   const companyId = searchParams.get('company_id');
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (companyId) {
-    query = query.eq('company_id', parseInt(companyId));
+    query = query.eq('company_id', safeParseInt(companyId));
   }
 
   if (search) {

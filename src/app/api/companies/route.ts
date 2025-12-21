@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/db-unified';
-import { APIError, handleAPIError, validateRequiredFields } from '@/lib/api-utils';
+import { APIError, handleAPIError, validateRequiredFields, safeParseInt } from '@/lib/api-utils';
 import { logger } from '@/lib/logger';
 import { metricsCollector } from '@/lib/metrics';
 
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const search = searchParams.get('search');
     // If limit is not specified or is 0, fetch all companies
     const limitParam = searchParams.get('limit');
-    const limit = limitParam ? parseInt(limitParam) : 10000; // Default to large number to fetch all
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = limitParam ? safeParseInt(limitParam, 10000) : 10000; // Default to large number to fetch all
+    const offset = safeParseInt(searchParams.get('offset'), 0);
 
     // Get Supabase client from unified db layer
     const supabase = getSupabaseClient();

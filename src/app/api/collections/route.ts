@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { mcp__supabase__execute_sql } from '@/lib/supabase-mcp';
 import { parsePagination, buildPaginatedResponse } from '@/lib/pagination';
 import { extractCompanyId, applyCompanyFilter } from '@/lib/filters';
+import { safeJsonParse } from '@/lib/api-utils';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -186,7 +187,10 @@ export const POST = async (request: NextRequest) => {
     console.log('=== Collections POST Request Start ===');
     // Korean encoding: Use request.text() + JSON.parse() pattern
     const text = await request.text();
-    const body = JSON.parse(text);
+    const { data: body, error: parseError } = safeJsonParse<any>(text);
+    if (parseError || !body) {
+      return NextResponse.json({ success: false, error: '잘못된 요청 형식입니다' }, { status: 400 });
+    }
 
     // Validate input
     const result = CollectionCreateSchema.safeParse(body);
@@ -549,7 +553,10 @@ export const PUT = async (request: NextRequest) => {
 
     // Korean encoding
     const text = await request.text();
-    const body = JSON.parse(text);
+    const { data: body, error: parseError } = safeJsonParse<any>(text);
+    if (parseError || !body) {
+      return NextResponse.json({ success: false, error: '잘못된 요청 형식입니다' }, { status: 400 });
+    }
 
     // Validate update data
     const result = CollectionUpdateSchema.safeParse(body);

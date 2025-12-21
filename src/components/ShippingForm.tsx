@@ -388,6 +388,12 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
   };
 
   const fetchItemsByCustomer = async (customerId: number) => {
+    if (!customerId) {
+      console.warn('고객사 ID가 선택되지 않았습니다');
+      setCustomerItems([]);
+      return;
+    }
+
     setLoadingCustomerItems(true);
     try {
       const { safeFetchJson } = await import('@/lib/fetch-utils');
@@ -671,7 +677,7 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
             placeholder="고객사를 선택하세요"
             required={false}
             error={errors.customer_id}
-            deliveryOnly={true}
+            deliveryOnly={false}
             hideDeliveryPrefix={true}
           />
         </div>

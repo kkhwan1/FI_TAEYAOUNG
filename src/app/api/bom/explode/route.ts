@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/db-unified';
 import { protectRoute } from '@/lib/middleware';
+import { safeMathMax } from '@/lib/api-utils';
 import {
   explodeBom,
   getBomTree,
@@ -91,7 +92,7 @@ export const GET = protectRoute(
             data: flatData,
             summary: {
               total_items: flatData.length,
-              max_level: Math.max(...flatData.map(item => item.level), 0),
+              max_level: safeMathMax(flatData.map(item => item.level), 0),
               total_cost: flatData.reduce((sum, item) => sum + (item.total_price || 0), 0)
             }
           });

@@ -116,14 +116,41 @@ export function validateArray(value: any, fieldName: string, minLength?: number,
   if (!Array.isArray(value)) {
     throw new APIError(`${fieldName}는 배열이어야 합니다.`, 400, 'INVALID_ARRAY');
   }
-  
+
   if (minLength !== undefined && value.length < minLength) {
     throw new APIError(`${fieldName}는 최소 ${minLength}개 이상이어야 합니다.`, 400, 'ARRAY_TOO_SHORT');
   }
-  
+
   if (maxLength !== undefined && value.length > maxLength) {
     throw new APIError(`${fieldName}는 최대 ${maxLength}개 이하여야 합니다.`, 400, 'ARRAY_TOO_LONG');
   }
-  
+
   return value;
+}
+
+/**
+ * 안전한 parseInt - NaN 반환 방지
+ */
+export function safeParseInt(value: string | null | undefined, fallback: number = 0): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? fallback : parsed;
+}
+
+/**
+ * 안전한 JSON 파싱
+ */
+export function safeJsonParse<T>(text: string): { data: T | null; error: string | null } {
+  try {
+    return { data: JSON.parse(text), error: null };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'JSON 파싱 오류' };
+  }
+}
+
+/**
+ * 안전한 Math.max - 빈 배열 처리
+ */
+export function safeMathMax(arr: number[], fallback: number = 0): number {
+  return arr.length > 0 ? Math.max(...arr) : fallback;
 }

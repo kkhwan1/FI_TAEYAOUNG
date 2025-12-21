@@ -194,7 +194,7 @@ async function importBOMFromExcel() {
       }
 
       // Parent item ID 찾기
-      const parentItemId = await findItemId(currentParentItemCode, currentParentItemName);
+      const parentItemId = await findItemId(currentParentItemCode, currentParentItemName ?? undefined);
       if (!parentItemId) {
         errors.push(`행 ${rowNumber}: 부모 품목을 찾을 수 없습니다 (품번: ${currentParentItemCode})`);
         errorCount++;

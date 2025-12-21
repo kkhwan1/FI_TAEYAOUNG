@@ -212,7 +212,8 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
   };
 
   const filteredParentItems = items.filter(item =>
-    item.category === '제품' &&
+    // 완제품, 반제품 모두 모품목으로 선택 가능 (제조 공정에서 중간 산출물도 모품목이 될 수 있음)
+    (item.category === '완제품' || item.category === '반제품' || item.category === '제품') &&
     (item.item_code.toLowerCase().includes(parentSearchTerm.toLowerCase()) ||
      item.item_name.toLowerCase().includes(parentSearchTerm.toLowerCase()))
   ).slice(0, 10);
@@ -257,15 +258,33 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
     field: string,
     value: string | number | null
   ) => {
+    // Validate and convert value with NaN check
+    let processedValue: string | number | null = value;
+
+    if (value === '' || value === null) {
+      processedValue = null;
+    } else if (typeof value === 'string') {
+      const numValue = Number(value);
+      if (isNaN(numValue)) {
+        console.warn(`[BOMForm] Invalid numeric value for ${field}: "${value}"`);
+        processedValue = null;
+      } else {
+        processedValue = numValue;
+      }
+    } else if (typeof value === 'number' && isNaN(value)) {
+      console.warn(`[BOMForm] NaN detected for ${field}, setting to null`);
+      processedValue = null;
+    }
+
     if (type === 'parent') {
       setParentItemData(prev => ({
         ...prev,
-        [field]: value === '' ? null : (typeof value === 'string' && !isNaN(Number(value)) ? Number(value) : value)
+        [field]: processedValue
       }));
     } else {
       setChildItemData(prev => ({
         ...prev,
-        [field]: value === '' ? null : (typeof value === 'string' && !isNaN(Number(value)) ? Number(value) : value)
+        [field]: processedValue
       }));
     }
   };
@@ -594,7 +613,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                 <input
                   type="number"
                   value={parentItemData.price || ''}
-                  onChange={(e) => handleItemDataChange('parent', 'price', e.target.value ? parseFloat(e.target.value) : null)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const numValue = value ? parseFloat(value) : null;
+                    if (numValue !== null && isNaN(numValue)) {
+                      console.warn('[BOMForm] Invalid price value');
+                      return;
+                    }
+                    handleItemDataChange('parent', 'price', numValue);
+                  }}
                   min="0"
                   step="0.01"
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -621,7 +648,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                   <input
                     type="number"
                     value={parentItemData.thickness || ''}
-                    onChange={(e) => handleItemDataChange('parent', 'thickness', e.target.value ? parseFloat(e.target.value) : null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value ? parseFloat(value) : null;
+                      if (numValue !== null && isNaN(numValue)) {
+                        console.warn('[BOMForm] Invalid thickness value');
+                        return;
+                      }
+                      handleItemDataChange('parent', 'thickness', numValue);
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -635,7 +670,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                   <input
                     type="number"
                     value={parentItemData.width || ''}
-                    onChange={(e) => handleItemDataChange('parent', 'width', e.target.value ? parseFloat(e.target.value) : null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value ? parseFloat(value) : null;
+                      if (numValue !== null && isNaN(numValue)) {
+                        console.warn('[BOMForm] Invalid width value');
+                        return;
+                      }
+                      handleItemDataChange('parent', 'width', numValue);
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -649,7 +692,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                   <input
                     type="number"
                     value={parentItemData.height || ''}
-                    onChange={(e) => handleItemDataChange('parent', 'height', e.target.value ? parseFloat(e.target.value) : null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value ? parseFloat(value) : null;
+                      if (numValue !== null && isNaN(numValue)) {
+                        console.warn('[BOMForm] Invalid height value');
+                        return;
+                      }
+                      handleItemDataChange('parent', 'height', numValue);
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -689,7 +740,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                 <input
                   type="number"
                   value={childItemData.price || ''}
-                  onChange={(e) => handleItemDataChange('child', 'price', e.target.value ? parseFloat(e.target.value) : null)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const numValue = value ? parseFloat(value) : null;
+                    if (numValue !== null && isNaN(numValue)) {
+                      console.warn('[BOMForm] Invalid child price value');
+                      return;
+                    }
+                    handleItemDataChange('child', 'price', numValue);
+                  }}
                   min="0"
                   step="0.01"
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -716,7 +775,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                   <input
                     type="number"
                     value={childItemData.thickness || ''}
-                    onChange={(e) => handleItemDataChange('child', 'thickness', e.target.value ? parseFloat(e.target.value) : null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value ? parseFloat(value) : null;
+                      if (numValue !== null && isNaN(numValue)) {
+                        console.warn('[BOMForm] Invalid child thickness value');
+                        return;
+                      }
+                      handleItemDataChange('child', 'thickness', numValue);
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -730,7 +797,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                   <input
                     type="number"
                     value={childItemData.width || ''}
-                    onChange={(e) => handleItemDataChange('child', 'width', e.target.value ? parseFloat(e.target.value) : null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value ? parseFloat(value) : null;
+                      if (numValue !== null && isNaN(numValue)) {
+                        console.warn('[BOMForm] Invalid child width value');
+                        return;
+                      }
+                      handleItemDataChange('child', 'width', numValue);
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -744,7 +819,15 @@ export default function BOMForm({ bom, items, onSubmit, onCancel }: BOMFormProps
                   <input
                     type="number"
                     value={childItemData.height || ''}
-                    onChange={(e) => handleItemDataChange('child', 'height', e.target.value ? parseFloat(e.target.value) : null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value ? parseFloat(value) : null;
+                      if (numValue !== null && isNaN(numValue)) {
+                        console.warn('[BOMForm] Invalid child height value');
+                        return;
+                      }
+                      handleItemDataChange('child', 'height', numValue);
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
