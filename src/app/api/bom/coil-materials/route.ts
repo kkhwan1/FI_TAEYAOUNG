@@ -88,31 +88,41 @@ export const GET = createValidatedRoute(
         entry.child?.inventory_type === '코일'
       );
 
-      // Step 1: 월별 단가 및 재료비 계산
-      const entriesWithPrice = await Promise.all(
-        coilEntries.map(async (item: any) => {
-          // 월별 단가 조회 (없으면 items.price 사용)
-          // price_month는 DATE 형식이므로 'YYYY-MM-01' 형식으로 변환
-          const monthStr = price_month || new Date().toISOString().slice(0, 7) + '-01';
-          const { data: priceData } = await supabase
-            .from('item_price_history')
-            .select('unit_price')
-            .eq('item_id', item.child_item_id)
-            .eq('price_month', monthStr)
-            .maybeSingle();
+      // Step 1: 월별 단가 일괄 조회 (N+1 쿼리 최적화)
+      const monthStr = price_month || new Date().toISOString().slice(0, 7) + '-01';
+      const childItemIds = coilEntries.map((item: any) => item.child_item_id);
 
-          const unit_price = priceData?.unit_price || item.child?.price || 0;
+      // 모든 가격 이력을 한 번에 조회
+      let priceMap = new Map<number, number>();
+      if (childItemIds.length > 0) {
+        const { data: priceDataList } = await supabase
+          .from('item_price_history')
+          .select('item_id, unit_price')
+          .in('item_id', childItemIds)
+          .eq('price_month', monthStr);
 
-          // 재료비 = 수량 × 단가
-          const material_cost = item.quantity_required * unit_price;
+        // Map으로 변환하여 O(1) 조회
+        if (priceDataList) {
+          priceDataList.forEach((p: any) => {
+            priceMap.set(p.item_id, p.unit_price);
+          });
+        }
+      }
 
-          return {
-            ...item,
-            unit_price,
-            material_cost
-          };
-        })
-      );
+      // 동기적으로 처리 (더 이상 Promise.all 불필요)
+      const entriesWithPrice = coilEntries.map((item: any) => {
+        // Map에서 가격 조회 (없으면 items.price 사용)
+        const unit_price = priceMap.get(item.child_item_id) || item.child?.price || 0;
+
+        // 재료비 = 수량 × 단가
+        const material_cost = item.quantity_required * unit_price;
+
+        return {
+          ...item,
+          unit_price,
+          material_cost
+        };
+      });
 
       // Step 2: 스크랩 수익 계산 및 순재료비
       const enrichedEntries = entriesWithPrice.map((item: any) => {

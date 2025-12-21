@@ -68,6 +68,7 @@ type Item = {
   location?: string | null;
   description?: string | null;
   coating_status?: CoatingStatus | null;
+  supplier_id?: number | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -138,7 +139,7 @@ export default function ItemsPage() {
   const [selectedMaterialType, setSelectedMaterialType] = useState<string>('');
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [selectedCoatingStatus, setSelectedCoatingStatus] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState<number | 'ALL'>('ALL');
+  const [selectedCompany, setSelectedCompany] = useState<number | 'ALL' | 'NONE'>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -153,9 +154,10 @@ export default function ItemsPage() {
 
   // Pagination state
   const [pagination, setPagination] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [currentDirection, setCurrentDirection] = useState<'next' | 'prev'>('next');
-  const [useCursorPagination, setUseCursorPagination] = useState(true);
+  const [useCursorPagination, setUseCursorPagination] = useState(false);  // 오프셋 기반 페이지네이션 사용
   const [sortColumn, setSortColumn] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -166,7 +168,7 @@ export default function ItemsPage() {
 
   // Pagination handlers
   const handlePageChange = (page: number) => {
-    fetchItems(null, 'next');
+    setCurrentPage(page);
   };
 
   const handleCursorChange = (cursor: string | null, direction: 'next' | 'prev') => {
@@ -194,8 +196,13 @@ export default function ItemsPage() {
   useEffect(() => {
     setCurrentCursor(null);
     setCurrentDirection('next');
-    fetchItems(null, 'next');
+    setCurrentPage(1);  // 필터 변경 시 첫 페이지로 리셋
   }, [selectedCategory, selectedItemType, selectedMaterialType, vehicleFilter, selectedCoatingStatus, selectedCompany, sortColumn, sortOrder, searchTerm]);
+
+  // Fetch items when currentPage changes (for offset-based pagination)
+  useEffect(() => {
+    fetchItems(null, 'next');
+  }, [currentPage, selectedCategory, selectedItemType, selectedMaterialType, vehicleFilter, selectedCoatingStatus, selectedCompany, sortColumn, sortOrder, searchTerm]);
 
   const fetchItems = async (cursor?: string | null, direction: 'next' | 'prev' = 'next') => {
     setLoading(true);
@@ -223,13 +230,21 @@ export default function ItemsPage() {
           additionalParams.direction = direction;
         }
       } else {
-        additionalParams.page = '1';
+        additionalParams.page = String(currentPage);
         additionalParams.limit = '20';
+      }
+
+      // 공급업체 필터 처리
+      let companyParam: number | null = null;
+      if (selectedCompany === 'NONE') {
+        additionalParams.supplier_id = 'null'; // 미지정 품목 조회
+      } else if (selectedCompany !== 'ALL') {
+        companyParam = selectedCompany;
       }
 
       const url = buildFilteredApiUrl(
         '/api/items',
-        selectedCompany === 'ALL' ? null : selectedCompany,
+        companyParam,
         additionalParams
       );
 
@@ -389,13 +404,27 @@ export default function ItemsPage() {
       success(editingItem ? '수정 완료' : '등록 완료', message);
       setShowAddModal(false);
       setEditingItem(null);
-      
+
       // 새로 등록한 품목이 즉시 표시되도록 첫 번째 페이지로 이동
       if (!editingItem) {
         setCurrentCursor(null);
         setCurrentDirection('next');
       }
       fetchItems();
+
+      // BroadcastChannel을 통해 다른 페이지에 품목 업데이트 알림
+      try {
+        const channel = new BroadcastChannel('items-update');
+        channel.postMessage({
+          type: 'item-updated',
+          timestamp: Date.now(),
+          action: editingItem ? 'update' : 'create'
+        });
+        channel.close();
+      } catch (broadcastError) {
+        // BroadcastChannel 미지원 브라우저에서는 조용히 실패
+        console.warn('BroadcastChannel not supported:', broadcastError);
+      }
     } catch (err) {
       console.error('Failed to save item:', err);
       error('요청 실패', '품목 정보를 저장하는 중 오류가 발생했습니다.');
@@ -517,73 +546,75 @@ export default function ItemsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-3 sm:p-6 border border-gray-200 dark:border-gray-700">
+      {/* Fixed height header to prevent CLS */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-3 sm:p-6 border border-gray-200 dark:border-gray-700 min-h-[120px]">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex items-center gap-3">
-            
+
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">품목 관리</h1>
-              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">자동차 부품 및 원자재 품목을 관리합니다.</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 leading-tight">품목 관리</h1>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 leading-snug">자동차 부품 및 원자재 품목을 관리합니다.</p>
             </div>
           </div>
-          <div className="flex flex-nowrap gap-1.5 items-center overflow-x-auto pb-1">
+          <div className="flex flex-nowrap gap-1.5 items-center overflow-x-auto pb-1 flex-shrink-0">
             <PrintButton
               data={filteredItems}
               columns={printColumns}
               title="품목 목록"
               subtitle={filtersApplied ? '필터 적용됨' : undefined}
               orientation="landscape"
-              className="bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white whitespace-nowrap text-xs px-2 py-1 flex items-center gap-1 flex-shrink-0"
+              className="bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white whitespace-nowrap text-xs px-2 py-1 flex items-center gap-1 flex-shrink-0 h-8"
             />
             <button
               onClick={handleTemplateDownload}
-              className="flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-xs whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-1 h-8 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-xs whitespace-nowrap flex-shrink-0"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 flex-shrink-0" />
               템플릿 다운로드
             </button>
-            <ItemsExportButton items={filteredItems} filtered={filtersApplied} className="text-xs px-2 py-1 flex-shrink-0" />
+            <ItemsExportButton items={filteredItems} filtered={filtersApplied} className="text-xs px-2 py-1 flex-shrink-0 h-8" />
             <button
               onClick={() => setShowUploadModal(true)}
-              className="flex items-center gap-1 px-2 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-xs whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-1 h-8 bg-gray-800 text-white rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-xs whitespace-nowrap flex-shrink-0"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3.5 h-3.5 flex-shrink-0" />
               일괄 업로드
             </button>
             <button
               onClick={() => setShowAddModal(true)}
               disabled={!canEdit}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors text-xs font-medium whitespace-nowrap flex-shrink-0 ${
-                canEdit 
-                  ? 'bg-gray-800 text-white hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600' 
+              className={`flex items-center gap-1 px-3 py-1.5 h-8 rounded-lg transition-colors text-xs font-medium whitespace-nowrap flex-shrink-0 ${
+                canEdit
+                  ? 'bg-gray-800 text-white hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600'
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-50'
               }`}
               title={!canEdit ? '회계 담당자는 수정할 수 없습니다' : ''}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 flex-shrink-0" />
               품목 등록
             </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
+      {/* Fixed height filter section to prevent CLS */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-700 min-h-[140px] sm:min-h-[80px]">
         {/* Mobile Filter Toggle */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className="sm:hidden flex items-center justify-between w-full mb-3 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="sm:hidden flex items-center justify-between w-full mb-3 px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">필터</span>
-          {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showFilters ? <ChevronUp className="w-4 h-4 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 flex-shrink-0" />}
         </button>
 
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <label htmlFor="search-filter" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="search-filter" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 h-4">
               검색
             </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="relative h-10">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 flex-shrink-0" />
               <input
                 id="search-filter"
                 type="text"
@@ -591,7 +622,7 @@ export default function ItemsPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500"
+                className="w-full h-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500"
               />
             </div>
           </div>
@@ -602,7 +633,7 @@ export default function ItemsPage() {
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               aria-label="분류 필터"
-              className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto h-10 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
               <option value="">전체 분류</option>
               {CATEGORY_OPTIONS.map((category) => (
@@ -618,7 +649,7 @@ export default function ItemsPage() {
               value={selectedItemType}
               onChange={(e) => setSelectedItemType(e.target.value)}
               aria-label="타입 필터"
-              className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto h-10 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
               <option value="">전체 타입</option>
               {ITEM_TYPE_OPTIONS.map((option) => (
@@ -634,7 +665,7 @@ export default function ItemsPage() {
               value={selectedMaterialType}
               onChange={(e) => setSelectedMaterialType(e.target.value)}
               aria-label="소재 필터"
-              className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto h-10 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
               <option value="">전체 소재</option>
               {MATERIAL_TYPE_OPTIONS.map((option) => (
@@ -650,7 +681,7 @@ export default function ItemsPage() {
               value={vehicleFilter}
               onChange={(e) => setVehicleFilter(e.target.value)}
               aria-label="차종 필터"
-              className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto h-10 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
               <option value="">전체 차종</option>
               {vehicleOptions.map((vehicle) => (
@@ -660,16 +691,22 @@ export default function ItemsPage() {
               ))}
             </select>
 
-            <label className="sr-only" htmlFor="company-filter">거래처 필터</label>
+            <label className="sr-only" htmlFor="company-filter">공급업체 필터</label>
             <select
               id="company-filter"
               value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-              aria-label="거래처 필터"
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'ALL') setSelectedCompany('ALL');
+                else if (val === 'NONE') setSelectedCompany('NONE' as any);
+                else setSelectedCompany(Number(val));
+              }}
+              aria-label="공급업체 필터"
               disabled={companiesLoading}
-              className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto h-10 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
-              <option value="ALL">전체 거래처</option>
+              <option value="ALL">전체 공급업체</option>
+              <option value="NONE">미지정 (공급업체 없음)</option>
               {companies.map((company) => (
                 <option key={company.value} value={company.value}>
                   {company.label}
@@ -683,7 +720,7 @@ export default function ItemsPage() {
               value={selectedCoatingStatus}
               onChange={(e) => setSelectedCoatingStatus(e.target.value)}
               aria-label="도장상태 필터"
-              className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto h-10 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
               {COATING_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -695,18 +732,19 @@ export default function ItemsPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <RotateCcw className="w-5 h-5" />
+              <RotateCcw className="w-5 h-5 flex-shrink-0" />
               초기화
             </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {/* Fixed min-height table container to prevent CLS */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden min-h-[600px]">
         {/* View Toggle (Mobile Only) */}
-        <div className="sm:hidden flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+        <div className="sm:hidden flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700 h-12">
           <button
             onClick={() => setViewMode('table')}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -748,10 +786,10 @@ export default function ItemsPage() {
         )}
 
         <div className="overflow-x-auto -mx-2 sm:mx-0">
-          <table className={`w-full divide-y divide-gray-200 dark:divide-gray-700 ${viewMode === 'card' ? 'hidden' : 'table'}`}>
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className={`w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed ${viewMode === 'card' ? 'hidden' : 'table'}`} style={{ minWidth: '1400px' }}>
+            <thead className="bg-gray-50 dark:bg-gray-700 h-14">
               <tr>
-                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap w-12">
+                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '48px' }}>
                   <input
                     type="checkbox"
                     checked={filteredItems.length > 0 && filteredItems.every(item => selectedIds.has(item.item_id))}
@@ -760,127 +798,127 @@ export default function ItemsPage() {
                     aria-label="전체 선택"
                   />
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
                   <button onClick={() => handleSort('item_code')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
                     품목코드
                     {sortColumn === 'item_code' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '180px' }}>
                   <button onClick={() => handleSort('item_name')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
                     품목명
                     {sortColumn === 'item_name' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '80px' }}>
                   <button onClick={() => handleSort('category')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100 mx-auto">
                     분류
                     {sortColumn === 'category' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '80px' }}>
                   <button onClick={() => handleSort('item_type')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100 mx-auto">
                     타입
                     {sortColumn === 'item_type' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
                   <button onClick={() => handleSort('material_type')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100 mx-auto">
                     소재형태
                     {sortColumn === 'material_type' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
                   <button onClick={() => handleSort('vehicle_model')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
                     차종
                     {sortColumn === 'vehicle_model' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '150px' }}>
                   <button onClick={() => handleSort('spec')} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
                     규격 / 소재
                     {sortColumn === 'spec' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
                   <button onClick={() => handleSort('mm_weight')} className="flex items-center gap-1 ml-auto hover:text-gray-700 dark:hover:text-gray-100">
                     단위중량(kg)
                     {sortColumn === 'mm_weight' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '80px' }}>
                   <button onClick={() => handleSort('current_stock')} className="flex items-center gap-1 ml-auto hover:text-gray-700 dark:hover:text-gray-100">
                     현재고
                     {sortColumn === 'current_stock' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '80px' }}>
                   <button onClick={() => handleSort('safety_stock')} className="flex items-center gap-1 ml-auto hover:text-gray-700 dark:hover:text-gray-100">
                     안전재고
                     {sortColumn === 'safety_stock' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
                   <button onClick={() => handleSort('price')} className="flex items-center gap-1 ml-auto hover:text-gray-700 dark:hover:text-gray-100">
                     기준단가
                     {sortColumn === 'price' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '90px' }}>
                   <button onClick={() => handleSort('coating_status')} className="flex items-center gap-1 mx-auto hover:text-gray-700 dark:hover:text-gray-100">
                     도장상태
                     {sortColumn === 'coating_status' ? (
-                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 flex-shrink-0" /> : <ArrowDown className="w-3 h-3 flex-shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-50" />
+                      <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                     )}
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
                   작업
                 </th>
               </tr>
@@ -900,8 +938,8 @@ export default function ItemsPage() {
                 </tr>
               ) : (
                 filteredItems.map((item) => (
-                  <tr key={item.item_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-3 sm:px-6 py-4 text-center">
+                  <tr key={item.item_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 h-16">
+                    <td className="px-3 sm:px-6 py-4 text-center h-16">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(item.item_id)}
@@ -978,38 +1016,38 @@ export default function ItemsPage() {
                         {getCoatingStatusLabel(item.coating_status)}
                       </span>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-3 sm:px-6 py-4 text-center h-16">
+                      <div className="flex items-center justify-center gap-2 h-full">
                         <button
                           onClick={() => {
                             setSelectedItemForImage(item);
                             setShowImageModal(true);
                           }}
-                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center"
                           title="이미지 관리"
                         >
-                          <ImageIcon className="w-4 h-4" />
+                          <ImageIcon className="w-4 h-4 flex-shrink-0" />
                         </button>
                         <button
                           onClick={() => {
                             setEditingItem(item);
                             setShowAddModal(true);
                           }}
-                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center"
                           title="품목 수정"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-4 h-4 flex-shrink-0" />
                         </button>
                         <button
                           onClick={() => handleDelete(item)}
                           disabled={deletingItemId === item.item_id}
-                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed w-8 h-8 flex items-center justify-center"
                           title="품목 삭제"
                         >
                           {deletingItemId === item.item_id ? (
-                            <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
                           ) : (
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 flex-shrink-0" />
                           )}
                         </button>
                       </div>
@@ -1109,18 +1147,18 @@ export default function ItemsPage() {
               )}
         </div>
         )}
-        
-        {/* Pagination */}
-        {pagination && (
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+
+        {/* Fixed height pagination to prevent CLS */}
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 min-h-[80px] flex items-center">
+          {pagination && (
             <Pagination
               pagination={pagination}
               onPageChange={handlePageChange}
               onCursorChange={handleCursorChange}
               loading={loading}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <Modal
@@ -1149,7 +1187,8 @@ export default function ItemsPage() {
             price: editingItem.price != null ? String(editingItem.price) : undefined,
             location: editingItem.location ?? undefined,
             description: editingItem.description ?? undefined,
-            coating_status: editingItem.coating_status ?? undefined
+            coating_status: editingItem.coating_status ?? undefined,
+            supplier_id: editingItem.supplier_id ?? undefined
           } : null}
           onSubmit={handleSaveItem}
           onCancel={handleCloseModal}

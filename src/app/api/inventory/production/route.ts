@@ -54,16 +54,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const uniqueItemIds = [...new Set(priceKeys.map(k => k.item_id))];
     const uniqueMonths = [...new Set(priceKeys.map(k => k.price_month))].filter((m): m is string => m !== null);
 
-    // 배치로 월별 단가 조회
-    const { data: monthlyPrices } = await supabase
-      .from('item_price_history')
-      .select('item_id, price_month, unit_price')
-      .in('item_id', uniqueItemIds)
-      .in('price_month', uniqueMonths);
+    // 빈 배열 가드: .in() 호출 전 체크 (Supabase 에러 방지)
+    let monthlyPrices: any[] = [];
+    if (uniqueItemIds.length > 0 && uniqueMonths.length > 0) {
+      const { data } = await supabase
+        .from('item_price_history')
+        .select('item_id, price_month, unit_price')
+        .in('item_id', uniqueItemIds)
+        .in('price_month', uniqueMonths);
+      monthlyPrices = data || [];
+    }
 
     // Map으로 빠른 조회 (key: 'item_id_price_month', value: unit_price)
     const priceMap = new Map(
-      (monthlyPrices || []).map(p => [`${p.item_id}_${p.price_month}`, p.unit_price])
+      monthlyPrices.map(p => [`${p.item_id}_${p.price_month}`, p.unit_price])
     );
 
     // 2. 각 거래에 대해 BOM 차감 로그 조회 및 단가 적용

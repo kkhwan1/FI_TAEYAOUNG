@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     // PAINT: 반제품 → 완제품
 
     // 카테고리 정규화 함수 (한국어/영어 모두 지원)
-    const normalizeCategory = (cat: string | null): string => {
+    const normalizeCategory = (cat: string | null | undefined): string => {
       if (!cat) return '';
       const lower = cat.toLowerCase();
       // 원자재/코일

@@ -3776,7 +3776,7 @@ export type Database = {
     Enums: {
       adjustment_type: "증가" | "감소" | "정정" | "손실" | "발견" | "기타"
       company_type: "고객사" | "공급사" | "협력사" | "기타"
-      item_category: "원자재" | "부자재" | "반제품" | "제품" | "상품"
+      item_category: "원자재" | "부자재" | "반제품" | "완제품" | "상품" | "제품"
       transaction_status: "대기" | "진행중" | "완료" | "취소"
       transaction_type:
         | "입고"
@@ -3920,7 +3920,7 @@ export const Constants = {
     Enums: {
       adjustment_type: ["증가", "감소", "정정", "손실", "발견", "기타"],
       company_type: ["고객사", "공급사", "협력사", "기타"],
-      item_category: ["원자재", "부자재", "반제품", "제품", "상품"],
+      item_category: ["원자재", "부자재", "반제품", "완제품", "상품", "제품"],
       transaction_status: ["대기", "진행중", "완료", "취소"],
       transaction_type: [
         "입고",
@@ -3939,3 +3939,19 @@ export const Constants = {
     },
   },
 } as const
+
+// ============================================
+// Type Aliases for convenience
+// ============================================
+
+// Items table type aliases
+export type ItemRow = Database["public"]["Tables"]["items"]["Row"];
+export type ItemInsert = Database["public"]["Tables"]["items"]["Insert"];
+export type ItemUpdate = Database["public"]["Tables"]["items"]["Update"];
+
+// Enum type aliases
+export type ItemCategory = Database["public"]["Enums"]["item_category"];
+
+// String literal types (not DB enums)
+export type ItemTypeCode = 'RAW' | 'SUB' | 'SEMI' | 'FINISHED' | 'PRODUCT';
+export type MaterialTypeCode = 'COIL' | 'SHEET' | 'OTHER' | null;

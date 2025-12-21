@@ -1,9 +1,23 @@
 /**
- * Enhanced Transaction Manager for ERP System
- * Provides comprehensive atomic transaction support with rollback capabilities
+ * @deprecated MySQL 레거시 코드 - 완전히 사용 불가
  *
- * Note: This file contains legacy MySQL transaction code that is not used in the Supabase implementation.
- * All transaction management is handled by Supabase PostgreSQL.
+ * ⚠️ 이 파일은 더 이상 사용되지 않으며, Supabase 환경에서 동작하지 않습니다.
+ *
+ * **문제점:**
+ * - Line 249: `if (!connection)` 항상 실패 (connection이 항상 null)
+ * - MySQL connection pool 코드가 모두 비활성화됨
+ * - 모든 트랜잭션 함수가 실행 불가능
+ *
+ * **대안:**
+ * - Supabase 트랜잭션: `src/lib/db-unified.ts`의 `getSupabaseClient()` 사용
+ * - 타입 정의: `src/lib/transaction/types.ts` 참조
+ *
+ * **제거 예정:**
+ * - v2.0.0에서 이 파일은 완전히 제거될 예정입니다.
+ * - 타입 정의만 `src/lib/transaction/types.ts`에 보존됩니다.
+ *
+ * @see {@link src/lib/db-unified.ts} Supabase DB 통합 레이어
+ * @see {@link src/lib/transaction/types.ts} 트랜잭션 타입 정의
  */
 
 // Type definitions for compatibility (MySQL legacy types)
@@ -83,7 +97,12 @@ export interface MaterialShortage {
 }
 
 /**
+ * @deprecated MySQL 레거시 클래스 - 사용 불가
+ *
  * Enhanced transaction manager with retry logic and error handling
+ *
+ * ⚠️ 이 클래스는 Supabase 환경에서 동작하지 않습니다.
+ * `src/lib/db-unified.ts`의 Supabase 클라이언트를 사용하세요.
  */
 export class TransactionManager {
   private static defaultOptions: TransactionOptions = {
@@ -527,7 +546,12 @@ export class TransactionManager {
 }
 
 /**
+ * @deprecated MySQL 레거시 클래스 - 사용 불가
+ *
  * Additional business logic validation functions
+ *
+ * ⚠️ 이 클래스는 Supabase 환경에서 동작하지 않습니다.
+ * API 레벨에서 직접 검증을 수행하세요.
  */
 export class BusinessRuleValidator {
   /**
@@ -659,7 +683,18 @@ export class BusinessRuleValidator {
 }
 
 /**
+ * @deprecated MySQL 레거시 클래스 - 사용 불가
+ *
  * Specific transaction types for ERP operations
+ *
+ * ⚠️ 이 클래스는 Supabase 환경에서 동작하지 않습니다.
+ * API 라우트에서 직접 Supabase 트랜잭션을 사용하세요.
+ *
+ * @example
+ * // 대신 이렇게 사용:
+ * import { getSupabaseClient } from '@/lib/db-unified';
+ * const supabase = getSupabaseClient();
+ * const { data, error } = await supabase.from('inventory_transactions').insert(...);
  */
 export class ERPTransactions {
   /**
@@ -1432,7 +1467,12 @@ export class ERPTransactions {
 }
 
 /**
+ * @deprecated MySQL 레거시 클래스 - 사용 불가
+ *
  * Advanced stock analysis and reporting functions
+ *
+ * ⚠️ 이 클래스는 Supabase 환경에서 동작하지 않습니다.
+ * Supabase 쿼리 또는 RPC 함수를 직접 사용하세요.
  */
 export class StockAnalyzer {
   /**
@@ -1546,7 +1586,12 @@ export class StockAnalyzer {
 }
 
 /**
+ * @deprecated MySQL 레거시 함수 - 사용 불가
+ *
  * Legacy transaction function for backward compatibility
+ *
+ * ⚠️ 이 함수는 Supabase 환경에서 동작하지 않습니다.
+ * Supabase 트랜잭션을 직접 사용하세요.
  */
 export async function transaction<T = any>(
   callback: (connection: PoolConnection) => Promise<T>

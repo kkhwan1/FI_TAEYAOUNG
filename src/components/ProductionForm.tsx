@@ -31,6 +31,7 @@ import ItemSelect from '@/components/ItemSelect';
 import { useBomCheck } from '@/lib/hooks/useBomCheck';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import BOMPreviewPanel from '@/components/inventory/BOMPreviewPanel';
+import BOMRelationshipEditor from '@/components/inventory/BOMRelationshipEditor';
 import { BOMCheckResponse } from '@/types/inventory';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -76,6 +77,16 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
   const [customerItemUnits, setCustomerItemUnits] = useState<Map<number, string>>(new Map());
   // 고객별 품목 목록에서 수량 입력 저장 (itemId -> quantity)
   const [customerItemQuantities, setCustomerItemQuantities] = useState<Map<number, number>>(new Map());
+  // BOM 관계 수정용 상태
+  const [selectedItemForBOM, setSelectedItemForBOM] = useState<{ itemId: number; itemCode: string; itemName: string } | null>(null);
+  const [dismissedBOMWarnings, setDismissedBOMWarnings] = useState<Set<number>>(new Set());
+
+  // BOM 관계 정보 상태 (투입/산출 매칭)
+  const [bomRelationships, setBomRelationships] = useState<{
+    asParent: Array<{ bom_id: number; child_item_id: number; child_code: string; child_name: string; quantity_required: number }>;
+    asChild: Array<{ bom_id: number; parent_item_id: number; parent_code: string; parent_name: string; quantity_required: number }>;
+  } | null>(null);
+  const [loadingBomRelationships, setLoadingBomRelationships] = useState(false);
 
   // New hooks for BOM checking with debounce
   const { data: bomCheckData, loading: bomLoading, error: bomError, checkBom } = useBomCheck();
@@ -152,16 +163,61 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     }
   };
 
+  // BOM 관계 조회 함수
+  const fetchBomRelationships = async (itemId: number) => {
+    setLoadingBomRelationships(true);
+    try {
+      // 1. 해당 품목이 모품목(parent)인 경우 - 산출 품목 선택 시 투입 품목 표시
+      const asParentResponse = await fetch(`/api/bom?parent_item_id=${itemId}&lite=true`);
+      const asParentResult = await asParentResponse.json();
+
+      // 2. 해당 품목이 자품목(child)인 경우 - 투입 품목 선택 시 산출 품목 표시
+      const asChildResponse = await fetch(`/api/bom?child_item_id=${itemId}&lite=true`);
+      const asChildResult = await asChildResponse.json();
+
+      const relationships = {
+        asParent: asParentResult.success && asParentResult.data?.bom_entries
+          ? asParentResult.data.bom_entries.map((entry: any) => ({
+              bom_id: entry.bom_id,
+              child_item_id: entry.child_item_id,
+              child_code: entry.child?.item_code || '',
+              child_name: entry.child?.item_name || '',
+              quantity_required: entry.quantity_required
+            }))
+          : [],
+        asChild: asChildResult.success && asChildResult.data?.bom_entries
+          ? asChildResult.data.bom_entries.map((entry: any) => ({
+              bom_id: entry.bom_id,
+              parent_item_id: entry.parent_item_id,
+              parent_code: entry.parent?.item_code || '',
+              parent_name: entry.parent?.item_name || '',
+              quantity_required: entry.quantity_required
+            }))
+          : []
+      };
+
+      setBomRelationships(relationships);
+    } catch (error) {
+      console.error('Failed to fetch BOM relationships:', error);
+      setBomRelationships(null);
+    } finally {
+      setLoadingBomRelationships(false);
+    }
+  };
+
   const handleProductSelect = (item: Item | null) => {
     if (item) {
       const product = item as Product;
       const productId = product.item_id || product.id;
-      
+
       setSelectedProduct({ ...product, item_id: productId, id: productId } as Product);
       setFormData(prev => ({
         ...prev,
         product_item_id: productId
       }));
+
+      // BOM 관계 조회 (자동 매칭)
+      fetchBomRelationships(productId);
 
       // Clear product selection error
       if (errors.product_item_id) {
@@ -170,6 +226,7 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     } else {
       setSelectedProduct(null);
       setFormData(prev => ({ ...prev, product_item_id: 0 }));
+      setBomRelationships(null);
     }
   };
 
@@ -238,6 +295,9 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
     const numValue = value ? Number(value) : null;
     setCustomerId(numValue);
     setSelectedCustomerItemIds(new Set()); // 선택 초기화
+    // BOM 경고 상태 초기화
+    setDismissedBOMWarnings(new Set());
+    setSelectedItemForBOM(null);
 
     // 고객 선택 시 관련 품목 목록 조회 (공정구분 및 프레스 용량 필터링 포함)
     if (numValue) {
@@ -246,6 +306,24 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
       setCustomerItems([]);
     }
   };
+
+  // BroadcastChannel을 통한 품목 업데이트 수신
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('items-update');
+      channel.onmessage = (event) => {
+        console.log('품목 업데이트 수신:', event.data);
+        // 고객사가 선택되어 있으면 품목 목록 새로고침
+        if (customerId) {
+          fetchItemsByCustomer(customerId, processTypes, selectedCapacities);
+        }
+      };
+      return () => channel.close();
+    } catch (error) {
+      // BroadcastChannel 미지원 브라우저에서는 조용히 실패
+      console.warn('BroadcastChannel not supported:', error);
+    }
+  }, [customerId, processTypes, selectedCapacities]);
 
   // 공정구분 또는 프레스 용량 변경 시 품목 목록 갱신
   useEffect(() => {
@@ -263,6 +341,15 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
         newSet.delete(itemId);
       } else {
         newSet.add(itemId);
+        // BOM 관계 확인을 위해 선택된 품목 설정
+        const item = customerItems.find(i => (i.item_id || i.id) === itemId);
+        if (item) {
+          setSelectedItemForBOM({
+            itemId: itemId,
+            itemCode: item.item_code,
+            itemName: item.item_name
+          });
+        }
       }
       return newSet;
     });
@@ -806,6 +893,27 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
 
       </div>
 
+      {/* BOM 관계 수정 경고 */}
+      {selectedItemForBOM && customerId && !dismissedBOMWarnings.has(selectedItemForBOM.itemId) && (
+        <BOMRelationshipEditor
+          itemId={selectedItemForBOM.itemId}
+          itemCode={selectedItemForBOM.itemCode}
+          itemName={selectedItemForBOM.itemName}
+          mode="production"
+          expectedCompanyId={customerId}
+          onUpdate={() => {
+            if (customerId) {
+              fetchItemsByCustomer(customerId, processTypes, selectedCapacities);
+            }
+            setSelectedItemForBOM(null);
+          }}
+          onDismiss={() => {
+            setDismissedBOMWarnings(prev => new Set(prev).add(selectedItemForBOM.itemId));
+            setSelectedItemForBOM(null);
+          }}
+        />
+      )}
+
       {/* 고객별 품목 목록 */}
       {customerId && (
         <div className="space-y-3">
@@ -874,6 +982,9 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[200px]">
                       품명
                     </th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-32">
+                      규격
+                    </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-24">
                       수량
                     </th>
@@ -924,6 +1035,17 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                           {isAlreadyAdded && (
                             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(이미 추가됨)</span>
                           )}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs text-gray-600 dark:text-gray-400">
+                          {/* 규격 정보: 재질, 두께×폭×길이 */}
+                          {item.material && <div className="font-medium">{item.material}</div>}
+                          {(item.thickness || item.width || item.height) && (
+                            <div>
+                              {item.thickness || '-'}×{item.width || '-'}
+                              {item.height ? `×${item.height}` : ''}
+                            </div>
+                          )}
+                          {!item.material && !item.thickness && !item.width && '-'}
                         </td>
                         <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                           <input
@@ -1286,6 +1408,73 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
 
       </div>
 
+      {/* BOM 관계 정보 표시 (자동 매칭) */}
+      {selectedProduct && bomRelationships && !isBatchMode && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            BOM 관계 자동 매칭
+          </h4>
+
+          {loadingBomRelationships ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              <span className="ml-2 text-sm text-blue-700 dark:text-blue-400">BOM 관계 조회 중...</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* 투입 품목 (이 품목이 산출품일 때 필요한 투입품) */}
+              {bomRelationships.asParent.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-100 dark:border-blue-800">
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                    📥 투입 품목 (이 제품 생산에 필요한 자재)
+                  </div>
+                  <div className="space-y-1.5">
+                    {bomRelationships.asParent.map((rel) => (
+                      <div key={rel.bom_id} className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-900/50 rounded px-3 py-2">
+                        <span className="font-mono text-gray-700 dark:text-gray-300">{rel.child_code}</span>
+                        <span className="text-gray-900 dark:text-white flex-1">{rel.child_name}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">
+                          × {rel.quantity_required}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 산출 품목 (이 품목을 투입하여 만들 수 있는 산출품) */}
+              {bomRelationships.asChild.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-100 dark:border-green-800">
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                    📤 산출 품목 (이 자재로 생산 가능한 제품)
+                  </div>
+                  <div className="space-y-1.5">
+                    {bomRelationships.asChild.map((rel) => (
+                      <div key={rel.bom_id} className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-900/50 rounded px-3 py-2">
+                        <span className="font-mono text-gray-700 dark:text-gray-300">{rel.parent_code}</span>
+                        <span className="text-gray-900 dark:text-white flex-1">{rel.parent_name}</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">
+                          ÷ {rel.quantity_required}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {bomRelationships.asParent.length === 0 && bomRelationships.asChild.length === 0 && (
+                <div className="text-center py-3 text-sm text-gray-500 dark:text-gray-400">
+                  이 품목과 연결된 BOM 관계가 없습니다.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* BOM Preview Panel */}
       {formData.use_bom && (
         <>
@@ -1359,14 +1548,13 @@ export default function ProductionForm({ onSubmit, onCancel }: ProductionFormPro
                     {bomCheckData.can_produce ? '충분' : '부족'}
                   </span>
                 </div>
-                {!bomCheckData.can_produce && (
-                  <div>
-                    <span className="text-gray-500 dark:text-gray-400">최대 생산가능:</span>
-                    <span className="ml-2 font-bold text-orange-600 dark:text-orange-400">
-                      {bomCheckData.summary.max_producible_quantity}개
-                    </span>
-                  </div>
-                )}
+                {/* 항상 생산 가능 수량 표시 */}
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">최대 생산가능:</span>
+                  <span className={`ml-2 font-bold ${bomCheckData.can_produce ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                    {bomCheckData.summary?.max_producible_quantity?.toLocaleString('ko-KR') || 0}개
+                  </span>
+                </div>
               </>
             )}
           </div>

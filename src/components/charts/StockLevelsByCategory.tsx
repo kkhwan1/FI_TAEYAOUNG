@@ -360,7 +360,7 @@ export const StockLevelsByCategory: React.FC<StockLevelsByCategoryProps> = ({
       </div>
 
       {/* Chart */}
-          <div className="h-48 sm:h-56 lg:h-64" ref={chartRef}>
+      <div className="h-48 sm:h-56 lg:h-64 min-h-[192px] sm:min-h-[224px] lg:min-h-[256px]" ref={chartRef}>
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500"></div>

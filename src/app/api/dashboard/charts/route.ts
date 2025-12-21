@@ -96,7 +96,10 @@ export async function GET(request: Request) {
       stockItemsQuery = stockItemsQuery.eq('supplier_id', parseInt(supplierId, 10));
     }
     if (category) {
-      stockItemsQuery = stockItemsQuery.eq('category', category);
+      const validCategories = ['원자재', '부자재', '반제품', '제품', '상품'] as const;
+      if (validCategories.includes(category as typeof validCategories[number])) {
+        stockItemsQuery = stockItemsQuery.eq('category', category as typeof validCategories[number]);
+      }
     }
 
     const { data: stockItems, error: stockError } = await stockItemsQuery.order('current_stock', { ascending: true });
@@ -118,7 +121,10 @@ export async function GET(request: Request) {
       itemsWithPricesQuery = itemsWithPricesQuery.eq('supplier_id', parseInt(supplierId, 10));
     }
     if (category) {
-      itemsWithPricesQuery = itemsWithPricesQuery.eq('category', category);
+      const validCategories = ['원자재', '부자재', '반제품', '제품', '상품'] as const;
+      if (validCategories.includes(category as typeof validCategories[number])) {
+        itemsWithPricesQuery = itemsWithPricesQuery.eq('category', category as typeof validCategories[number]);
+      }
     }
 
     const { data: itemsWithPrices, error: itemsPriceError } = await itemsWithPricesQuery;

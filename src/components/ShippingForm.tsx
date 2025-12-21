@@ -27,6 +27,7 @@ import CompanySelect from '@/components/CompanySelect';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useToastNotification } from '@/hooks/useToast';
 import { ShippingHistory } from '@/components/inventory';
+import BOMRelationshipEditor from '@/components/inventory/BOMRelationshipEditor';
 
 // Company type from unified Supabase layer
 type Company = Database['public']['Tables']['companies']['Row'];
@@ -58,6 +59,9 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
   const [customerItemsSearch, setCustomerItemsSearch] = useState('');
   // 고객별 품목 목록에서 수량 입력 저장 (itemId -> quantity)
   const [customerItemQuantities, setCustomerItemQuantities] = useState<Map<number, number>>(new Map());
+  // BOM 관계 수정용 상태
+  const [selectedItemForBOM, setSelectedItemForBOM] = useState<{ itemId: number; itemCode: string; itemName: string } | null>(null);
+  const [dismissedBOMWarnings, setDismissedBOMWarnings] = useState<Set<number>>(new Set());
   const toast = useToastNotification();
 
   // Load initial data when editing
@@ -373,6 +377,9 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
     }));
 
     setSelectedCustomerItemIds(new Set()); // 선택 초기화
+    // BOM 경고 상태 초기화
+    setDismissedBOMWarnings(new Set());
+    setSelectedItemForBOM(null);
 
     // Clear customer error
     if (errors.customer_id) {
@@ -386,6 +393,24 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
       setCustomerItems([]);
     }
   };
+
+  // BroadcastChannel을 통한 품목 업데이트 수신
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('items-update');
+      channel.onmessage = (event) => {
+        console.log('품목 업데이트 수신:', event.data);
+        // 고객사가 선택되어 있으면 품목 목록 새로고침
+        if (formData.customer_id) {
+          fetchItemsByCustomer(formData.customer_id);
+        }
+      };
+      return () => channel.close();
+    } catch (error) {
+      // BroadcastChannel 미지원 브라우저에서는 조용히 실패
+      console.warn('BroadcastChannel not supported:', error);
+    }
+  }, [formData.customer_id]);
 
   const fetchItemsByCustomer = async (customerId: number) => {
     if (!customerId) {
@@ -428,6 +453,15 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         newSet.delete(itemId);
       } else {
         newSet.add(itemId);
+        // BOM 관계 확인을 위해 선택된 품목 설정
+        const item = customerItems.find(i => (i.item_id || i.id) === itemId);
+        if (item) {
+          setSelectedItemForBOM({
+            itemId: itemId,
+            itemCode: item.item_code,
+            itemName: item.item_name
+          });
+        }
       }
       return newSet;
     });
@@ -683,6 +717,27 @@ export default function ShippingForm({ onSubmit, onCancel, initialData, isEdit }
         </div>
 
       </div>
+
+      {/* BOM 관계 수정 경고 */}
+      {selectedItemForBOM && formData.customer_id && !dismissedBOMWarnings.has(selectedItemForBOM.itemId) && (
+        <BOMRelationshipEditor
+          itemId={selectedItemForBOM.itemId}
+          itemCode={selectedItemForBOM.itemCode}
+          itemName={selectedItemForBOM.itemName}
+          mode="shipping"
+          expectedCompanyId={formData.customer_id}
+          onUpdate={() => {
+            if (formData.customer_id) {
+              fetchItemsByCustomer(formData.customer_id);
+            }
+            setSelectedItemForBOM(null);
+          }}
+          onDismiss={() => {
+            setDismissedBOMWarnings(prev => new Set(prev).add(selectedItemForBOM.itemId));
+            setSelectedItemForBOM(null);
+          }}
+        />
+      )}
 
       {/* 고객별 품목 목록 */}
       {formData.customer_id && (

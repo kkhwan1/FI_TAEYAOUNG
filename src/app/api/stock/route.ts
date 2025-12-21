@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createValidatedRoute } from '@/lib/validationMiddleware';
 import { getSupabaseClient } from '@/lib/db-unified';
 import { type InventoryType, type QualityStatus } from '@/lib/constants/inventoryTypes';
+import { parsePagination, buildPaginatedResponse, getPaginationFromSearchParams } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
+
+// Cache configuration
+const CACHE_DURATION = 30; // seconds
 
 
 interface CurrentStock {
@@ -47,13 +51,20 @@ export const GET = createValidatedRoute(
     const search = searchParams.get('search');
     const supplierId = searchParams.get('supplier_id');
 
+    // Get pagination parameters
+    const paginationInput = getPaginationFromSearchParams(searchParams);
+    const paginationParams = parsePagination(paginationInput, {
+      page: 1,
+      limit: 100, // Default 100 items per page
+      maxLimit: 500 // Max 500 items for stock view
+    });
+
     const supabase = getSupabaseClient();
 
-    // Build query - get stock data from items table (Phase 3: includes classification fields)
-    // 규격 및 모든 숫자 필드 포함
+    // OPTIMIZED: Build query with pagination and count
     let query = supabase
       .from('items')
-      .select('item_id, item_code, item_name, spec, category, unit, current_stock, safety_stock, price, thickness, width, height, specific_gravity, mm_weight, daily_requirement, blank_size, material, vehicle_model, item_type, material_type, is_active, inventory_type, warehouse_zone, quality_status, supplier_id, is_weight_managed, current_weight')
+      .select('item_id, item_code, item_name, spec, category, unit, current_stock, safety_stock, price, thickness, width, height, specific_gravity, mm_weight, daily_requirement, blank_size, material, vehicle_model, item_type, material_type, is_active, inventory_type, warehouse_zone, quality_status, supplier_id, is_weight_managed, current_weight', { count: 'exact' })
       .eq('is_active', true);
 
     // Apply filters
@@ -73,10 +84,14 @@ export const GET = createValidatedRoute(
       }
     }
 
-    // Apply ordering
-    query = query.order('item_code', { ascending: true });
+    // OPTIMIZED: Apply pagination
+    const offset = paginationParams.offset;
 
-    const { data: items, error } = await query;
+    query = query
+      .order('item_code', { ascending: true })
+      .range(offset, offset + paginationParams.limit - 1);
+
+    const { data: items, error, count } = await query;
 
     if (error) {
       console.error('Error fetching current stock:', error);
@@ -219,19 +234,32 @@ export const GET = createValidatedRoute(
       filteredStocks = stocks.filter(s => !s.is_low_stock);
     }
 
-    // Calculate summary statistics
+    // Calculate summary statistics (optimized for pagination)
     const summary = {
-      total_items: filteredStocks.length,
+      total_items: count || 0,
       normal_items: filteredStocks.filter(s => !s.is_low_stock).length,
       low_stock_items: filteredStocks.filter(s => s.is_low_stock).length,
       total_value: filteredStocks.reduce((sum, s) => sum + s.stock_value, 0)
     };
 
+    // Build paginated response
+    const response = buildPaginatedResponse(filteredStocks, count || 0, {
+      page: paginationParams.page,
+      limit: paginationParams.limit
+    });
+
+    // Set cache headers for 30 seconds
+    const headers = new Headers({
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': `public, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`
+    });
+
     return NextResponse.json({
       success: true,
-      data: filteredStocks,
+      data: response.data,
+      pagination: response.pagination,
       summary
-    });
+    }, { headers });
   } catch (error) {
     console.error('Error fetching current stock:', error);
     return NextResponse.json(

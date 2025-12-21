@@ -300,7 +300,7 @@ export const TransactionChart: React.FC<TransactionChartProps> = ({
       )}
 
       {/* Chart */}
-      <div className="h-80" ref={chartRef}>
+      <div className="h-80 min-h-[320px]" ref={chartRef}>
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 dark:border-gray-400"></div>

@@ -58,6 +58,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:price-analysis": "playwright test tests/price-analysis-e2e.spec.ts",
     "test:press-process": "node scripts/test-press-process-e2e.js",
+    "test:p0": "node scripts/p0-transaction-test.js",
+    "test:p0:flow": "node scripts/p0-transaction-test.js",
     "api:normalize": "node scripts/api-normalizer.js",
     "code-review": "node scripts/code-review-helper.js full",
     "code-review:summary": "node scripts/code-review-helper.js summary",

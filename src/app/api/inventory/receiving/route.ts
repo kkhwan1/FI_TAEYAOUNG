@@ -138,6 +138,94 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 400 });
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 일괄 등록 형식 처리 (work_date + items 배열)
+    if (body.items && Array.isArray(body.items)) {
+      const { work_date, company_id: batchCompanyId, items, receiving_type, receiving_sub_type } = body;
+
+      if (!work_date || items.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: '작업일자와 품목 정보가 필요합니다.'
+        }, { status: 400 });
+      }
+
+      const results = [];
+      for (const item of items) {
+        const { item_id, quantity, unit_price = 0, weight, thickness, width } = item;
+
+        if (!item_id || (quantity === undefined && weight === undefined)) {
+          continue; // 유효하지 않은 항목 스킵
+        }
+
+        // 중량 정규화
+        const normalizedWeight = weight || null;
+        const finalQuantity = quantity || weight || 0;
+
+        // Insert transaction
+        const { data: transactionData, error: transactionError } = await supabase
+          .from('inventory_transactions')
+          .insert({
+            item_id,
+            company_id: batchCompanyId,
+            transaction_type: '입고',
+            quantity: finalQuantity,
+            unit_price: unit_price || 0,
+            total_amount: finalQuantity * (unit_price || 0),
+            transaction_date: work_date,
+            status: '완료',
+            weight: normalizedWeight,
+            weight_unit: normalizedWeight ? 'kg' : null,
+            notes: receiving_type ? `${receiving_type}${receiving_sub_type ? '-' + receiving_sub_type : ''}` : null
+          })
+          .select('transaction_id')
+          .single();
+
+        if (transactionError) {
+          console.error('Batch transaction error:', transactionError);
+          continue;
+        }
+
+        // 중량 관리 품목인 경우 current_weight 업데이트
+        if (normalizedWeight) {
+          const { data: itemData } = await supabase
+            .from('items')
+            .select('is_weight_managed, current_weight')
+            .eq('item_id', item_id)
+            .single();
+
+          if (itemData?.is_weight_managed) {
+            const currentWeight = itemData?.current_weight || 0;
+            await supabase
+              .from('items')
+              .update({ current_weight: currentWeight + normalizedWeight })
+              .eq('item_id', item_id);
+          }
+        }
+
+        results.push({
+          transaction_id: transactionData.transaction_id,
+          item_id,
+          quantity: finalQuantity,
+          weight: normalizedWeight
+        });
+      }
+
+      const duration = Date.now() - startTime;
+      metricsCollector.trackRequest(endpoint, duration, false);
+      logger.info('Batch inventory receiving success', { endpoint, duration, count: results.length });
+
+      return NextResponse.json({
+        success: true,
+        data: results,
+        message: `${results.length}건 입고 등록 완료`
+      });
+    }
+
+    // 기존 단일 아이템 형식 처리
     const {
       transaction_date,
       item_id,
@@ -182,10 +270,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         error: '단가는 0 이상이어야 합니다.'
       }, { status: 400 });
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Calculate total amount
     const total_amount = quantity * unit_price;

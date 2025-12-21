@@ -92,7 +92,7 @@ export default function EditableInfoRow({
     }
   };
 
-  const handleClickOutside = (e: React.MouseEvent) => {
+  const handleClickOutside = () => {
     if (isEditing && !isSaving) {
       handleSave();
     }

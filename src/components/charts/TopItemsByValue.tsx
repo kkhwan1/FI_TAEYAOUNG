@@ -608,7 +608,7 @@ export const TopItemsByValue: React.FC<TopItemsByValueProps> = ({
       </div>
 
       {/* Chart */}
-      <div className="h-64 sm:h-72 lg:h-80" ref={chartRef}>
+      <div className="h-64 sm:h-72 lg:h-80 min-h-[256px] sm:min-h-[288px] lg:min-h-[320px]" ref={chartRef}>
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500"></div>

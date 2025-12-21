@@ -1,8 +1,8 @@
 # Blanking Process Management - Integration Guide
 
-**Version**: 1.0
+**Version**: 1.1
 **Author**: Claude (Backend System Architect)
-**Date**: 2025-02-04
+**Date**: 2025-12-19
 **Status**: Production Ready
 
 ## 📋 Table of Contents
@@ -41,7 +41,7 @@ Blanking 공정 관리 시스템은 한국 자동차 부품 제조 ERP의 핵심
 ### Tech Stack
 
 - **Database**: Supabase PostgreSQL
-- **API**: Next.js 15 App Router
+- **API**: Next.js 14.2.16 App Router
 - **Language**: TypeScript
 - **Validation**: Runtime validation + Database constraints
 
@@ -79,7 +79,7 @@ Blanking 공정 관리 시스템은 한국 자동차 부품 제조 ERP의 핵심
            ↓
 ┌──────────────────────┐
 │  API Routes          │
-│  /api/process-ops    │
+│/api/process-operations│
 └──────────┬───────────┘
            │ Supabase Client
            ↓
@@ -779,8 +779,8 @@ Track these KPIs:
 ## Support
 
 **Author**: Claude (Backend System Architect)
-**Last Updated**: 2025-02-04
-**Version**: 1.0
+**Last Updated**: 2025-12-19
+**Version**: 1.1
 
 For issues or questions, refer to:
 - Database schema: `supabase/migrations/20250204_create_process_operations.sql`

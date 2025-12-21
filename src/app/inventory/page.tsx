@@ -396,18 +396,10 @@ function InventoryContent() {
     }
   };
 
-  // 실시간 자동 업데이트 (5초마다)
+  // OPTIMIZED: Removed 5-second polling - Use TanStack Query with staleTime instead
+  // Initial load only
   useEffect(() => {
     fetchStockInfo(); // 초기 로드
-
-    const interval = setInterval(() => {
-      // Only refresh when the tab is visible
-      if (document.visibilityState === 'visible') {
-        fetchStockInfo();
-      }
-    }, 5000); // 5초마다 업데이트
-
-    return () => clearInterval(interval);
   }, []);
 
   // 거래 등록 후 재고 정보 새로고침
@@ -1890,7 +1882,7 @@ function InventoryContent() {
                         </td>
                       </tr>
                       {/* 인라인 상세 정보 - 품번/품명 더블클릭 시 첫 번째 행 바로 아래에만 표시 */}
-                      {isFirstOccurrenceOfSelectedItem && (
+                      {isFirstOccurrenceOfSelectedItem && selectedItemDetail && (
                         <tr id="item-detail-panel" className="bg-blue-50 dark:bg-blue-900/20">
                           <td colSpan={10} className="p-0">
                             <div className="border-l-4 border-blue-500">

@@ -36,6 +36,7 @@ type NormalizedItemPayload = {
   warehouse_zone: string | null;
   quality_status: string | null; // Optional field in DB
   press_process_type: 'BLANKING' | 'STAMPING' | null;
+  supplier_id: number | null; // 기본 공급업체
 };
 
 const DEFAULT_LIMIT = 20;
@@ -175,6 +176,7 @@ function buildNormalizedPayload(body: Record<string, unknown>): NormalizedItemPa
       if (raw === 'BLANKING' || raw === 'STAMPING') return raw;
       return null;
     })(),
+    supplier_id: normalizeInteger(body.supplier_id),
   };
 
   normalized.mm_weight = computeMmWeight({
@@ -204,12 +206,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const search = normalizeString(searchParams.get('search'));
     const category = normalizeString(searchParams.get('category'));
+    const inventoryType = normalizeString(searchParams.get('inventory_type'));
     const itemType = normalizeString(searchParams.get('itemType'));
     const materialType = normalizeString(searchParams.get('materialType'));
     const vehicleModel = normalizeString(searchParams.get('vehicleModel'));
     const coatingStatus = normalizeString(searchParams.get('coating_status'));
     const minDaily = normalizeInteger(searchParams.get('minDaily'));
     const maxDaily = normalizeInteger(searchParams.get('maxDaily'));
+    const supplierIdParam = searchParams.get('supplier_id'); // 'null' for unassigned, number for specific
     const limit = normalizeInteger(searchParams.get('limit')) ?? DEFAULT_LIMIT;
     
     // Cursor-based pagination parameters
@@ -235,16 +239,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const companyId = extractCompanyId(searchParams, 'company_id');
     query = applyCompanyFilter(query, 'items', companyId, 'supplier');
 
-    // Apply filters
+    // Apply filters with optimized search strategy
     if (search) {
-      // Use pg_trgm similarity search for better Korean text search
-      query = query.or(
-        `item_code.ilike.%${search}%,item_name.ilike.%${search}%,spec.ilike.%${search}%,material.ilike.%${search}%`
-      );
+      // Performance optimization: Use prefix matching for short queries (< 3 chars)
+      // to avoid full table scan. For longer queries, allow partial matching.
+      if (search.length < 3) {
+        // Short queries: prefix match only (leverages indexes better)
+        // Priority: item_code (most specific) → item_name → spec → material
+        query = query.or(
+          `item_code.ilike.${search}%,item_name.ilike.${search}%,spec.ilike.${search}%,material.ilike.${search}%`
+        );
+      } else {
+        // Longer queries: allow partial matching for better UX
+        // Still prioritize exact/prefix matches via sorting in application layer if needed
+        query = query.or(
+          `item_code.ilike.%${search}%,item_name.ilike.%${search}%,spec.ilike.%${search}%,material.ilike.%${search}%`
+        );
+      }
     }
 
     if (category) {
       query = query.eq('category', category as NonNullable<ItemInsert['category']>);
+    }
+
+    if (inventoryType) {
+      query = query.eq('inventory_type', inventoryType);
     }
 
     if (itemType) {
@@ -269,6 +288,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (maxDaily !== null) {
       query = query.lte('daily_requirement', maxDaily);
+    }
+
+    // supplier_id 필터: 'null'이면 미지정 품목, 숫자면 해당 공급업체 품목
+    if (supplierIdParam === 'null') {
+      query = query.is('supplier_id', null);
+    } else if (supplierIdParam) {
+      const supplierId = normalizeInteger(supplierIdParam);
+      if (supplierId !== null) {
+        query = query.eq('supplier_id', supplierId);
+      }
     }
 
     let itemsData: ItemRow[] = [];
@@ -312,11 +341,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Apply company filter to count query as well
       countQuery = applyCompanyFilter(countQuery, 'items', companyId, 'supplier');
 
-      // Apply same filters as main query
+      // Apply same filters as main query with optimized search
       if (search) {
-        countQuery = countQuery.or(
-          `item_code.ilike.%${search}%,item_name.ilike.%${search}%,spec.ilike.%${search}%,material.ilike.%${search}%`
-        );
+        if (search.length < 3) {
+          countQuery = countQuery.or(
+            `item_code.ilike.${search}%,item_name.ilike.${search}%,spec.ilike.${search}%,material.ilike.${search}%`
+          );
+        } else {
+          countQuery = countQuery.or(
+            `item_code.ilike.%${search}%,item_name.ilike.%${search}%,spec.ilike.%${search}%,material.ilike.%${search}%`
+          );
+        }
       }
       if (category) {
         countQuery = countQuery.eq('category', category as NonNullable<ItemInsert['category']>);
@@ -494,10 +529,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       warehouse_zone: normalized.warehouse_zone,
       quality_status: normalized.quality_status,
       press_process_type: normalized.press_process_type,
+      supplier_id: normalized.supplier_id,
       is_active: true,
       created_at: now,
       updated_at: now,
-    } as ItemInsert & { press_process_type?: 'BLANKING' | 'STAMPING' | null };
+    } as ItemInsert & { press_process_type?: 'BLANKING' | 'STAMPING' | null; supplier_id?: number | null };
 
     const { data, error } = await supabase
       .from('items')
@@ -600,8 +636,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       warehouse_zone: normalized.warehouse_zone ?? undefined,
       quality_status: normalized.quality_status ?? undefined,
       press_process_type: normalized.press_process_type === null ? null : (normalized.press_process_type ?? undefined),
+      supplier_id: normalized.supplier_id === null ? null : (normalized.supplier_id ?? undefined),
       updated_at: now,
-    } as ItemUpdate & { press_process_type?: 'BLANKING' | 'STAMPING' | null };
+    } as ItemUpdate & { press_process_type?: 'BLANKING' | 'STAMPING' | null; supplier_id?: number | null };
 
     const { data, error } = await supabase
       .from('items')

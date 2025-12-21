@@ -70,6 +70,24 @@ export const stockKeys = {
   alerts: () => [...stockKeys.all, 'alerts'] as const,
 };
 
+// Paginated response interface
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+  summary?: {
+    total_items: number;
+    low_stock_items: number;
+    total_value: number;
+  };
+}
+
 // Fetch stock status with optional filtering
 async function fetchStockStatus(params: StockQueryParams = {}): Promise<StockStatus[]> {
   const searchParams = new URLSearchParams();
@@ -78,7 +96,7 @@ async function fetchStockStatus(params: StockQueryParams = {}): Promise<StockSta
   if (params.status) searchParams.append('status', params.status);
   if (params.location) searchParams.append('location', params.location);
   if (params.search) searchParams.append('search', params.search);
-  if (params.low_stock_only) searchParams.append('low_stock_only', 'true');
+  if (params.low_stock_only) searchParams.append('low_stock', 'true');
 
   const response = await fetch(`/api/inventory/stock?${searchParams}`);
 
@@ -86,13 +104,27 @@ async function fetchStockStatus(params: StockQueryParams = {}): Promise<StockSta
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  const data: ApiResponse<StockStatus[]> = await response.json();
+  const result: ApiResponse<PaginatedResponse<StockStatus> | StockStatus[]> = await response.json();
 
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to fetch stock status');
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to fetch stock status');
   }
 
-  return data.data || [];
+  // Handle both paginated and array responses for backwards compatibility
+  const data = result.data;
+  if (!data) return [];
+
+  // Check if response is paginated (has 'data' property as array)
+  if ('data' in data && Array.isArray(data.data)) {
+    return data.data;
+  }
+
+  // Legacy array response
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  return [];
 }
 
 // Fetch stock summary/analytics

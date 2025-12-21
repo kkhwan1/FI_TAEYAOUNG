@@ -44,8 +44,12 @@ export async function GET(request: Request) {
 
       if (customerError) throw customerError;
 
-      // 중복 제거하여 customer_id 목록 생성
-      const customerIds = [...new Set((customerData || []).map(b => b.customer_id))];
+      // 중복 제거하여 customer_id 목록 생성 (null 제외)
+      const customerIds = [...new Set(
+        (customerData || [])
+          .map(b => b.customer_id)
+          .filter((id): id is number => id !== null && id !== undefined)
+      )];
 
       if (customerIds.length > 0) {
         query = query.in('company_id', customerIds);

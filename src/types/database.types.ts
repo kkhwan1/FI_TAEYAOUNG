@@ -74,6 +74,8 @@ export type Database = {
         Row: {
           bom_id: number
           child_item_id: number
+          child_purchase_amount: number | null
+          child_purchase_quantity: number | null
           child_supplier_id: number | null
           created_at: string
           customer_id: number | null
@@ -82,6 +84,8 @@ export type Database = {
           level_no: number
           machine_time: number | null
           notes: string | null
+          parent_closing_amount: number | null
+          parent_closing_quantity: number | null
           parent_item_id: number
           quantity_required: number
           setup_time: number | null
@@ -90,6 +94,8 @@ export type Database = {
         Insert: {
           bom_id?: number
           child_item_id: number
+          child_purchase_amount?: number | null
+          child_purchase_quantity?: number | null
           child_supplier_id?: number | null
           created_at?: string
           customer_id?: number | null
@@ -98,6 +104,8 @@ export type Database = {
           level_no?: number
           machine_time?: number | null
           notes?: string | null
+          parent_closing_amount?: number | null
+          parent_closing_quantity?: number | null
           parent_item_id: number
           quantity_required?: number
           setup_time?: number | null
@@ -106,6 +114,8 @@ export type Database = {
         Update: {
           bom_id?: number
           child_item_id?: number
+          child_purchase_amount?: number | null
+          child_purchase_quantity?: number | null
           child_supplier_id?: number | null
           created_at?: string
           customer_id?: number | null
@@ -114,6 +124,8 @@ export type Database = {
           level_no?: number
           machine_time?: number | null
           notes?: string | null
+          parent_closing_amount?: number | null
+          parent_closing_quantity?: number | null
           parent_item_id?: number
           quantity_required?: number
           setup_time?: number | null
@@ -634,6 +646,7 @@ export type Database = {
           is_active: boolean | null
           payment_terms: number | null
           phone: string | null
+          remarks: string | null
           representative: string | null
           updated_at: string | null
           updated_by: number | null
@@ -655,6 +668,7 @@ export type Database = {
           is_active?: boolean | null
           payment_terms?: number | null
           phone?: string | null
+          remarks?: string | null
           representative?: string | null
           updated_at?: string | null
           updated_by?: number | null
@@ -676,6 +690,7 @@ export type Database = {
           is_active?: boolean | null
           payment_terms?: number | null
           phone?: string | null
+          remarks?: string | null
           representative?: string | null
           updated_at?: string | null
           updated_by?: number | null
@@ -932,6 +947,8 @@ export type Database = {
           updated_at: string | null
           updated_by: number | null
           warehouse_id: number | null
+          weight: number | null
+          weight_unit: string | null
         }
         Insert: {
           arrival_date?: string | null
@@ -960,6 +977,8 @@ export type Database = {
           updated_at?: string | null
           updated_by?: number | null
           warehouse_id?: number | null
+          weight?: number | null
+          weight_unit?: string | null
         }
         Update: {
           arrival_date?: string | null
@@ -988,6 +1007,8 @@ export type Database = {
           updated_at?: string | null
           updated_by?: number | null
           warehouse_id?: number | null
+          weight?: number | null
+          weight_unit?: string | null
         }
         Relationships: [
           {
@@ -1352,11 +1373,14 @@ export type Database = {
           created_at: string | null
           created_by: number | null
           current_stock: number | null
+          current_weight: number | null
+          customer_id: number | null
           daily_requirement: number | null
           description: string | null
           height: number | null
           inventory_type: string
           is_active: boolean | null
+          is_weight_managed: boolean | null
           item_code: string
           item_id: number
           item_name: string
@@ -1368,6 +1392,7 @@ export type Database = {
           material_type_code: string | null
           mm_weight: number | null
           overhead_rate: number | null
+          press_process_type: string | null
           price: number | null
           product_type: string | null
           quality_status: string | null
@@ -1397,11 +1422,14 @@ export type Database = {
           created_at?: string | null
           created_by?: number | null
           current_stock?: number | null
+          current_weight?: number | null
+          customer_id?: number | null
           daily_requirement?: number | null
           description?: string | null
           height?: number | null
           inventory_type: string
           is_active?: boolean | null
+          is_weight_managed?: boolean | null
           item_code: string
           item_id?: number
           item_name: string
@@ -1413,6 +1441,7 @@ export type Database = {
           material_type_code?: string | null
           mm_weight?: number | null
           overhead_rate?: number | null
+          press_process_type?: string | null
           price?: number | null
           product_type?: string | null
           quality_status?: string | null
@@ -1442,11 +1471,14 @@ export type Database = {
           created_at?: string | null
           created_by?: number | null
           current_stock?: number | null
+          current_weight?: number | null
+          customer_id?: number | null
           daily_requirement?: number | null
           description?: string | null
           height?: number | null
           inventory_type?: string
           is_active?: boolean | null
+          is_weight_managed?: boolean | null
           item_code?: string
           item_id?: number
           item_name?: string
@@ -1458,6 +1490,7 @@ export type Database = {
           material_type_code?: string | null
           mm_weight?: number | null
           overhead_rate?: number | null
+          press_process_type?: string | null
           price?: number | null
           product_type?: string | null
           quality_status?: string | null
@@ -1493,6 +1526,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "items_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "items_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_monthly_accounting"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "items_supplier_id_fkey"
@@ -2303,6 +2350,7 @@ export type Database = {
           coil_process_id: number | null
           completed_at: string | null
           created_at: string
+          customer_id: number | null
           efficiency: number | null
           input_item_id: number
           input_quantity: number
@@ -2331,6 +2379,7 @@ export type Database = {
           coil_process_id?: number | null
           completed_at?: string | null
           created_at?: string
+          customer_id?: number | null
           efficiency?: number | null
           input_item_id: number
           input_quantity: number
@@ -2359,6 +2408,7 @@ export type Database = {
           coil_process_id?: number | null
           completed_at?: string | null
           created_at?: string
+          customer_id?: number | null
           efficiency?: number | null
           input_item_id?: number
           input_quantity?: number
@@ -2386,6 +2436,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "coil_process_history"
             referencedColumns: ["process_id"]
+          },
+          {
+            foreignKeyName: "process_operations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "process_operations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_monthly_accounting"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "process_operations_input_item_id_fkey"
@@ -3025,15 +3089,20 @@ export type Database = {
       }
       stock_adjustments: {
         Row: {
+          adjusted_at: string | null
+          adjusted_by: string | null
           adjustment_date: string
           adjustment_id: number
           adjustment_number: string
           adjustment_quantity: number | null
           adjustment_type: Database["public"]["Enums"]["adjustment_type"]
+          after_stock: number | null
           approval_date: string | null
           approved_by: number | null
+          before_stock: number | null
           created_at: string | null
           created_by: number
+          is_active: boolean | null
           item_id: number
           quantity_after: number
           quantity_before: number
@@ -3045,15 +3114,20 @@ export type Database = {
           warehouse_id: number
         }
         Insert: {
+          adjusted_at?: string | null
+          adjusted_by?: string | null
           adjustment_date?: string
           adjustment_id?: number
           adjustment_number: string
           adjustment_quantity?: number | null
           adjustment_type: Database["public"]["Enums"]["adjustment_type"]
+          after_stock?: number | null
           approval_date?: string | null
           approved_by?: number | null
+          before_stock?: number | null
           created_at?: string | null
           created_by: number
+          is_active?: boolean | null
           item_id: number
           quantity_after: number
           quantity_before: number
@@ -3065,15 +3139,20 @@ export type Database = {
           warehouse_id: number
         }
         Update: {
+          adjusted_at?: string | null
+          adjusted_by?: string | null
           adjustment_date?: string
           adjustment_id?: number
           adjustment_number?: string
           adjustment_quantity?: number | null
           adjustment_type?: Database["public"]["Enums"]["adjustment_type"]
+          after_stock?: number | null
           approval_date?: string | null
           approved_by?: number | null
+          before_stock?: number | null
           created_at?: string | null
           created_by?: number
+          is_active?: boolean | null
           item_id?: number
           quantity_after?: number
           quantity_before?: number
@@ -3219,6 +3298,116 @@ export type Database = {
             referencedColumns: ["item_id"]
           },
         ]
+      }
+      stocktaking_items: {
+        Row: {
+          actual_stock: number | null
+          created_at: string | null
+          difference: number | null
+          id: number
+          item_id: number
+          notes: string | null
+          status: string
+          stocktaking_id: number
+          system_stock: number
+        }
+        Insert: {
+          actual_stock?: number | null
+          created_at?: string | null
+          difference?: number | null
+          id?: number
+          item_id: number
+          notes?: string | null
+          status?: string
+          stocktaking_id: number
+          system_stock?: number
+        }
+        Update: {
+          actual_stock?: number | null
+          created_at?: string | null
+          difference?: number | null
+          id?: number
+          item_id?: number
+          notes?: string | null
+          status?: string
+          stocktaking_id?: number
+          system_stock?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stocktaking_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "current_stock_view"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "stocktaking_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "stocktaking_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mv_daily_stock_calendar"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "stocktaking_items_stocktaking_id_fkey"
+            columns: ["stocktaking_id"]
+            isOneToOne: false
+            referencedRelation: "stocktakings"
+            referencedColumns: ["stocktaking_id"]
+          },
+        ]
+      }
+      stocktakings: {
+        Row: {
+          completed_at: string | null
+          counted_items: number
+          created_at: string | null
+          created_by: string | null
+          difference_items: number
+          notes: string | null
+          status: string
+          stocktaking_date: string
+          stocktaking_id: number
+          stocktaking_no: string
+          target_category: string | null
+          total_items: number
+        }
+        Insert: {
+          completed_at?: string | null
+          counted_items?: number
+          created_at?: string | null
+          created_by?: string | null
+          difference_items?: number
+          notes?: string | null
+          status?: string
+          stocktaking_date?: string
+          stocktaking_id?: number
+          stocktaking_no: string
+          target_category?: string | null
+          total_items?: number
+        }
+        Update: {
+          completed_at?: string | null
+          counted_items?: number
+          created_at?: string | null
+          created_by?: string | null
+          difference_items?: number
+          notes?: string | null
+          status?: string
+          stocktaking_date?: string
+          stocktaking_id?: number
+          stocktaking_no?: string
+          target_category?: string | null
+          total_items?: number
+        }
+        Relationships: []
       }
       users: {
         Row: {
@@ -3668,6 +3857,7 @@ export type Database = {
       create_receiving_transaction:
         | {
             Args: {
+              p_arrival_date?: string
               p_company_id?: number
               p_item_id: number
               p_notes?: string
@@ -3688,7 +3878,6 @@ export type Database = {
           }
         | {
             Args: {
-              p_arrival_date?: string
               p_company_id?: number
               p_item_id: number
               p_notes?: string
@@ -3734,6 +3923,14 @@ export type Database = {
       get_next_serial: { Args: { prefix_param: string }; Returns: string }
       get_portal_user_context: { Args: never; Returns: number }
       get_portal_user_role: { Args: { user_id: number }; Returns: string }
+      insert_bom_from_excel_data: {
+        Args: never
+        Returns: {
+          error_count: number
+          errors: string[]
+          inserted_count: number
+        }[]
+      }
       set_portal_user_context: { Args: { user_id: number }; Returns: undefined }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
@@ -3741,7 +3938,7 @@ export type Database = {
     Enums: {
       adjustment_type: "증가" | "감소" | "정정" | "손실" | "발견" | "기타"
       company_type: "고객사" | "공급사" | "협력사" | "기타"
-      item_category: "원자재" | "부자재" | "반제품" | "제품" | "상품"
+      item_category: "원자재" | "부자재" | "반제품" | "완제품" | "상품" | "제품"
       transaction_status: "대기" | "진행중" | "완료" | "취소"
       transaction_type:
         | "입고"
@@ -3885,7 +4082,7 @@ export const Constants = {
     Enums: {
       adjustment_type: ["증가", "감소", "정정", "손실", "발견", "기타"],
       company_type: ["고객사", "공급사", "협력사", "기타"],
-      item_category: ["원자재", "부자재", "반제품", "제품", "상품"],
+      item_category: ["원자재", "부자재", "반제품", "완제품", "상품", "제품"],
       transaction_status: ["대기", "진행중", "완료", "취소"],
       transaction_type: [
         "입고",

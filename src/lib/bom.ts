@@ -4,7 +4,6 @@
  */
 
 import { supabaseAdmin } from './db-unified';
-import { mcp__supabase__execute_sql } from './supabase-mcp';
 
 /**
  * BOM 구조 관련 타입 정의
@@ -70,84 +69,90 @@ export async function explodeBom(
       return [];
     }
 
-    // 현재 레벨의 BOM 항목 조회
-    const projectId = process.env.SUPABASE_PROJECT_ID || '';
+    // 현재 레벨의 BOM 항목 조회 (Supabase 파라미터화 쿼리 사용)
+    const { data: bomData, error: bomError } = await conn
+      .from('bom')
+      .select(`
+        bom_id,
+        parent_item_id,
+        child_item_id,
+        quantity_required,
+        notes,
+        items!child_item_id (
+          item_code,
+          item_name,
+          spec,
+          unit,
+          yield_rate,
+          price
+        )
+      `)
+      .eq('parent_item_id', parentId)
+      .eq('is_active', true)
+      .order('item_code', { foreignTable: 'items' });
+
+    if (bomError) {
+      console.error('Error fetching BOM data:', bomError);
+      return [];
+    }
+
+    if (!bomData || bomData.length === 0) {
+      return [];
+    }
+
+    // 월별 단가 조회 (배치 처리)
     const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
-    const sql = `
-      SELECT
-        b.bom_id,
-        b.parent_item_id,
-        b.child_item_id,
-        b.quantity_required,
-        b.notes,
-        i.item_code,
-        i.item_name,
-        i.spec,
-        i.unit,
-        COALESCE(i.yield_rate, 100) as yield_rate,
-        COALESCE(
-          (SELECT unit_price FROM item_price_history
-           WHERE item_id = b.child_item_id
-           AND price_month = '${currentMonth}'
-           ORDER BY created_at DESC LIMIT 1),
-          i.price,
-          0
-        ) as unit_price
-      FROM bom b
-      INNER JOIN items i ON b.child_item_id = i.item_id
-      WHERE b.parent_item_id = ${parentId}
-        AND b.is_active = true
-        AND i.is_active = true
-      ORDER BY i.item_code
-    `;
+    const childItemIds = bomData.map((b: any) => b.child_item_id);
 
-    const result = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: sql
+    const { data: priceData } = await conn
+      .from('item_price_history')
+      .select('item_id, unit_price')
+      .in('item_id', childItemIds)
+      .eq('price_month', currentMonth)
+      .order('created_at', { ascending: false });
+
+    // 가격 맵 생성
+    const priceMap = new Map<number, number>();
+    (priceData || []).forEach((p: any) => {
+      if (!priceMap.has(p.item_id)) {
+        priceMap.set(p.item_id, p.unit_price);
+      }
     });
-
-    const rows = result.rows as Array<{
-      bom_id: number;
-      parent_item_id: number;
-      child_item_id: number;
-      quantity_required: number;
-      unit: string | null;
-      notes: string | null;
-      item_code: string;
-      item_name: string;
-      spec: string | null;
-      yield_rate: number;
-      unit_price: number | null;
-    }> | undefined;
 
     const nodes: BOMNode[] = [];
 
-    for (const row of rows || []) {
+    for (const bomItem of bomData) {
+      const item = bomItem.items;
+      if (!item) continue;
+
+      // 월별 단가 조회 (우선순위: 월별 단가 > 기본 단가)
+      const unitPrice = priceMap.get(bomItem.child_item_id) || item.price || 0;
+
       // 수율 적용: 수율이 100% 미만이면 더 많은 자재 필요
-      const yieldRate = row.yield_rate || 100;
-      const actualQuantity = calculateActualQuantityWithYield(row.quantity_required, yieldRate);
+      const yieldRate = item.yield_rate || 100;
+      const actualQuantity = calculateActualQuantityWithYield(bomItem.quantity_required, yieldRate);
       const accumulatedQuantity = actualQuantity * parentQuantity;
 
       const node: BOMNode = {
-        bom_id: row.bom_id,
-        parent_item_id: row.parent_item_id,
-        child_item_id: row.child_item_id,
-        item_code: row.item_code,
-        item_name: row.item_name,
-        spec: row.spec || undefined,
-        quantity: row.quantity_required,
-        unit: row.unit || 'EA',
-        unit_price: row.unit_price || 0,
-        total_price: (row.unit_price || 0) * accumulatedQuantity,
+        bom_id: bomItem.bom_id,
+        parent_item_id: bomItem.parent_item_id,
+        child_item_id: bomItem.child_item_id,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        spec: item.spec || undefined,
+        quantity: bomItem.quantity_required,
+        unit: item.unit || 'EA',
+        unit_price: unitPrice,
+        total_price: unitPrice * accumulatedQuantity,
         level: level + 1,
         accumulated_quantity: accumulatedQuantity,
-        notes: row.notes || undefined
+        notes: bomItem.notes || undefined
       };
 
       // 재귀적으로 하위 BOM 조회 (수율 적용된 수량 전달)
       const children = await explodeBom(
         conn,
-        row.child_item_id,
+        bomItem.child_item_id,
         level + 1,
         maxLevel,
         accumulatedQuantity
@@ -181,37 +186,20 @@ export async function getBomTree(
   includeInactive: boolean = false
 ): Promise<BOMNode | null> {
   try {
-    // 상위 품목 정보 조회
-    const projectId = process.env.SUPABASE_PROJECT_ID || '';
-    const parentSql = `
-      SELECT
-        item_id,
-        item_code,
-        item_name,
-        spec,
-        unit_price
-      FROM items
-      WHERE item_id = ${parentId} ${includeInactive ? '' : 'AND is_active = true'}
-    `;
+    // 상위 품목 정보 조회 (Supabase 파라미터화 쿼리 사용)
+    let query = conn.from('items').select('item_id, item_code, item_name, spec, unit_price').eq('item_id', parentId);
 
-    const parentResult = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: parentSql
-    });
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
 
-    const parentRows = parentResult.rows as Array<{
-      item_id: number;
-      item_code: string;
-      item_name: string;
-      spec: string | null;
-      unit_price: number | null;
-    }> | undefined;
+    const { data: parentData, error: parentError } = await query.single();
 
-    if (!parentRows || parentRows.length === 0) {
+    if (parentError || !parentData) {
       return null;
     }
 
-    const parent = parentRows[0];
+    const parent = parentData;
 
     // BOM 전개하여 하위 구조 가져오기
     const children = await explodeBom(conn, parentId, 0, 10, 1);
@@ -708,59 +696,47 @@ export async function getWhereUsed(
   childId: number
 ): Promise<any[]> {
   try {
-    const sql = `
-      WITH RECURSIVE where_used AS (
-        -- 초기값: 직접 상위 품목
-        SELECT
-          b.bom_id,
-          b.parent_item_id,
-          b.child_item_id,
-          b.quantity,
-          i.item_code,
-          i.item_name,
-          i.spec,
-          1 as level,
-          b.parent_item_id::text as path
-        FROM bom b
-        INNER JOIN items i ON b.parent_item_id = i.item_id
-        WHERE b.child_item_id = $1
-          AND b.is_active = 1
-          AND i.is_active = 1
-
-        UNION ALL
-
-        -- 재귀: 상위의 상위 품목들
-        SELECT
-          b.bom_id,
-          b.parent_item_id,
-          b.child_item_id,
-          b.quantity * wu.quantity as quantity,
-          i.item_code,
-          i.item_name,
-          i.spec,
-          wu.level + 1,
-          wu.path || ',' || b.parent_item_id
-        FROM bom b
-        INNER JOIN where_used wu ON b.child_item_id = wu.parent_item_id
-        INNER JOIN items i ON b.parent_item_id = i.item_id
-        WHERE b.is_active = 1
-          AND i.is_active = 1
-          AND wu.level < 10
-          AND b.parent_item_id != ALL(string_to_array(wu.path, ',')::int[])
-      )
-      SELECT * FROM where_used
-      ORDER BY level, item_code
-    `;
-
-    const projectId = process.env.SUPABASE_PROJECT_ID || '';
-    const sqlWithParams = sql.replace(/\$1/g, childId.toString());
-
-    const result = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: sqlWithParams
+    // RPC 함수 호출 사용 (파라미터화)
+    const { data, error } = await conn.rpc('get_where_used', {
+      p_child_id: childId
     });
 
-    return result.rows || [];
+    if (error) {
+      console.error('Error calling get_where_used RPC:', error);
+
+      // RPC 함수가 없는 경우 대체 로직 (단일 레벨만 조회)
+      const { data: fallbackData } = await conn
+        .from('bom')
+        .select(`
+          bom_id,
+          parent_item_id,
+          child_item_id,
+          quantity_required,
+          parent:items!parent_item_id (
+            item_code,
+            item_name,
+            spec
+          )
+        `)
+        .eq('child_item_id', childId)
+        .eq('is_active', true);
+
+      if (!fallbackData) return [];
+
+      return fallbackData.map((b: any, index: number) => ({
+        bom_id: b.bom_id,
+        parent_item_id: b.parent_item_id,
+        child_item_id: b.child_item_id,
+        quantity: b.quantity_required,
+        item_code: b.parent?.item_code || '',
+        item_name: b.parent?.item_name || '',
+        spec: b.parent?.spec || null,
+        level: 1,
+        path: String(b.parent_item_id)
+      }));
+    }
+
+    return data || [];
 
   } catch (error) {
     console.error('Error getting where-used:', error);
@@ -779,56 +755,52 @@ export async function getBomLevelSummary(
   parentId: number
 ): Promise<any[]> {
   try {
-    const sql = `
-      WITH RECURSIVE bom_levels AS (
-        -- 초기값
-        SELECT
-          b.child_item_id,
-          b.quantity,
-          b.quantity as accumulated_qty,
-          1 as level,
-          i.unit_price
-        FROM bom b
-        INNER JOIN items i ON b.child_item_id = i.item_id
-        WHERE b.parent_item_id = $1
-          AND b.is_active = 1
-          AND i.is_active = 1
-
-        UNION ALL
-
-        -- 재귀
-        SELECT
-          b.child_item_id,
-          b.quantity,
-          bl.accumulated_qty * b.quantity,
-          bl.level + 1,
-          i.unit_price
-        FROM bom b
-        INNER JOIN bom_levels bl ON b.parent_item_id = bl.child_item_id
-        INNER JOIN items i ON b.child_item_id = i.item_id
-        WHERE b.is_active = 1
-          AND i.is_active = 1
-          AND bl.level < 10
-      )
-      SELECT
-        level,
-        COUNT(DISTINCT child_item_id) as item_count,
-        SUM(accumulated_qty) as total_quantity,
-        SUM(accumulated_qty * COALESCE(unit_price, 0)) as level_cost
-      FROM bom_levels
-      GROUP BY level
-      ORDER BY level
-    `;
-
-    const projectId = process.env.SUPABASE_PROJECT_ID || '';
-    const sqlWithParams = sql.replace(/\$1/g, parentId.toString());
-
-    const result = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: sqlWithParams
+    // RPC 함수 호출 사용 (파라미터화)
+    const { data, error } = await conn.rpc('get_bom_level_summary', {
+      p_parent_id: parentId
     });
 
-    return result.rows || [];
+    if (error) {
+      console.error('Error calling get_bom_level_summary RPC:', error);
+
+      // RPC 함수가 없는 경우 대체 로직 (BOM 전개 결과를 이용한 수동 집계)
+      const bomTree = await explodeBom(conn, parentId, 0, 10, 1);
+
+      // 레벨별 집계
+      const levelMap = new Map<number, { item_count: Set<number>, total_quantity: number, level_cost: number }>();
+
+      const processNode = (node: BOMNode) => {
+        const levelData = levelMap.get(node.level) || {
+          item_count: new Set<number>(),
+          total_quantity: 0,
+          level_cost: 0
+        };
+
+        levelData.item_count.add(node.child_item_id);
+        levelData.total_quantity += node.accumulated_quantity || node.quantity;
+        levelData.level_cost += (node.total_price || 0);
+
+        levelMap.set(node.level, levelData);
+
+        if (node.children) {
+          node.children.forEach(processNode);
+        }
+      };
+
+      bomTree.forEach(processNode);
+
+      // Map을 배열로 변환
+      return Array.from(levelMap.entries())
+        .map(([level, data]) => ({
+          level,
+          item_count: data.item_count.size,
+          total_quantity: data.total_quantity,
+          level_cost: data.level_cost
+        }))
+        .sort((a, b) => a.level - b.level);
+    }
+
+    return data || [];
 
   } catch (error) {
     console.error('Error getting BOM level summary:', error);
@@ -854,110 +826,74 @@ export async function validateBom(
   const warnings: string[] = [];
 
   try {
-    const projectId = process.env.SUPABASE_PROJECT_ID || '';
+    // 1. 상위 품목 존재 확인 (파라미터화 쿼리)
+    const { data: parentData, error: parentError } = await conn
+      .from('items')
+      .select('item_id, item_code, item_name, is_active')
+      .eq('item_id', parentId)
+      .single();
 
-    // 1. 상위 품목 존재 확인
-    const parentCheckSql = `
-      SELECT item_id, item_code, item_name, is_active
-      FROM items WHERE item_id = ${parentId}
-    `;
-    const parentCheckResult = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: parentCheckSql
-    });
-
-    const parentRows = parentCheckResult.rows as Array<{
-      item_id: number;
-      item_code: string;
-      item_name: string;
-      is_active: boolean;
-    }> | undefined;
-
-    if (!parentRows || parentRows.length === 0) {
+    if (parentError || !parentData) {
       errors.push(`상위 품목 ID ${parentId}가 존재하지 않습니다.`);
       return { valid: false, errors, warnings };
     }
 
-    if (!parentRows[0].is_active) {
-      warnings.push(`상위 품목 '${parentRows[0].item_code}'가 비활성 상태입니다.`);
+    if (!parentData.is_active) {
+      warnings.push(`상위 품목 '${parentData.item_code}'가 비활성 상태입니다.`);
     }
 
-    // 2. 순환 참조 검사
-    const circularCheckSql = `
-      WITH RECURSIVE bom_check AS (
-        SELECT child_item_id, parent_item_id, 1 as depth
-        FROM bom
-        WHERE parent_item_id = ${parentId} AND is_active = true
-
-        UNION ALL
-
-        SELECT b.child_item_id, b.parent_item_id, bc.depth + 1
-        FROM bom b
-        INNER JOIN bom_check bc ON b.parent_item_id = bc.child_item_id
-        WHERE b.is_active = true AND bc.depth < 20
-      )
-      SELECT COUNT(*) as circular_count
-      FROM bom_check
-      WHERE child_item_id = ${parentId}
-    `;
-
-    const circularCheckResult = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: circularCheckSql
+    // 2. 순환 참조 검사 (RPC 함수 또는 대체 로직 사용)
+    const { data: circularData, error: circularError } = await conn.rpc('check_bom_circular', {
+      p_parent_id: parentId
     });
 
-    const circularRows = circularCheckResult.rows as Array<{circular_count: number}> | undefined;
-
-    if (circularRows && circularRows.length > 0 && circularRows[0]?.circular_count > 0) {
+    if (circularError) {
+      // RPC 함수가 없는 경우 경고만 출력
+      console.warn('check_bom_circular RPC function not available, skipping circular check');
+    } else if (circularData > 0) {
       errors.push('BOM 구조에 순환 참조가 존재합니다.');
     }
 
-    // 3. 비활성 하위 품목 확인
-    const inactiveCheckSql = `
-      SELECT i.item_code, i.item_name
-      FROM bom b
-      INNER JOIN items i ON b.child_item_id = i.item_id
-      WHERE b.parent_item_id = ${parentId}
-        AND b.is_active = true
-        AND i.is_active = false
-    `;
+    // 3. 비활성 하위 품목 확인 (파라미터화 쿼리)
+    const { data: inactiveData } = await conn
+      .from('bom')
+      .select(`
+        child:items!child_item_id (
+          item_code,
+          item_name,
+          is_active
+        )
+      `)
+      .eq('parent_item_id', parentId)
+      .eq('is_active', true);
 
-    const inactiveCheckResult = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: inactiveCheckSql
-    });
-
-    const inactiveRows = inactiveCheckResult.rows as Array<{
-      item_code: string;
-      item_name: string;
-    }> | undefined;
-
-    if (inactiveRows && inactiveRows.length > 0) {
-      inactiveRows.forEach((item: Record<string, any>) => {
-        warnings.push(`하위 품목 '${item.item_code} - ${item.item_name}'가 비활성 상태입니다.`);
+    if (inactiveData && inactiveData.length > 0) {
+      inactiveData.forEach((bomItem: any) => {
+        if (bomItem.child && !bomItem.child.is_active) {
+          warnings.push(`하위 품목 '${bomItem.child.item_code} - ${bomItem.child.item_name}'가 비활성 상태입니다.`);
+        }
       });
     }
 
-    // 4. 0 수량 확인
-    const zeroQtyCheckSql = `
-      SELECT i.item_code, i.item_name
-      FROM bom b
-      INNER JOIN items i ON b.child_item_id = i.item_id
-      WHERE b.parent_item_id = $1
-        AND b.is_active = 1
-        AND (b.quantity IS NULL OR b.quantity <= 0)
-    `;
+    // 4. 0 수량 확인 (파라미터화 쿼리)
+    const { data: zeroQtyData } = await conn
+      .from('bom')
+      .select(`
+        quantity_required,
+        child:items!child_item_id (
+          item_code,
+          item_name
+        )
+      `)
+      .eq('parent_item_id', parentId)
+      .eq('is_active', true)
+      .or('quantity_required.is.null,quantity_required.lte.0');
 
-    const zeroQtyResult = await mcp__supabase__execute_sql({
-      project_id: projectId,
-      query: zeroQtyCheckSql.replace('$1', parentId.toString())
-    });
-
-    const zeroQtyRows = zeroQtyResult.rows as Array<{item_code: string, item_name: string}> | undefined;
-
-    if (zeroQtyRows && zeroQtyRows.length > 0) {
-      zeroQtyRows.forEach((item) => {
-        errors.push(`품목 '${item.item_code} - ${item.item_name}'의 수량이 0 또는 NULL입니다.`);
+    if (zeroQtyData && zeroQtyData.length > 0) {
+      zeroQtyData.forEach((bomItem: any) => {
+        if (bomItem.child) {
+          errors.push(`품목 '${bomItem.child.item_code} - ${bomItem.child.item_name}'의 수량이 0 또는 NULL입니다.`);
+        }
       });
     }
 

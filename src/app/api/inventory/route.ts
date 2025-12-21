@@ -71,30 +71,65 @@ export const GET = createValidatedRoute(
 
     // Service role key verification (removed debug logs for production)
 
-    // Fetch transactions without JOIN to avoid RLS issues
+    // Optimized: Use single query with LEFT JOIN to fetch all data at once
+    // This eliminates N+1 queries and reduces round trips from 3 to 1
     let query = supabase
       .from('inventory_transactions')
-      .select('*');
+      .select(`
+        *,
+        items!inner(item_id, item_code, item_name, unit),
+        companies(company_id, company_name)
+      `);
 
-    // Apply filters safely
+    // Apply filters safely with validation
     if (type) {
       query = query.eq('transaction_type', type as '입고' | '출고' | '생산입고' | '생산출고' | '이동' | '조정' | '폐기' | '재고조정');
     }
 
-    if (itemId) {
-      query = query.eq('item_id', parseInt(itemId));
+    // Validate itemId to prevent NaN issues
+    const validatedItemId = itemId ? validateNumericId(itemId) : null;
+    if (itemId && validatedItemId === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid itemId: must be a positive integer' },
+        { status: 400 }
+      );
+    }
+    if (validatedItemId) {
+      query = query.eq('item_id', validatedItemId);
     }
 
-    if (startDate) {
-      query = query.gte('transaction_date', startDate);
+    // Validate dates
+    const validatedStartDate = validateDate(startDate);
+    const validatedEndDate = validateDate(endDate);
+    if (startDate && validatedStartDate === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid startDate: must be YYYY-MM-DD format' },
+        { status: 400 }
+      );
+    }
+    if (endDate && validatedEndDate === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid endDate: must be YYYY-MM-DD format' },
+        { status: 400 }
+      );
+    }
+    if (validatedStartDate) {
+      query = query.gte('transaction_date', validatedStartDate);
+    }
+    if (validatedEndDate) {
+      query = query.lte('transaction_date', validatedEndDate);
     }
 
-    if (endDate) {
-      query = query.lte('transaction_date', endDate);
+    // Validate companyId
+    const validatedCompanyId = companyId ? validateNumericId(companyId) : null;
+    if (companyId && validatedCompanyId === null) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid company_id: must be a positive integer' },
+        { status: 400 }
+      );
     }
-
-    if (companyId) {
-      query = query.eq('company_id', parseInt(companyId));
+    if (validatedCompanyId) {
+      query = query.eq('company_id', validatedCompanyId);
     }
 
     // Apply ordering and pagination
@@ -111,46 +146,29 @@ export const GET = createValidatedRoute(
       throw new Error(`Database query failed: ${error.message}`);
     }
 
-    // Get related data separately to avoid RLS issues
-    const itemIds = [...new Set(transactions?.map(t => t.item_id).filter((id): id is number => id !== null && id !== undefined) || [])];
-    const companyIds = [...new Set(transactions?.map(t => t.company_id).filter((id): id is number => id !== null && id !== undefined) || [])];
-
-    type ItemLookup = { item_id: number; item_code: string; item_name: string; unit: string };
-    type CompanyLookup = { company_id: number; company_name: string };
-
-    const { data: items } = await supabase
-      .from('items')
-      .select('item_id, item_code, item_name, unit')
-      .in('item_id', itemIds) as { data: ItemLookup[] | null };
-
-    const { data: companies } = await supabase
-      .from('companies')
-      .select('company_id, company_name')
-      .in('company_id', companyIds) as { data: CompanyLookup[] | null };
-
-    // Get total count for pagination using safe query
+    // Get total count for pagination using safe query with inner join to match data query
     let countQuery = supabase
       .from('inventory_transactions')
-      .select('*', { count: 'exact', head: true });
+      .select('*, items!inner(item_id)', { count: 'exact', head: true });
 
     if (type) {
       countQuery = countQuery.eq('transaction_type', type as '입고' | '출고' | '생산입고' | '생산출고' | '이동' | '조정' | '폐기' | '재고조정');
     }
 
-    if (itemId) {
-      countQuery = countQuery.eq('item_id', parseInt(itemId));
+    if (validatedItemId) {
+      countQuery = countQuery.eq('item_id', validatedItemId);
     }
 
-    if (startDate) {
-      countQuery = countQuery.gte('transaction_date', startDate);
+    if (validatedStartDate) {
+      countQuery = countQuery.gte('transaction_date', validatedStartDate);
     }
 
-    if (endDate) {
-      countQuery = countQuery.lte('transaction_date', endDate);
+    if (validatedEndDate) {
+      countQuery = countQuery.lte('transaction_date', validatedEndDate);
     }
 
-    if (companyId) {
-      countQuery = countQuery.eq('company_id', parseInt(companyId));
+    if (validatedCompanyId) {
+      countQuery = countQuery.eq('company_id', validatedCompanyId);
     }
 
     const { count: totalCount, error: countError } = await countQuery;
@@ -159,20 +177,21 @@ export const GET = createValidatedRoute(
       throw new Error(`Count query failed: ${countError.message}`);
     }
 
-    // Transform data to match expected format - join with separately fetched data
+    // Optimized: Transform data with direct nested object access (no array.find loops)
     const formattedTransactions = transactions?.map((t: any) => {
-      const item = items?.find((i: any) => i.item_id === t.item_id);
-      const company = companies?.find((c: any) => c.company_id === t.company_id);
+      // Extract item data from nested join (items is an object, not array)
+      const item = t.items || {};
+      const company = t.companies || {};
 
       return {
         transaction_id: t.transaction_id,
         transaction_date: t.transaction_date,
         transaction_type: t.transaction_type,
         item_id: t.item_id,
-        item_code: item?.item_code ?? '',
-        item_name: item?.item_name ?? '',
+        item_code: item.item_code ?? '',
+        item_name: item.item_name ?? '',
         quantity: t.quantity ?? 0,
-        unit: item?.unit ?? '',
+        unit: item.unit ?? '',
         unit_price: t.unit_price ?? 0,
         total_amount: t.total_amount ?? 0,
         tax_amount: t.tax_amount ?? 0,
@@ -190,7 +209,7 @@ export const GET = createValidatedRoute(
         created_by: t.created_by,
         updated_by: t.updated_by,
         description: t.description ?? '',
-        company_name: company?.company_name ?? ''
+        company_name: company.company_name ?? ''
       };
     }) || [];
 

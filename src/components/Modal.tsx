@@ -78,19 +78,19 @@ export default function Modal({
         style={{ zIndex: 1 }}
       />
 
-      {/* Modal Container - z-index 10, pointer-events control */}
+      {/* Modal Container - z-index 10 */}
       <div
-        className="flex min-h-full items-center justify-center p-4 pointer-events-none"
-        style={{ position: 'relative', zIndex: 10, overflow: 'visible' }}
+        className="flex min-h-full items-center justify-center p-4"
+        style={{ position: 'relative', zIndex: 10, overflow: 'visible', pointerEvents: 'auto' }}
       >
-        {/* Modal Content - pointer-events restored, propagation stopped */}
+        {/* Modal Content - propagation stopped */}
         <div
-          className={`relative bg-white dark:bg-gray-900 rounded-lg shadow-sm w-full ${sizeClasses[size]} ${heightClasses[maxHeight]} transform transition-all pointer-events-auto flex flex-col`}
+          className={`relative bg-white dark:bg-gray-900 rounded-lg shadow-sm w-full ${sizeClasses[size]} ${heightClasses[maxHeight]} transform transition-all flex flex-col`}
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? "modal-title" : undefined}
-          style={{ overflow: 'visible' }}
+          style={{ overflow: 'visible', pointerEvents: 'auto' }}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -112,7 +112,18 @@ export default function Modal({
           </div>
 
           {/* Content */}
-          <div className={`p-6 ${contentHeightClasses[maxHeight]}`} style={{ overflowY: 'auto', overflowX: 'visible', position: 'relative', maxHeight: maxHeight === 'tall' ? 'calc(95vh - 120px)' : 'none' }}>{children}</div>
+          <div 
+            className={`p-6 ${contentHeightClasses[maxHeight]}`} 
+            style={{ 
+              overflowY: 'auto', 
+              overflowX: 'visible', 
+              position: 'relative', 
+              maxHeight: maxHeight === 'tall' ? 'calc(95vh - 120px)' : 'none',
+              pointerEvents: 'auto'
+            }}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>

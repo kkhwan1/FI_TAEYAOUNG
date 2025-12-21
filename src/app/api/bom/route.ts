@@ -34,6 +34,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const priceMonth = searchParams.get('price_month') ||
       new Date().toISOString().slice(0, 7) + '-01';
 
+    // lite 모드: 인라인 편집용 경량 응답 (coil_specs, price_history 생략)
+    const liteMode = searchParams.get('lite') === 'true';
+
     // 페이지네이션 최적화: 기본 100, 최소 1, 최대 500
     const limitParam = Number(searchParams.get('limit') ?? 100);
     const limit = Math.min(Math.max(limitParam, 1), 500);
@@ -133,6 +136,39 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 각 BOM 항목을 개별로 표시 (중복 합산하지 않음)
     // 사용자가 각 항목을 개별적으로 수정/삭제할 수 있도록 함
     const filteredEntries = bomEntries || [];
+
+    // lite 모드: 인라인 편집용 경량 응답 - 무거운 조회 생략
+    if (liteMode) {
+      const liteEntries = filteredEntries.map((item: any) => ({
+        bom_id: item.bom_id,
+        parent_item_id: item.parent_item_id,
+        child_item_id: item.child_item_id,
+        quantity_required: item.quantity_required,
+        customer_id: item.customer_id,
+        child_supplier_id: item.child_supplier_id,
+        customer: item.customer || null,
+        child_supplier: item.child_supplier || null,
+        parent: item.parent ? {
+          item_code: item.parent.item_code,
+          item_name: item.parent.item_name
+        } : null,
+        child: item.child ? {
+          item_code: item.child.item_code,
+          item_name: item.child.item_name
+        } : null,
+        is_active: true
+      }));
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          bom_entries: liteEntries,
+          total: filteredEntries.length
+        }
+      }, {
+        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+      });
+    }
 
     // Step 1: 코일 스펙 정보 일괄 조회 (N+1 문제 방지)
     // Deduplicate child IDs to reduce payload and DB workload

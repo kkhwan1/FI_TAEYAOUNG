@@ -210,18 +210,60 @@ export async function POST(request: NextRequest) {
         .eq('item_id', output_item_id);
     }
 
-    // P1: 도장(PAINT) 공정 완료 시 완제품 자동 입고 알림
+    // P2 Task 8: 스크랩(불량) 수량 재고 처리
+    // 산출 품목에서 불량 수량만큼 차감
+    if (!outputTxError && scrap_quantity > 0) {
+      const scrapStockAfter = outputStockAfter - scrap_quantity;
+
+      const { error: scrapTxError } = await supabase
+        .from('inventory_transactions')
+        .insert({
+          item_id: output_item_id,
+          transaction_type: '생산불량',
+          quantity: -scrap_quantity,
+          unit_price: 0,
+          total_amount: 0,
+          transaction_date: work_date,
+          reference_number: lotNumber,
+          notes: `[${process_type}] 불량 처리 - ${outputItem.item_name || outputItem.item_code}`,
+          status: '완료'
+        });
+
+      if (scrapTxError) {
+        console.error('Scrap transaction error:', scrapTxError);
+        warnings.push(`스크랩 재고 차감 실패 (${scrap_quantity}개) - 수동 확인 필요`);
+      } else {
+        // 불량 수량만큼 재고 차감
+        await supabase
+          .from('items')
+          .update({ current_stock: scrapStockAfter })
+          .eq('item_id', output_item_id);
+      }
+    }
+
+    // P2 Task 9: 도장(PAINT) 공정 완료 시 완제품 자동 분류 및 coating_status 업데이트
     let finishedGoodsMessage = '';
     if (process_type === 'PAINT') {
       // 산출 품목의 카테고리 확인
       const { data: outputItemFull } = await supabase
         .from('items')
-        .select('category')
+        .select('category, coating_status')
         .eq('item_id', output_item_id)
         .single();
 
+      // coating_status를 'after_coating'으로 업데이트
+      const { error: coatingError } = await supabase
+        .from('items')
+        .update({ coating_status: 'after_coating' })
+        .eq('item_id', output_item_id);
+
+      if (coatingError) {
+        console.error('Coating status update error:', coatingError);
+        warnings.push('도장 상태 업데이트 실패 - 수동 확인 필요');
+      }
+
       if (outputItemFull?.category === '제품') {
-        finishedGoodsMessage = ` (완제품 ${output_quantity}EA 입고 완료)`;
+        finishedGoodsMessage = ` (완제품 ${output_quantity}EA 입고 완료, 도장완료)`;
       } else {
         finishedGoodsMessage = ' (도장 완료)';
       }

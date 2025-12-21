@@ -69,6 +69,8 @@ export const bomKeys = {
   detail: (parentId: number) => [...bomKeys.details(), parentId] as const,
   tree: (parentId: number) => [...bomKeys.all, 'tree', parentId] as const,
   flat: (parentId: number) => [...bomKeys.all, 'flat', parentId] as const,
+  // 인라인 BOM 관계 편집용 (lite 모드)
+  byItem: (itemId: number, role: 'parent' | 'child') => [...bomKeys.all, 'byItem', itemId, role] as const,
 };
 
 // ==================== TRANSACTIONS DOMAIN ====================

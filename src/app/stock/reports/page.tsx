@@ -319,8 +319,8 @@ export default function StockReportsPage() {
               <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-6">카테고리별 재고금액</h3>
 
               {categoryBreakdown.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-80 min-h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%" minHeight={320}>
                     <RechartsPieChart>
                       <Pie
                         data={categoryBreakdown as any}
@@ -352,8 +352,8 @@ export default function StockReportsPage() {
               <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-6">월별 재고 추이</h3>
 
               {monthlyTrend.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-80 min-h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%" minHeight={320}>
                     <LineChart data={monthlyTrend} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />

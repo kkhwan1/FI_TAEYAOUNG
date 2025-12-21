@@ -2462,8 +2462,8 @@ export default function BOMPage() {
             {/* 원가 구성비 파이 차트 */}
             <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">원가 구성비</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-64 min-h-[256px]">
+                <ResponsiveContainer width="100%" height="100%" minHeight={256}>
                   <RechartsPieChart>
                     <Pie
                       data={[
@@ -2495,8 +2495,8 @@ export default function BOMPage() {
             {/* 레벨별 원가 분석 바 차트 */}
             <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">레벨별 원가 분석</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-64 min-h-[256px]">
+                <ResponsiveContainer width="100%" height="100%" minHeight={256}>
                   <BarChart data={filteredData.map(item => ({
                     level: `L${item.level || 1}`,
                     cost: item.net_cost || 0,
@@ -2689,8 +2689,8 @@ export default function BOMPage() {
           {/* 원가 구성비 파이 차트 */}
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">원가 구성비</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-64 min-h-[256px]">
+              <ResponsiveContainer width="100%" height="100%" minHeight={256}>
                 <RechartsPieChart>
                   <Pie
                     data={[
@@ -2722,8 +2722,8 @@ export default function BOMPage() {
           {/* 레벨별 원가 분석 바 차트 */}
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">레벨별 원가 분석</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-64 min-h-[256px]">
+              <ResponsiveContainer width="100%" height="100%" minHeight={256}>
                 <BarChart data={filteredData.map(item => ({
                   level: `L${item.level || 1}`,
                   cost: item.net_cost || 0,

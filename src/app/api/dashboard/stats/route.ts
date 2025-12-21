@@ -34,7 +34,10 @@ export const GET = createValidatedRoute(
         itemsQuery = itemsQuery.eq('supplier_id', parseInt(supplierId, 10));
       }
       if (category) {
-        itemsQuery = itemsQuery.eq('category', category);
+        const validCategories = ['원자재', '부자재', '반제품', '제품', '상품'] as const;
+        if (validCategories.includes(category as typeof validCategories[number])) {
+          itemsQuery = itemsQuery.eq('category', category as typeof validCategories[number]);
+        }
       }
 
       // Build transactions query with filters
@@ -67,10 +70,25 @@ export const GET = createValidatedRoute(
       const transactions = transactionsResult.data ?? [];
       const companies = companiesResult.data ?? [];
 
+      // 디버깅: 실제 데이터 확인
+      console.log('[Dashboard Stats] Items count check:', {
+        itemsArrayLength: items.length,
+        itemsWithActiveTrue: items.filter((i: any) => i.is_active === true).length,
+        itemsWithActiveFalse: items.filter((i: any) => i.is_active === false).length,
+        itemsWithActiveNull: items.filter((i: any) => i.is_active === null || i.is_active === undefined).length,
+        firstItemSample: items[0] ? { item_id: items[0].item_id, item_code: items[0].item_code, is_active: items[0].is_active } : null
+      });
+
       const kpis = calculateKPIs({
         items,
         transactions,
         companies,
+      });
+
+      // 디버깅: KPI 결과 확인
+      console.log('[Dashboard Stats] KPI result:', {
+        kpiTotalItems: kpis.totalItems,
+        actualItemsLength: items.length
       });
 
       const now = new Date();
@@ -239,28 +257,55 @@ export const GET = createValidatedRoute(
         : 0;
 
       // Calculate new registrations (신규 등록 수)
+      // ✅ 실제 계산값 사용 (items 배열은 이미 필터링되어 있음)
       const currentMonthNewItems = items.filter((item: any) => {
         if (!item.created_at) return false;
-        const created = new Date(item.created_at);
-        return created.getMonth() === currentMonth && created.getFullYear() === currentYear;
+        try {
+          const created = new Date(item.created_at);
+          // UTC 시간 고려하여 월 비교
+          const itemYear = created.getUTCFullYear();
+          const itemMonth = created.getUTCMonth();
+          return itemMonth === currentMonth && itemYear === currentYear;
+        } catch (e) {
+          console.warn('[Dashboard Stats] Invalid created_at date:', item.created_at);
+          return false;
+        }
       }).length;
 
       const previousMonthNewItems = items.filter((item: any) => {
         if (!item.created_at) return false;
-        const created = new Date(item.created_at);
-        return created.getMonth() === previousMonth && created.getFullYear() === previousYear;
+        try {
+          const created = new Date(item.created_at);
+          const itemYear = created.getUTCFullYear();
+          const itemMonth = created.getUTCMonth();
+          return itemMonth === previousMonth && itemYear === previousYear;
+        } catch (e) {
+          return false;
+        }
       }).length;
 
       const currentMonthNewCompanies = companies.filter((c: any) => {
         if (!c.created_at) return false;
-        const created = new Date(c.created_at);
-        return created.getMonth() === currentMonth && created.getFullYear() === currentYear;
+        try {
+          const created = new Date(c.created_at);
+          const companyYear = created.getUTCFullYear();
+          const companyMonth = created.getUTCMonth();
+          return companyMonth === currentMonth && companyYear === currentYear;
+        } catch (e) {
+          return false;
+        }
       }).length;
 
       const previousMonthNewCompanies = companies.filter((c: any) => {
         if (!c.created_at) return false;
-        const created = new Date(c.created_at);
-        return created.getMonth() === previousMonth && created.getFullYear() === previousYear;
+        try {
+          const created = new Date(c.created_at);
+          const companyYear = created.getUTCFullYear();
+          const companyMonth = created.getUTCMonth();
+          return companyMonth === previousMonth && companyYear === previousYear;
+        } catch (e) {
+          return false;
+        }
       }).length;
 
       const totalNewRegistrations = currentMonthNewItems + currentMonthNewCompanies;
@@ -269,9 +314,13 @@ export const GET = createValidatedRoute(
         ? ((totalNewRegistrations - previousTotalNewRegistrations) / previousTotalNewRegistrations) * 100
         : 0;
 
+      // 실제 활성 품목 수 직접 계산 (안전장치)
+      const actualTotalItems = items.filter((item: any) => item.is_active === true).length;
+      const actualActiveCompanies = companies.filter((c: any) => c.is_active === true).length;
+
       const stats = {
-        totalItems: kpis.totalItems,
-        activeCompanies: kpis.activeCompanies,
+        totalItems: actualTotalItems, // ✅ 실제 계산값 사용 (kpis.totalItems 대신)
+        activeCompanies: actualActiveCompanies, // ✅ 실제 계산값 사용
         monthlyVolume: kpis.monthlyVolume,
         lowStockItems: kpis.lowStockItems,
         volumeChange,

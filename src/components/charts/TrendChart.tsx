@@ -273,7 +273,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
       </div>
 
       {/* Chart */}
-      <div className="h-96" ref={chartRef}>
+      <div className="h-96 min-h-[384px]" ref={chartRef}>
         {!chartData.length ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">

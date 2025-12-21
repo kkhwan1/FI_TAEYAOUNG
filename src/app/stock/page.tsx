@@ -96,13 +96,13 @@ export default function StockPage() {
   const [currentPageAdjustment, setCurrentPageAdjustment] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
-  // 실시간 업데이트 간격 설정 (localStorage에서 읽기, 기본값: 5000ms)
+  // 실시간 업데이트 간격 설정 (localStorage에서 읽기, 기본값: 60000ms = 1분)
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('stock-refresh-interval');
-      return saved ? parseInt(saved, 10) : 5000;
+      return saved ? parseInt(saved, 10) : 60000;
     }
-    return 5000;
+    return 60000;
   });
 
   // 거래 내역으로 이동하는 함수
@@ -278,21 +278,46 @@ export default function StockPage() {
   }, [activeTab]);
 
   // 실시간 자동 업데이트 - 백그라운드 업데이트로 화면 깜빡임 방지
+  // 탭이 활성 상태일 때만 새로고침 수행
+  // Note: companyFilter 변경은 별도 useEffect에서 처리되므로 여기서는 포함하지 않음
   useEffect(() => {
     // refreshInterval이 0이면 자동 업데이트 비활성화
     if (refreshInterval === 0) return;
 
-    const interval = setInterval(() => {
+    // 페이지 가시성 확인 함수
+    const isPageVisible = () => !document.hidden;
+
+    // 현재 탭에 맞는 데이터 새로고침 함수
+    const refreshCurrentTabData = () => {
       if (activeTab === 'current') {
         fetchStockItems(false); // showLoading=false로 깜빡임 방지
-      } else if (activeTab === 'history') {
-        fetchStockHistory(false); // showLoading=false로 깜빡임 방지
-      } else if (activeTab === 'adjustment') {
+      } else if (activeTab === 'history' || activeTab === 'adjustment') {
         fetchStockHistory(false); // showLoading=false로 깜빡임 방지
       }
+    };
+
+    const interval = setInterval(() => {
+      // 탭이 비활성화되어 있으면 새로고침 건너뛰기
+      if (!isPageVisible()) {
+        return;
+      }
+      refreshCurrentTabData();
     }, refreshInterval);
 
-    return () => clearInterval(interval);
+    // 탭이 다시 활성화되면 즉시 데이터 새로고침
+    const handleVisibilityChange = () => {
+      if (isPageVisible()) {
+        refreshCurrentTabData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, refreshInterval]);
 
   // Re-fetch data when company filter changes
@@ -345,8 +370,8 @@ export default function StockPage() {
         categoryKey = 'parts';
       } else if (category === '반제품' || category.toLowerCase() === 'semi_finished') {
         categoryKey = 'semi_finished';
-      } else if (category === '제품' || category.toLowerCase() === 'finished_product' || category.toLowerCase() === 'product') {
-        // '제품' 카테고리를 'finished_product'로 매핑
+      } else if (category === '제품' || category === '완제품' || category.toLowerCase() === 'finished_product' || category.toLowerCase() === 'product') {
+        // '제품', '완제품' 카테고리를 'finished_product'로 매핑
         categoryKey = 'finished_product';
       }
       
@@ -388,7 +413,7 @@ export default function StockPage() {
         if (filter === 'raw_material' && (category === '원자재' || category.toLowerCase() === 'raw_material')) return true;
         if (filter === 'parts' && (category === '부자재' || category.toLowerCase() === 'parts')) return true;
         if (filter === 'semi_finished' && (category === '반제품' || category.toLowerCase() === 'semi_finished')) return true;
-        if (filter === 'finished_product' && (category === '제품' || category.toLowerCase() === 'finished_product' || category.toLowerCase() === 'product')) return true;
+        if (filter === 'finished_product' && (category === '제품' || category === '완제품' || category.toLowerCase() === 'finished_product' || category.toLowerCase() === 'product')) return true;
 
         return false;
       })();
@@ -818,13 +843,13 @@ export default function StockPage() {
                 value={refreshInterval}
                 onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
                 className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-600"
-                title="자동 업데이트 간격"
+                title="자동 업데이트 간격 (탭 비활성화 시 일시정지)"
               >
                   <option value="0">Off</option>
-                  <option value="3000">3초</option>
-                  <option value="5000">5초</option>
-                  <option value="10000">10초</option>
                   <option value="30000">30초</option>
+                  <option value="60000">1분</option>
+                  <option value="120000">2분</option>
+                  <option value="300000">5분</option>
               </select>
               </div>
 

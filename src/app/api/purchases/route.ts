@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 const PurchaseTransactionCreateSchema = z.object({
   transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식: YYYY-MM-DD'),
   supplier_id: z.number().positive('공급사 ID는 양수여야 합니다'),
-  item_id: z.number().positive('품목 ID는 양수여야 합니다').optional(),
+  item_id: z.number().positive('품목 ID는 양수여야 합니다'),
   item_name: z.string().min(1, '품목명은 필수입니다'),
   spec: z.string().optional(),
   unit: z.string().optional(),

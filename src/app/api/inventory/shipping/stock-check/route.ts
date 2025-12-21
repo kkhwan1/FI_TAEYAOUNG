@@ -70,67 +70,100 @@ export async function GET(request: NextRequest) {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check stock availability for each item
-    const stockCheckResults = await Promise.all(
-      items.map(async (item, index) => {
-        try {
-          // Get item information using safe Supabase client
-          const { data: itemData, error: itemError } = await supabase
-            .from('items')
-            .select('item_id, item_code, item_name, unit, category, price, is_active, current_stock')
-            .eq('item_id', item.item_id)
-            .single();
+    // N+1 쿼리 최적화: 모든 품목을 한 번에 조회
+    const itemIds = items.map((item: any) => item.item_id);
 
-          if (itemError || !itemData) {
-            return {
-              index,
-              item_id: item.item_id,
-              error: `Item with ID ${item.item_id} not found`,
-              sufficient: false
-            };
+    // 빈 배열 가드: .in() 쿼리 전에 체크
+    if (itemIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          can_ship_all: true,
+          stock_check_results: [],
+          valid_items: [],
+          error_items: [],
+          sufficient_items: [],
+          insufficient_items: [],
+          summary: {
+            total_items_requested: 0,
+            valid_items: 0,
+            error_items: 0,
+            sufficient_items: 0,
+            insufficient_items: 0,
+            total_order_value: 0,
+            total_shortage_value: 0,
+            fulfillment_rate: 100
           }
+        },
+        message: '조회할 항목이 없습니다'
+      });
+    }
 
-          if (!itemData.is_active) {
-            return {
-              index,
-              item_id: item.item_id,
-              item_code: itemData.item_code,
-              item_name: itemData.item_name,
-              error: `Item ${itemData.item_name} is not active`,
-              sufficient: false
-            };
-          }
+    const { data: itemDataList, error: batchError } = await supabase
+      .from('items')
+      .select('item_id, item_code, item_name, unit, category, price, is_active, current_stock')
+      .in('item_id', itemIds);
 
-          const currentStock = itemData.current_stock || 0;
-          const requested = item.quantity;
-          const shortage = Math.max(0, requested - currentStock);
+    if (batchError) {
+      console.error('Batch item query failed:', batchError);
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to query items'
+      }, { status: 500 });
+    }
 
-          return {
-            index,
-            item_id: item.item_id,
-            item_code: itemData.item_code,
-            item_name: itemData.item_name,
-            category: itemData.category,
-            unit: itemData.unit,
-            unit_price: itemData.price || 0,
-            requested_quantity: requested,
-            current_stock: currentStock,
-            sufficient: currentStock >= requested,
-            shortage: shortage,
-            availability_percentage: currentStock > 0 ? Math.round((Math.min(requested, currentStock) / requested) * 10000) / 100 : 0,
-            total_value: requested * (itemData.price || 0)
-          };
-        } catch (itemError) {
-          console.error(`Error checking item ${item.item_id}:`, itemError);
-          return {
-            index,
-            item_id: item.item_id,
-            error: `Error checking item: ${itemError instanceof Error ? itemError.message : 'Unknown error'}`,
-            sufficient: false
-          };
-        }
-      })
-    );
+    // Map으로 변환하여 O(1) 조회
+    const itemDataMap = new Map<number, any>();
+    if (itemDataList) {
+      itemDataList.forEach((item: any) => {
+        itemDataMap.set(item.item_id, item);
+      });
+    }
+
+    // 동기적으로 재고 확인 (더 이상 Promise.all 불필요)
+    const stockCheckResults = items.map((item: any, index: number) => {
+      const itemData = itemDataMap.get(item.item_id);
+
+      if (!itemData) {
+        return {
+          index,
+          item_id: item.item_id,
+          error: `Item with ID ${item.item_id} not found`,
+          sufficient: false
+        };
+      }
+
+      if (!itemData.is_active) {
+        return {
+          index,
+          item_id: item.item_id,
+          item_code: itemData.item_code,
+          item_name: itemData.item_name,
+          error: `Item ${itemData.item_name} is not active`,
+          sufficient: false
+        };
+      }
+
+      const currentStock = itemData.current_stock || 0;
+      const requested = item.quantity;
+      const shortage = Math.max(0, requested - currentStock);
+
+      return {
+        index,
+        item_id: item.item_id,
+        item_code: itemData.item_code,
+        item_name: itemData.item_name,
+        category: itemData.category,
+        unit: itemData.unit,
+        unit_price: itemData.price || 0,
+        requested_quantity: requested,
+        current_stock: currentStock,
+        sufficient: currentStock >= requested,
+        shortage: shortage,
+        availability_percentage: currentStock > 0 ? Math.round((Math.min(requested, currentStock) / requested) * 10000) / 100 : 0,
+        total_value: requested * (itemData.price || 0)
+      };
+    });
 
     // Filter out items with errors for summary calculations
     const validResults = stockCheckResults.filter(result => !result.error);
@@ -238,67 +271,100 @@ export async function POST(request: NextRequest) {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Use the same logic as GET but with items from body
-    const stockCheckResults = await Promise.all(
-      items.map(async (item, index) => {
-        try {
-          // Get item information using safe Supabase client
-          const { data: itemData, error: itemError } = await supabase
-            .from('items')
-            .select('item_id, item_code, item_name, unit, category, price, is_active, current_stock')
-            .eq('item_id', item.item_id)
-            .single();
+    // N+1 쿼리 최적화: 모든 품목을 한 번에 조회
+    const itemIds = items.map((item: any) => item.item_id);
 
-          if (itemError || !itemData) {
-            return {
-              index,
-              item_id: item.item_id,
-              error: `Item with ID ${item.item_id} not found`,
-              sufficient: false
-            };
+    // 빈 배열 가드: .in() 쿼리 전에 체크
+    if (itemIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          can_ship_all: true,
+          stock_check_results: [],
+          valid_items: [],
+          error_items: [],
+          sufficient_items: [],
+          insufficient_items: [],
+          summary: {
+            total_items_requested: 0,
+            valid_items: 0,
+            error_items: 0,
+            sufficient_items: 0,
+            insufficient_items: 0,
+            total_order_value: 0,
+            total_shortage_value: 0,
+            fulfillment_rate: 100
           }
+        },
+        message: '조회할 항목이 없습니다'
+      });
+    }
 
-          if (!itemData.is_active) {
-            return {
-              index,
-              item_id: item.item_id,
-              item_code: itemData.item_code,
-              item_name: itemData.item_name,
-              error: `Item ${itemData.item_name} is not active`,
-              sufficient: false
-            };
-          }
+    const { data: itemDataList, error: batchError } = await supabase
+      .from('items')
+      .select('item_id, item_code, item_name, unit, category, price, is_active, current_stock')
+      .in('item_id', itemIds);
 
-          const currentStock = itemData.current_stock || 0;
-          const requested = item.quantity;
-          const shortage = Math.max(0, requested - currentStock);
+    if (batchError) {
+      console.error('Batch item query failed:', batchError);
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to query items'
+      }, { status: 500 });
+    }
 
-          return {
-            index,
-            item_id: item.item_id,
-            item_code: itemData.item_code,
-            item_name: itemData.item_name,
-            category: itemData.category,
-            unit: itemData.unit,
-            unit_price: itemData.price || 0,
-            requested_quantity: requested,
-            current_stock: currentStock,
-            sufficient: currentStock >= requested,
-            shortage: shortage,
-            availability_percentage: currentStock > 0 ? Math.round((Math.min(requested, currentStock) / requested) * 10000) / 100 : 0,
-            total_value: requested * (itemData.price || 0)
-          };
-        } catch (itemError) {
-          console.error(`Error checking item ${item.item_id}:`, itemError);
-          return {
-            index,
-            item_id: item.item_id,
-            error: `Error checking item: ${itemError instanceof Error ? itemError.message : 'Unknown error'}`,
-            sufficient: false
-          };
-        }
-      })
-    );
+    // Map으로 변환하여 O(1) 조회
+    const itemDataMap = new Map<number, any>();
+    if (itemDataList) {
+      itemDataList.forEach((item: any) => {
+        itemDataMap.set(item.item_id, item);
+      });
+    }
+
+    // 동기적으로 재고 확인 (더 이상 Promise.all 불필요)
+    const stockCheckResults = items.map((item: any, index: number) => {
+      const itemData = itemDataMap.get(item.item_id);
+
+      if (!itemData) {
+        return {
+          index,
+          item_id: item.item_id,
+          error: `Item with ID ${item.item_id} not found`,
+          sufficient: false
+        };
+      }
+
+      if (!itemData.is_active) {
+        return {
+          index,
+          item_id: item.item_id,
+          item_code: itemData.item_code,
+          item_name: itemData.item_name,
+          error: `Item ${itemData.item_name} is not active`,
+          sufficient: false
+        };
+      }
+
+      const currentStock = itemData.current_stock || 0;
+      const requested = item.quantity;
+      const shortage = Math.max(0, requested - currentStock);
+
+      return {
+        index,
+        item_id: item.item_id,
+        item_code: itemData.item_code,
+        item_name: itemData.item_name,
+        category: itemData.category,
+        unit: itemData.unit,
+        unit_price: itemData.price || 0,
+        requested_quantity: requested,
+        current_stock: currentStock,
+        sufficient: currentStock >= requested,
+        shortage: shortage,
+        availability_percentage: currentStock > 0 ? Math.round((Math.min(requested, currentStock) / requested) * 10000) / 100 : 0,
+        total_value: requested * (itemData.price || 0)
+      };
+    });
 
     // Filter out items with errors for summary calculations
     const validResults = stockCheckResults.filter(result => !result.error);
