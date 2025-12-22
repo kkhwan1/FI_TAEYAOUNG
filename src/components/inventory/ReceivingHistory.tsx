@@ -85,11 +85,11 @@ export default function ReceivingHistory({ refreshTrigger, onRefresh, workDate }
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
+      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-300 rounded-lg p-4 text-center">
+        <p className="text-gray-900 dark:text-white">{error}</p>
         <button
           onClick={fetchTransactions}
-          className="mt-2 text-sm text-red-700 dark:text-red-300 underline hover:no-underline"
+          className="mt-2 text-sm text-gray-900 dark:text-white underline hover:no-underline"
         >
           다시 시도
         </button>
@@ -102,12 +102,12 @@ export default function ReceivingHistory({ refreshTrigger, onRefresh, workDate }
       {/* 헤더 */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Package className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <Package className="w-4 h-4 text-gray-900 dark:text-white" />
           <h3 className="font-semibold text-gray-900 dark:text-white">입고 이력</h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             ({targetDate})
           </span>
-          <span className="px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full">
+          <span className="px-2 py-0.5 text-xs font-medium bg-gray-50 dark:bg-gray-900 border border-gray-400 text-gray-900 dark:text-white rounded-full">
             {transactions.length}건
           </span>
         </div>

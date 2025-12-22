@@ -340,10 +340,10 @@ export default function StockPage() {
   // 카테고리 설정 (실제 데이터베이스 카테고리에 맞게 수정)
   const categoryConfig = useMemo(() => [
     { id: 'all', label: '전체', value: 'all' },
-    { id: 'raw_material', label: '원자재', value: 'raw_material', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    { id: 'parts', label: '부자재', value: 'parts', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-    { id: 'semi_finished', label: '반제품', value: 'semi_finished', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
-    { id: 'finished_product', label: '제품', value: 'finished_product', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' }
+    { id: 'raw_material', label: '원자재', value: 'raw_material', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300' },
+    { id: 'parts', label: '부자재', value: 'parts', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-dashed border-gray-400' },
+    { id: 'semi_finished', label: '반제품', value: 'semi_finished', color: 'bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-300' },
+    { id: 'finished_product', label: '제품', value: 'finished_product', color: 'bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-400' }
   ], []);
 
   // 카테고리별 카운트 계산
@@ -1054,7 +1054,7 @@ export default function StockPage() {
                       </td>
                       <td className="px-3 sm:px-6 py-4 align-middle text-center">
                         {item.last_transaction_type ? (
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300">
                             {item.last_transaction_type}
                           </span>
                         ) : (
@@ -1106,11 +1106,11 @@ export default function StockPage() {
                       </td>
                       <td className="px-3 sm:px-6 py-4 overflow-hidden text-center align-middle">
                         {item.is_low_stock ? (
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white border-2 border-gray-500">
                             부족
                           </span>
                         ) : (
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-400">
                             정상
                           </span>
                         )}

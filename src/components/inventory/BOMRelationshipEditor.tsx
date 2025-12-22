@@ -140,9 +140,9 @@ export default function BOMRelationshipEditor({
   // 편집 모드
   if (isEditing) {
     return (
-      <div className={`bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 ${className}`}>
+      <div className={`bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-3 ${className}`}>
         <div className="flex flex-col gap-3">
-          <div className="text-sm text-amber-800 dark:text-amber-200">
+          <div className="text-sm text-gray-800 dark:text-gray-200">
             <span className="font-medium">{companyTypeLabel} 변경:</span>
             {' '}
             <span className="text-gray-600 dark:text-gray-400">
@@ -166,7 +166,7 @@ export default function BOMRelationshipEditor({
             <button
               onClick={handleSave}
               disabled={!selectedNewCompanyId || isSaving}
-              className="p-2 text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
               title="저장"
             >
               {isSaving ? (
@@ -179,7 +179,7 @@ export default function BOMRelationshipEditor({
             <button
               onClick={handleCancel}
               disabled={isSaving}
-              className="p-2 text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 disabled:opacity-50"
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
               title="취소"
             >
               <X className="w-5 h-5" />
@@ -187,7 +187,7 @@ export default function BOMRelationshipEditor({
           </div>
 
           {saveError && (
-            <div className="text-sm text-red-600 dark:text-red-400">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
               {saveError}
             </div>
           )}
@@ -198,12 +198,12 @@ export default function BOMRelationshipEditor({
 
   // 경고 모드 (불일치 감지됨)
   return (
-    <div className={`bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 ${className}`}>
+    <div className={`bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-400 dark:border-gray-500 rounded-lg p-3 ${className}`}>
       <div className="flex items-start gap-2">
-        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+        <AlertTriangle className="w-5 h-5 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-0.5" />
 
         <div className="flex-1 min-w-0">
-          <div className="text-sm text-amber-800 dark:text-amber-200">
+          <div className="text-sm text-gray-800 dark:text-gray-200">
             <span className="font-medium">{companyTypeLabel} 불일치:</span>
             {' '}
             {itemCode && (
@@ -229,7 +229,7 @@ export default function BOMRelationshipEditor({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => setIsEditing(true)}
-            className="px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 rounded-md transition-colors flex items-center gap-1"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md transition-colors flex items-center gap-1"
           >
             <Edit2 className="w-3.5 h-3.5" />
             연결 수정

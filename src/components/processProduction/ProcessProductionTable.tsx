@@ -58,7 +58,7 @@ const PROCESS_ROWS = [
     outputUnit: 'EA',
     icon: Scissors,
     description: '코일 → 블랭크',
-    color: 'bg-amber-500'
+    color: 'bg-gray-100 dark:bg-gray-800 border border-gray-300'
   },
   {
     processType: 'PRESS' as ProcessType,
@@ -67,7 +67,7 @@ const PROCESS_ROWS = [
     outputUnit: 'EA',
     icon: Hammer,
     description: '블랭크 → 성형품',
-    color: 'bg-blue-500'
+    color: 'bg-gray-50 dark:bg-gray-900 border border-gray-400'
   },
   {
     processType: 'WELD' as ProcessType,
@@ -76,7 +76,7 @@ const PROCESS_ROWS = [
     outputUnit: 'EA',
     icon: Flame,
     description: '성형품 → 용접품',
-    color: 'bg-orange-500'
+    color: 'bg-gray-100 dark:bg-gray-800 border border-gray-400'
   },
   {
     processType: 'PAINT' as ProcessType,
@@ -85,7 +85,7 @@ const PROCESS_ROWS = [
     outputUnit: 'EA',
     icon: Paintbrush,
     description: '용접품 → 완제품',
-    color: 'bg-green-500'
+    color: 'bg-gray-200 dark:bg-gray-700 border border-gray-400'
   },
 ];
 
@@ -389,17 +389,17 @@ export default function ProcessProductionTable({ onSuccess }: ProcessProductionT
           <button
             type="button"
             onClick={() => setShowCalculator(!showCalculator)}
-            className="w-full px-4 py-2 flex items-center justify-between text-sm text-left bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            className="w-full px-4 py-2 flex items-center justify-between text-sm text-left bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span className="font-medium text-amber-700 dark:text-amber-300">중량↔수량 환산기 (블랭킹 전용)</span>
+              <Calculator className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <span className="font-medium text-gray-700 dark:text-gray-300">중량↔수량 환산기 (블랭킹 전용)</span>
             </div>
-            <span className="text-amber-600 dark:text-amber-400">{showCalculator ? '접기 ▲' : '펼치기 ▼'}</span>
+            <span className="text-gray-600 dark:text-gray-400">{showCalculator ? '접기 ▲' : '펼치기 ▼'}</span>
           </button>
 
           {showCalculator && (
-            <div className="p-4 bg-amber-50/50 dark:bg-amber-900/10">
+            <div className="p-4 bg-gray-50/50 dark:bg-gray-800/50">
               <ConversionCalculator
                 onApplyInputQty={(kgValue) => {
                   setBlankingInputQty(kgValue);
@@ -444,13 +444,13 @@ export default function ProcessProductionTable({ onSuccess }: ProcessProductionT
 
       {/* 빠른 선택 섹션 - 납품처 선택 시에만 표시 */}
       {customerId && (
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
           <div className="flex items-center gap-2 mb-2">
-            <Zap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+            <Zap className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               빠른 선택
             </span>
-            <span className="text-xs text-indigo-500 dark:text-indigo-400">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               (클릭하면 자동 입력)
             </span>
           </div>
@@ -467,9 +467,9 @@ export default function ProcessProductionTable({ onSuccess }: ProcessProductionT
                   key={item.bom_id}
                   type="button"
                   onClick={() => handleQuickSelect(item)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-700 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all shadow-sm group"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all shadow-sm group"
                 >
-                  <Package className="w-3.5 h-3.5 text-indigo-500 group-hover:text-indigo-600" />
+                  <Package className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400" />
                   <span className="text-gray-700 dark:text-gray-300 font-medium">
                     {item.output.item_name}
                   </span>
@@ -549,7 +549,7 @@ export default function ProcessProductionTable({ onSuccess }: ProcessProductionT
                         type="number"
                         value={row.inputQty}
                         onChange={(e) => handleUpdateRow(row.id, 'inputQty', e.target.value)}
-                        className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-right text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-right text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500"
                         placeholder="0"
                         min="0"
                         step={selectedProcessInfo?.inputUnit === 'KG' ? '0.01' : '1'}
@@ -590,7 +590,7 @@ export default function ProcessProductionTable({ onSuccess }: ProcessProductionT
                         type="number"
                         value={row.outputQty}
                         onChange={(e) => handleUpdateRow(row.id, 'outputQty', e.target.value)}
-                        className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-right text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-right text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500"
                         placeholder="0"
                         min="0"
                         step="1"
@@ -620,11 +620,11 @@ export default function ProcessProductionTable({ onSuccess }: ProcessProductionT
               <td colSpan={2} className="px-3 py-2 text-right text-sm text-gray-700 dark:text-gray-300">
                 총계 ({inputRows.length}건)
               </td>
-              <td className="px-2 py-2 text-center text-sm text-blue-600 dark:text-blue-400">
+              <td className="px-2 py-2 text-center text-sm text-gray-900 dark:text-white font-medium">
                 {totalInputQty.toLocaleString()} {selectedProcessInfo?.inputUnit}
               </td>
               <td className="px-2 py-2"></td>
-              <td className="px-2 py-2 text-center text-sm text-green-600 dark:text-green-400">
+              <td className="px-2 py-2 text-center text-sm text-gray-900 dark:text-white font-medium">
                 {totalOutputQty.toLocaleString()} {selectedProcessInfo?.outputUnit}
               </td>
               <td className="px-2 py-2"></td>

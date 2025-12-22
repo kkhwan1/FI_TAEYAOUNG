@@ -68,12 +68,12 @@ export const QUALITY_STATUS_OPTIONS = QUALITY_STATUS_VALUES.map(value => ({
   label: value
 }));
 
-/** 품질 상태별 색상 (Tailwind classes) */
+/** 품질 상태별 색상 (Tailwind classes) - 흑백 테마 */
 export const QUALITY_STATUS_COLORS: Record<QualityStatus, string> = {
-  '검수중': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  '합격': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  '불합격': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  '보류': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+  '검수중': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-600',
+  '합격': 'bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-400 dark:border-gray-500',
+  '불합격': 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white border-2 border-gray-500 dark:border-gray-400',
+  '보류': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border border-dashed border-gray-400 dark:border-gray-500'
 };
 
 /** 품질 상태 타입 체크 함수 */

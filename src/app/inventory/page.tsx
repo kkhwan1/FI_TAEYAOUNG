@@ -883,23 +883,23 @@ function InventoryContent() {
     showSuccess('엑셀 업로드가 완료되었습니다. 데이터가 반영되었습니다.');
   };
 
-  // 거래 유형별 색상 (재고 증가: 파란색/녹색, 재고 감소: 빨간색/주황색)
+  // 거래 유형별 색상 (그레이스케일)
   const getTransactionTypeColor = (type: string) => {
     switch (type) {
-      // 재고 증가 (입고 계열) - 파란색/녹색
+      // 재고 증가 (입고 계열)
       case '입고':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+        return 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white';
       case '생산입고':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+        return 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white';
       case '생산산출':
-        return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
-      // 재고 감소 (출고 계열) - 빨간색/주황색
+        return 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white';
+      // 재고 감소 (출고 계열)
       case '출고':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+        return 'bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-300 dark:border-gray-700';
       case '생산출고':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
       case '생산투입':
-        return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
@@ -1357,7 +1357,7 @@ function InventoryContent() {
                         {/* 중량 관리 품목일 경우 중량 표시 */}
                         {(item as any).is_weight_managed && (item as any).current_weight !== null && (
                           <div className="mt-1 flex items-center gap-1">
-                            <span className="text-xs px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded">
+                            <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded border border-gray-300 dark:border-gray-600">
                               ⚖️ {autoFormatWeight((item as any).current_weight || 0)}
                             </span>
                           </div>
@@ -1407,8 +1407,8 @@ function InventoryContent() {
 
         {/* 일괄 삭제 버튼 */}
         {selectedIds.size > 0 && (
-          <div className="mb-4 flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3">
-            <span className="text-sm text-blue-900 dark:text-blue-100 font-medium">
+          <div className="mb-4 flex items-center justify-between bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3">
+            <span className="text-sm text-gray-900 dark:text-white font-medium">
               {selectedIds.size}개 항목 선택됨
             </span>
             <button
@@ -1759,7 +1759,7 @@ function InventoryContent() {
                       array.findIndex(t => (t.item_code || (t as any).items?.item_code) === currentItemCode) === index;
                     return (
                       <React.Fragment key={transaction.transaction_id}>
-                      <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800 ${selectedItemDetail?.item_code === currentItemCode ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                      <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800 ${selectedItemDetail?.item_code === currentItemCode ? 'bg-gray-100/50 dark:bg-gray-700/30' : ''}`}>
                         <td className="px-3 sm:px-6 py-4 text-center">
                           <input
                             type="checkbox"
@@ -1803,11 +1803,11 @@ function InventoryContent() {
                           </span>
                         </td>
                         <td
-                          className="px-3 sm:px-6 py-4 overflow-hidden cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          className="px-3 sm:px-6 py-4 overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-colors"
                           onDoubleClick={() => handleItemDoubleClick(transaction)}
                           title="더블클릭하여 품목 상세 보기"
                         >
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate hover:text-blue-600 dark:hover:text-blue-400" title={transaction.item_code || (transaction as any).items?.item_code || '-'}>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate hover:text-gray-600 dark:hover:text-gray-300" title={transaction.item_code || (transaction as any).items?.item_code || '-'}>
                             {transaction.item_code || (transaction as any).items?.item_code || '-'}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400 truncate" title={transaction.item_name || (transaction as any).items?.item_name || '-'}>
@@ -1883,19 +1883,19 @@ function InventoryContent() {
                       </tr>
                       {/* 인라인 상세 정보 - 품번/품명 더블클릭 시 첫 번째 행 바로 아래에만 표시 */}
                       {isFirstOccurrenceOfSelectedItem && selectedItemDetail && (
-                        <tr id="item-detail-panel" className="bg-blue-50 dark:bg-blue-900/20">
+                        <tr id="item-detail-panel" className="bg-gray-50 dark:bg-gray-800/50">
                           <td colSpan={10} className="p-0">
-                            <div className="border-l-4 border-blue-500">
+                            <div className="border-l-4 border-gray-500 dark:border-gray-400">
                               {/* 헤더 */}
-                              <div className="px-4 py-2 bg-blue-100 dark:bg-blue-800/50 flex items-center justify-between">
+                              <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700/50 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                  <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                  <span className="font-semibold text-blue-800 dark:text-blue-200">{selectedItemDetail.item_code}</span>
-                                  <span className="text-sm text-blue-600 dark:text-blue-300">{selectedItemDetail.item_name}</span>
+                                  <Package className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                                  <span className="font-semibold text-gray-900 dark:text-white">{selectedItemDetail.item_code}</span>
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">{selectedItemDetail.item_name}</span>
                                 </div>
                                 <button
                                   onClick={() => setSelectedItemDetail(null)}
-                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 px-2 py-1 text-sm rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+                                  className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 px-2 py-1 text-sm rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                                 >
                                   ✕ 닫기
                                 </button>
@@ -1907,25 +1907,25 @@ function InventoryContent() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400">총 거래</p>
                                   <p className="text-lg font-bold text-gray-900 dark:text-white">{itemDetailTransactions.length}건</p>
                                 </div>
-                                <div className="bg-green-50 dark:bg-green-900/30 rounded px-3 py-2 shadow-sm">
-                                  <p className="text-xs text-green-600 dark:text-green-400">입고/산출 ↑</p>
-                                  <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                                <div className="bg-gray-50 dark:bg-gray-800 rounded px-3 py-2 shadow-sm border border-gray-200 dark:border-gray-700">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">입고/산출 ↑</p>
+                                  <p className="text-lg font-bold text-gray-900 dark:text-white">
                                     {itemDetailTransactions.filter(tx =>
                                       ['입고', '생산입고', '생산산출'].includes((tx as any).transaction_type || '')
                                     ).reduce((sum, tx) => sum + Math.abs(tx.quantity || 0), 0).toLocaleString()}
                                   </p>
                                 </div>
-                                <div className="bg-red-50 dark:bg-red-900/30 rounded px-3 py-2 shadow-sm">
-                                  <p className="text-xs text-red-600 dark:text-red-400">출고/투입 ↓</p>
-                                  <p className="text-lg font-bold text-red-700 dark:text-red-300">
+                                <div className="bg-gray-50 dark:bg-gray-800 rounded px-3 py-2 shadow-sm border border-dashed border-gray-300 dark:border-gray-600">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">출고/투입 ↓</p>
+                                  <p className="text-lg font-bold text-gray-900 dark:text-white">
                                     {itemDetailTransactions.filter(tx =>
                                       ['출고', '생산출고', '생산투입'].includes((tx as any).transaction_type || '')
                                     ).reduce((sum, tx) => sum + Math.abs(tx.quantity || 0), 0).toLocaleString()}
                                   </p>
                                 </div>
-                                <div className="bg-blue-50 dark:bg-blue-900/30 rounded px-3 py-2 shadow-sm">
-                                  <p className="text-xs text-blue-600 dark:text-blue-400">최근 거래</p>
-                                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                                <div className="bg-gray-50 dark:bg-gray-800 rounded px-3 py-2 shadow-sm border border-gray-200 dark:border-gray-700">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">최근 거래</p>
+                                  <p className="text-sm font-bold text-gray-900 dark:text-white">
                                     {itemDetailTransactions.length > 0
                                       ? new Date((itemDetailTransactions[0] as any).created_at || itemDetailTransactions[0].transaction_date || '').toLocaleDateString('ko-KR')
                                       : '-'}
@@ -2160,7 +2160,7 @@ function InventoryContent() {
                 </button>
                 <button
                   onClick={confirmDelete}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors"
                 >
                   삭제
                 </button>

@@ -339,9 +339,9 @@ export default function ProcessRowInput({
                 {/* 카테고리 */}
                 <td className="py-1 text-center">
                   <span className={`px-1 py-0.5 rounded text-xs ${
-                    item.category === '원자재' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                    item.category === '반제품' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                    item.category === '제품' || item.category === '완제품' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                    item.category === '원자재' ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300' :
+                    item.category === '반제품' ? 'bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border border-gray-400' :
+                    item.category === '제품' || item.category === '완제품' ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 border border-gray-400' :
                     'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
                   }`}>
                     {item.category || '-'}
@@ -349,7 +349,7 @@ export default function ProcessRowInput({
                 </td>
                 {/* 재고 */}
                 <td className={`py-1 text-right font-medium ${
-                  (item.current_stock || 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                  (item.current_stock || 0) > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-500'
                 }`}>
                   {(item.current_stock || 0).toLocaleString()}
                 </td>
@@ -365,7 +365,7 @@ export default function ProcessRowInput({
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    className="w-16 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-16 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-gray-500 focus:border-blue-500"
                     placeholder="0"
                     min="0"
                     step="1"
@@ -378,7 +378,7 @@ export default function ProcessRowInput({
                       type="number"
                       value={qty}
                       onChange={(e) => onQtyChange(item.item_id, e.target.value)}
-                      className="w-16 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
+                      className="w-16 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-gray-500"
                       placeholder="0"
                       min="0"
                       step={unit === 'KG' ? '0.01' : '1'}
@@ -530,7 +530,7 @@ export default function ProcessRowInput({
               {inputItems.length >= 1 && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span className="w-2 h-2 rounded-full bg-gray-700 dark:bg-gray-300"></span>
                     투입 품목 ({inputItems.length}개)
                   </h4>
                   {renderItemQtyInputs(
@@ -548,7 +548,7 @@ export default function ProcessRowInput({
               {outputItems.length >= 1 && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"></span>
                     산출 품목 ({outputItems.length}개)
                   </h4>
                   {renderItemQtyInputs(

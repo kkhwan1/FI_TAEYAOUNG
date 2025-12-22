@@ -15,7 +15,7 @@ export const RECEIVING_TYPE_CONFIGS = {
     key: 'COIL' as ReceivingType,
     label: '코일',
     description: '원소재 코일 입고',
-    color: 'bg-blue-500',
+    color: 'bg-gray-900 dark:bg-white',
     icon: 'Circle',
     category: '원소재(코일)',
     hasSubType: true,
@@ -26,7 +26,7 @@ export const RECEIVING_TYPE_CONFIGS = {
     key: 'SHEET' as ReceivingType,
     label: '시트(블랭킹)',
     description: '원소재 시트 입고',
-    color: 'bg-amber-500',
+    color: 'bg-gray-700 dark:bg-gray-300',
     icon: 'Layers',
     category: '원소재(시트)',
     hasSubType: false,
@@ -37,7 +37,7 @@ export const RECEIVING_TYPE_CONFIGS = {
     key: 'SUBMATERIAL' as ReceivingType,
     label: '부자재',
     description: '부자재 입고',
-    color: 'bg-green-500',
+    color: 'bg-gray-600 dark:bg-gray-400',
     icon: 'Package',
     category: '부자재',
     hasSubType: true,
@@ -48,7 +48,7 @@ export const RECEIVING_TYPE_CONFIGS = {
     key: 'MARKET' as ReceivingType,
     label: '시중구매',
     description: '시중 구매 품목',
-    color: 'bg-purple-500',
+    color: 'bg-gray-500 dark:bg-gray-500',
     icon: 'ShoppingCart',
     category: '부자재',
     hasSubType: false,
@@ -65,15 +65,15 @@ export const RECEIVING_SUBTYPE_CONFIGS = {
     key: 'TAECHANG' as ReceivingSubType,
     label: '태창금속',
     companyName: '태창금속',
-    color: 'bg-blue-600',
-    textColor: 'text-white'
+    color: 'bg-gray-900 dark:bg-white',
+    textColor: 'text-white dark:text-gray-900'
   },
   PARTNER: {
     key: 'PARTNER' as ReceivingSubType,
     label: '협력사',
     companyName: null, // 선택 가능
-    color: 'bg-gray-600',
-    textColor: 'text-white'
+    color: 'bg-gray-600 dark:bg-gray-400',
+    textColor: 'text-white dark:text-gray-900'
   }
 } as const;
 

@@ -224,7 +224,7 @@ export default function InventoryItemGrid({
                         <button
                           type="button"
                           onClick={() => handleOpenItemPicker(index)}
-                          className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-300 transition-colors flex items-center gap-1"
+                          className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded border border-gray-300 transition-colors flex items-center gap-1 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 dark:border-gray-600"
                         >
                           <Search className="w-3 h-3" />
                           선택
@@ -258,7 +258,7 @@ export default function InventoryItemGrid({
                           }
                           min="0"
                           step="0.01"
-                          className="w-full text-right border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full text-right border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                         />
                       )}
                     </td>
@@ -278,7 +278,7 @@ export default function InventoryItemGrid({
                           }
                           min="0"
                           step="0.01"
-                          className="w-full text-right border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full text-right border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                         />
                       )}
                     </td>
@@ -300,7 +300,7 @@ export default function InventoryItemGrid({
                               value={row.lot_no || ''}
                               onChange={(e) => handleChangeRow(index, 'lot_no', e.target.value)}
                               placeholder="LOT번호"
-                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                             />
                           )}
                         </td>
@@ -312,7 +312,7 @@ export default function InventoryItemGrid({
                               type="date"
                               value={row.expiry_date || ''}
                               onChange={(e) => handleChangeRow(index, 'expiry_date', e.target.value)}
-                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                             />
                           )}
                         </td>
@@ -325,7 +325,7 @@ export default function InventoryItemGrid({
                               value={row.to_location || ''}
                               onChange={(e) => handleChangeRow(index, 'to_location', e.target.value)}
                               placeholder="입고위치"
-                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                             />
                           )}
                         </td>
@@ -343,7 +343,7 @@ export default function InventoryItemGrid({
                             value={row.delivery_address || ''}
                             onChange={(e) => handleChangeRow(index, 'delivery_address', e.target.value)}
                             placeholder="배송지 주소"
-                            className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                           />
                         )}
                       </td>
@@ -355,7 +355,7 @@ export default function InventoryItemGrid({
                         <button
                           type="button"
                           onClick={() => handleDeleteRow(index)}
-                          className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                          className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
                           title="삭제"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -379,7 +379,7 @@ export default function InventoryItemGrid({
                   >
                     합계
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-lg text-blue-600">
+                  <td className="px-4 py-3 text-right font-bold text-lg text-gray-900 dark:text-white">
                     {totalAmount.toLocaleString('ko-KR')}원
                   </td>
                   {showReceivingFields && <td colSpan={3}></td>}
@@ -397,7 +397,7 @@ export default function InventoryItemGrid({
             <button
               type="button"
               onClick={handleAddRow}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
             >
               <Plus className="w-4 h-4" />
               품목 추가
@@ -437,7 +437,7 @@ export default function InventoryItemGrid({
                   placeholder="품목코드 또는 품목명으로 검색..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500"
                   autoFocus
                 />
               </div>
@@ -456,7 +456,7 @@ export default function InventoryItemGrid({
                       key={item.item_id}
                       type="button"
                       onClick={() => handleSelectItem(item)}
-                      className="w-full text-left px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 hover:border-blue-300 transition-colors"
+                      className="w-full text-left px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -467,7 +467,7 @@ export default function InventoryItemGrid({
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold text-blue-600">
+                          <div className="font-semibold text-gray-900 dark:text-white">
                             {(item.price || item.unit_price || 0).toLocaleString('ko-KR')}원
                           </div>
                           {item.unit && (

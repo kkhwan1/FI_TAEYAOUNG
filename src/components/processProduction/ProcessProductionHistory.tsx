@@ -48,17 +48,17 @@ interface ProcessProductionHistoryProps {
 }
 
 const PROCESS_TYPE_MAP: Record<string, { label: string; color: string }> = {
-  BLANKING: { label: '블랭킹', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
-  PRESS: { label: '프레스', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
-  WELD: { label: '용접', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
-  PAINT: { label: '도장', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  BLANKING: { label: '블랭킹', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600' },
+  PRESS: { label: '프레스', color: 'bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border border-gray-400 dark:border-gray-500' },
+  WELD: { label: '용접', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border border-dashed border-gray-400 dark:border-gray-500' },
+  PAINT: { label: '도장', color: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border border-gray-400 dark:border-gray-500' },
 };
 
 const STATUS_MAP: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  COMPLETED: { label: '완료', icon: CheckCircle, color: 'text-green-600 dark:text-green-400' },
-  IN_PROGRESS: { label: '진행중', icon: Clock, color: 'text-blue-600 dark:text-blue-400' },
-  PENDING: { label: '대기', icon: AlertCircle, color: 'text-yellow-600 dark:text-yellow-400' },
-  CANCELLED: { label: '취소', icon: XCircle, color: 'text-red-600 dark:text-red-400' },
+  COMPLETED: { label: '완료', icon: CheckCircle, color: 'text-gray-700 dark:text-gray-300' },
+  IN_PROGRESS: { label: '진행중', icon: Clock, color: 'text-gray-600 dark:text-gray-400' },
+  PENDING: { label: '대기', icon: AlertCircle, color: 'text-gray-500 dark:text-gray-500' },
+  CANCELLED: { label: '취소', icon: XCircle, color: 'text-gray-400 dark:text-gray-600' },
 };
 
 export default function ProcessProductionHistory({ refreshTrigger, onRefresh, workDate }: ProcessProductionHistoryProps) {
@@ -129,11 +129,11 @@ export default function ProcessProductionHistory({ refreshTrigger, onRefresh, wo
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
+      <div className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center">
+        <p className="text-gray-700 dark:text-gray-300">{error}</p>
         <button
           onClick={fetchOperations}
-          className="mt-2 text-sm text-red-700 dark:text-red-300 underline hover:no-underline"
+          className="mt-2 text-sm text-gray-600 dark:text-gray-400 underline hover:no-underline"
         >
           다시 시도
         </button>

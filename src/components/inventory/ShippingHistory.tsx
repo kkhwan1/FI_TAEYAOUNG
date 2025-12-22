@@ -106,11 +106,11 @@ export default function ShippingHistory({ refreshTrigger, onRefresh, workDate }:
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
+      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-4 text-center">
+        <p className="text-gray-900 dark:text-white">{error}</p>
         <button
           onClick={fetchTransactions}
-          className="mt-2 text-sm text-red-700 dark:text-red-300 underline hover:no-underline"
+          className="mt-2 text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline"
         >
           다시 시도
         </button>
@@ -123,12 +123,12 @@ export default function ShippingHistory({ refreshTrigger, onRefresh, workDate }:
       {/* 헤더 */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Truck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <Truck className="w-4 h-4 text-gray-700 dark:text-gray-300" />
           <h3 className="font-semibold text-gray-900 dark:text-white">출고 이력</h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             ({targetDate})
           </span>
-          <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+          <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-full">
             {transactions.length}건
           </span>
         </div>

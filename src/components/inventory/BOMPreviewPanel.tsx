@@ -346,24 +346,24 @@ export default function BOMPreviewPanel({
 
       {/* Warning Banner - Only show when cannot produce */}
       {!can_produce && (
-        <div className="mx-4 mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+        <div className="mx-4 mt-4 p-4 bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-400 dark:border-gray-600 rounded-lg">
           <div className="flex items-start gap-3">
-            <XCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+            <XCircle className="w-5 h-5 text-gray-700 dark:text-gray-300 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h4 className="text-sm font-semibold text-orange-800 dark:text-orange-300 mb-1">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                 재고 부족으로 생산 불가능
               </h4>
-              <p className="text-sm text-orange-700 dark:text-orange-400">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
                 현재 재고로는 <span className="font-bold">{summary.max_producible_quantity.toLocaleString('ko-KR')} {product_info.unit}</span>까지만 생산 가능합니다.
               </p>
-              <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">
-                희망 수량: <span className="font-semibold">{production_quantity.toLocaleString('ko-KR')} {product_info.unit}</span> → 
-                부족 수량: <span className="font-bold text-red-600 dark:text-red-400">{summary.shortage_quantity.toLocaleString('ko-KR')} {product_info.unit}</span>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                희망 수량: <span className="font-semibold">{production_quantity.toLocaleString('ko-KR')} {product_info.unit}</span> →
+                부족 수량: <span className="font-bold text-gray-900 dark:text-white">{summary.shortage_quantity.toLocaleString('ko-KR')} {product_info.unit}</span>
               </p>
               {summary.bottleneck_item && (
-                <p className="text-xs text-orange-600 dark:text-orange-500 mt-2">
-                  병목 자재: <span className="font-medium">{summary.bottleneck_item.item_name}</span> 
-                  (현재재고: {summary.bottleneck_item.available_stock.toLocaleString('ko-KR')} EA, 
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                  병목 자재: <span className="font-medium">{summary.bottleneck_item.item_name}</span>
+                  (현재재고: {summary.bottleneck_item.available_stock.toLocaleString('ko-KR')} EA,
                   필요량: {summary.bottleneck_item.required_for_requested.toLocaleString('ko-KR')} EA)
                 </p>
               )}
@@ -410,14 +410,14 @@ export default function BOMPreviewPanel({
       {/* Production Capacity Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 px-4 pb-4">
         {/* Requested Quantity */}
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-blue-700 dark:text-blue-400">희망 생산수량</span>
+            <span className="text-xs text-gray-700 dark:text-gray-400">희망 생산수량</span>
           </div>
-          <p className="text-2xl font-bold text-blue-900 dark:text-blue-300">
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {production_quantity.toLocaleString('ko-KR')}
           </p>
-          <p className="text-xs text-blue-600 dark:text-blue-500 mt-0.5">
+          <p className="text-xs text-gray-600 dark:text-gray-500 mt-0.5">
             {product_info.unit}
           </p>
         </div>
@@ -425,44 +425,32 @@ export default function BOMPreviewPanel({
         {/* Max Producible Quantity */}
         <div className={`p-3 rounded-lg border ${
           summary.max_producible_quantity >= production_quantity
-            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-            : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+            ? 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
+            : 'bg-gray-100 dark:bg-gray-800 border-dashed border-2 border-gray-400 dark:border-gray-500'
         }`}>
           <div className="flex items-center gap-2 mb-1">
-            <span className={`text-xs ${
-              summary.max_producible_quantity >= production_quantity
-                ? 'text-green-700 dark:text-green-400'
-                : 'text-orange-700 dark:text-orange-400'
-            }`}>
+            <span className="text-xs text-gray-700 dark:text-gray-400">
               최대 생산가능
             </span>
           </div>
-          <p className={`text-2xl font-bold ${
-            summary.max_producible_quantity >= production_quantity
-              ? 'text-green-900 dark:text-green-300'
-              : 'text-orange-900 dark:text-orange-300'
-          }`}>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {summary.max_producible_quantity.toLocaleString('ko-KR')}
           </p>
-          <p className={`text-xs mt-0.5 ${
-            summary.max_producible_quantity >= production_quantity
-              ? 'text-green-600 dark:text-green-500'
-              : 'text-orange-600 dark:text-orange-500'
-          }`}>
+          <p className="text-xs text-gray-600 dark:text-gray-500 mt-0.5">
             {product_info.unit}
           </p>
         </div>
 
         {/* Shortage Quantity */}
         {summary.shortage_quantity > 0 && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+          <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-500 dark:border-gray-400">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs text-red-700 dark:text-red-400">부족 수량</span>
+              <span className="text-xs text-gray-700 dark:text-gray-400">부족 수량</span>
             </div>
-            <p className="text-2xl font-bold text-red-900 dark:text-red-300">
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {summary.shortage_quantity.toLocaleString('ko-KR')}
             </p>
-            <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
+            <p className="text-xs text-gray-600 dark:text-gray-500 mt-0.5">
               {product_info.unit}
             </p>
           </div>

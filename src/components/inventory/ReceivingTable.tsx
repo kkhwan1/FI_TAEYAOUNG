@@ -22,7 +22,7 @@ const RECEIVING_ROWS = [
     label: '코일',
     description: '원소재 코일 입고',
     icon: Circle,
-    color: 'bg-blue-500',
+    color: 'bg-gray-900 dark:bg-white',
     hasSubType: true,
     hasWeight: true,
     category: '원자재',
@@ -37,7 +37,7 @@ const RECEIVING_ROWS = [
     label: '시트(블랭킹)',
     description: '원소재 시트 입고',
     icon: Layers,
-    color: 'bg-amber-500',
+    color: 'bg-gray-700 dark:bg-gray-300',
     hasSubType: false,
     hasWeight: true,
     category: '원자재',
@@ -49,7 +49,7 @@ const RECEIVING_ROWS = [
     label: '부자재',
     description: '부자재 입고',
     icon: Package,
-    color: 'bg-green-500',
+    color: 'bg-gray-600 dark:bg-gray-400',
     hasSubType: true,
     hasWeight: false,
     category: '부자재',
@@ -64,7 +64,7 @@ const RECEIVING_ROWS = [
     label: '시중구매',
     description: '시중 구매 품목',
     icon: ShoppingCart,
-    color: 'bg-purple-500',
+    color: 'bg-gray-500 dark:bg-gray-500',
     hasSubType: false,
     hasWeight: false,
     category: '부자재',
@@ -98,6 +98,9 @@ interface QuickSelectItem {
   material?: string | null;
   spec?: string | null;
   mm_weight?: number | null;
+  // 단가 정보
+  unit_price?: number | null;
+  price?: number | null;
 }
 
 interface QuickSelectState {
@@ -118,6 +121,7 @@ export default function ReceivingTable() {
   // 빠른 선택 테이블용 상태
   const [selectedQuickItemIds, setSelectedQuickItemIds] = useState<Set<number>>(new Set());
   const [quickItemQuantities, setQuickItemQuantities] = useState<Map<number, number>>(new Map());
+  const [quickItemUnitPrices, setQuickItemUnitPrices] = useState<Map<number, number>>(new Map());
   // BOM 관계 수정용 상태
   const [selectedItemForBOM, setSelectedItemForBOM] = useState<{ itemId: number; itemCode: string; itemName: string } | null>(null);
   const [dismissedBOMWarnings, setDismissedBOMWarnings] = useState<Set<number>>(new Set());
@@ -141,6 +145,7 @@ export default function ReceivingTable() {
     // 빠른 선택 상태 초기화
     setSelectedQuickItemIds(new Set());
     setQuickItemQuantities(new Map());
+    setQuickItemUnitPrices(new Map());
     // BOM 경고 상태 초기화
     setDismissedBOMWarnings(new Set());
     setSelectedItemForBOM(null);
@@ -153,6 +158,7 @@ export default function ReceivingTable() {
     // 빠른 선택 상태 초기화
     setSelectedQuickItemIds(new Set());
     setQuickItemQuantities(new Map());
+    setQuickItemUnitPrices(new Map());
     // BOM 경고 상태 초기화
     setDismissedBOMWarnings(new Set());
     setSelectedItemForBOM(null);
@@ -235,6 +241,9 @@ export default function ReceivingTable() {
       const newQuantities = new Map(quickItemQuantities);
       newQuantities.delete(itemId);
       setQuickItemQuantities(newQuantities);
+      const newPrices = new Map(quickItemUnitPrices);
+      newPrices.delete(itemId);
+      setQuickItemUnitPrices(newPrices);
     } else {
       newSelected.add(itemId);
     }
@@ -245,6 +254,7 @@ export default function ReceivingTable() {
     if (selectedQuickItemIds.size === quickSelectItems.length) {
       setSelectedQuickItemIds(new Set());
       setQuickItemQuantities(new Map());
+      setQuickItemUnitPrices(new Map());
     } else {
       setSelectedQuickItemIds(new Set(quickSelectItems.map(item => item.item_id)));
     }
@@ -261,12 +271,19 @@ export default function ReceivingTable() {
 
     itemsToAdd.forEach(item => {
       const quantity = quickItemQuantities.get(item.item_id) || 0;
+      // 빠른 선택에서 입력한 단가가 있으면 사용, 없으면 품목 마스터 단가 사용
+      const unitPrice = quickItemUnitPrices.get(item.item_id)
+        || item.unit_price
+        || item.price
+        || 0;
       const rowData: ReceivingInputRow = {
         ...createEmptyRow(),
         itemId: item.item_id,
         itemCode: item.item_code,
         itemName: item.item_name,
         quantity: quantity > 0 ? String(quantity) : '',
+        unitPrice: unitPrice > 0 ? String(unitPrice) : '',
+        amount: quantity * unitPrice,
         thickness: item.thickness ? String(item.thickness) : '',
         width: item.width ? String(item.width) : ''
       };
@@ -283,6 +300,7 @@ export default function ReceivingTable() {
     setInputRows(newRows);
     setSelectedQuickItemIds(new Set());
     setQuickItemQuantities(new Map());
+    setQuickItemUnitPrices(new Map());
     toast.success(`${itemsToAdd.length}개 품목 추가 완료`);
   };
 
@@ -395,7 +413,7 @@ export default function ReceivingTable() {
               key={sub.key}
               onClick={() => handleSubTypeChange(sub.key)}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                selectedSubType === sub.key ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                selectedSubType === sub.key ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               {sub.label}
@@ -412,7 +430,7 @@ export default function ReceivingTable() {
             type="date"
             value={workDate}
             onChange={(e) => setWorkDate(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
           />
         </div>
         <div className="flex-1">
@@ -441,7 +459,7 @@ export default function ReceivingTable() {
           {selectedQuickItemIds.size > 0 && (
             <button
               onClick={handleAddSelectedItems}
-              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
+              className="px-3 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm rounded-md hover:bg-gray-800 dark:hover:bg-gray-100 flex items-center gap-1"
             >
               <Plus className="w-4 h-4" />
               선택 품목 추가 ({selectedQuickItemIds.size})
@@ -460,16 +478,17 @@ export default function ReceivingTable() {
                       type="checkbox"
                       checked={selectedQuickItemIds.size === quickSelectItems.length && quickSelectItems.length > 0}
                       onChange={handleSelectAllQuickItems}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 dark:bg-gray-700 dark:border-gray-600"
                     />
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase min-w-[120px]">품번</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase min-w-[200px]">품명</th>
-                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-32">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase min-w-[180px]">품명</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-28">
                     규격 (두께×폭)
                   </th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase w-24">수량</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-20">단위</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase w-28">단가</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-16">단위</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -490,7 +509,7 @@ export default function ReceivingTable() {
                           checked={isSelected}
                           onChange={() => handleQuickItemToggle(item.item_id)}
                           disabled={isAlreadyAdded}
-                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:border-gray-600"
                         />
                       </td>
                       <td className="px-3 py-2 text-sm font-medium text-gray-900">
@@ -522,8 +541,24 @@ export default function ReceivingTable() {
                             newQuantities.set(item.item_id, value);
                             setQuickItemQuantities(newQuantities);
                           }}
-                          className="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
                           placeholder="수량"
+                          disabled={isAlreadyAdded}
+                        />
+                      </td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="number"
+                          min="0"
+                          value={quickItemUnitPrices.get(item.item_id) ?? (item.unit_price || item.price || '')}
+                          onChange={(e) => {
+                            const newPrices = new Map(quickItemUnitPrices);
+                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                            newPrices.set(item.item_id, value);
+                            setQuickItemUnitPrices(newPrices);
+                          }}
+                          className="w-full px-2 py-1 text-sm text-right border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                          placeholder="단가"
                           disabled={isAlreadyAdded}
                         />
                       </td>
@@ -592,6 +627,9 @@ export default function ReceivingTable() {
                         const newRows = [...inputRows];
                         const idx = newRows.findIndex(r => r.id === row.id);
                         if (idx >= 0) {
+                          // 품목 마스터 단가 가져오기
+                          const masterPrice = item.unit_price || 0;
+                          const qty = parseFloat(newRows[idx].quantity) || 0;
                           newRows[idx] = {
                             ...newRows[idx],
                             itemId: item.item_id,
@@ -599,7 +637,11 @@ export default function ReceivingTable() {
                             itemName: item.item_name,
                             // 코일/시트의 경우 규격 정보 자동 입력
                             thickness: item.thickness ? String(item.thickness) : newRows[idx].thickness,
-                            width: item.width ? String(item.width) : newRows[idx].width
+                            width: item.width ? String(item.width) : newRows[idx].width,
+                            // 품목 마스터 단가 자동 입력
+                            unitPrice: masterPrice > 0 ? String(masterPrice) : newRows[idx].unitPrice,
+                            // 금액 자동 계산
+                            amount: qty * (masterPrice || parseFloat(newRows[idx].unitPrice) || 0)
                           };
                           setInputRows(newRows);
                         }
@@ -613,7 +655,7 @@ export default function ReceivingTable() {
                     itemType="ALL"
                     placeholder="품목 검색..."
                     label=""
-                    showPrice={false}
+                    showPrice={true}
                     className="min-w-[200px]"
                   />
                 </td>
@@ -672,7 +714,7 @@ export default function ReceivingTable() {
                 <td className="px-3 py-2">
                   <button
                     onClick={() => removeRow(row.id)}
-                    className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 rounded"
                     disabled={inputRows.length === 1}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -686,14 +728,14 @@ export default function ReceivingTable() {
         <div className="flex justify-between items-center px-3 py-2 bg-gray-50 border-t">
           <button
             onClick={addRow}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
           >
             <Plus className="w-4 h-4" /> 행 추가
           </button>
           <button
             onClick={handleBulkRegister}
             disabled={isSubmitting}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-md hover:bg-gray-800 dark:hover:bg-gray-100 disabled:bg-gray-400 disabled:dark:bg-gray-600"
           >
             <Save className="w-4 h-4" /> {isSubmitting ? '등록 중...' : '일괄 등록'}
           </button>
